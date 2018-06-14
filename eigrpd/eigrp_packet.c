@@ -953,12 +953,12 @@ static int eigrp_verify_header(struct stream *ibuf, struct eigrp_interface *ei,
 			       struct ip *iph, struct eigrp_header *eigrph)
 {
 	/* Check network mask, Silently discarded. */
-	if (!eigrp_check_network_mask(ei, iph->ip_src)) {
-		zlog_warn(
-			"interface %s: eigrp_read network address is not same [%s]",
-			IF_NAME(ei), inet_ntoa(iph->ip_src));
-		return -1;
-	}
+	//if (!eigrp_check_network_mask(ei, iph->ip_src)) {
+	//	zlog_warn(
+	//		"interface %s: eigrp_read network address is not same [%s]",
+	//		IF_NAME(ei), inet_ntoa(iph->ip_src));
+	//	return -1;
+	//}
 	//
 	//  /* Check authentication. The function handles logging actions, where
 	//  required. */
