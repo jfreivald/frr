@@ -143,7 +143,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 	    && (eigrp->k_values[4] == nbr->K5)) {
 
 		if (eigrp_nbr_state_get(nbr) == EIGRP_NEIGHBOR_DOWN) {
-			zlog_info("Neighbor %s (%s) is pending: new adjacency",
+			zlog_info("%s: Neighbor %s (%s) is pending from HELLO: new adjacency", __PRETTY_FUNCTION__,
 				  inet_ntoa(nbr->src),
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));

@@ -162,12 +162,15 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node,
 	struct list *l = list_new();
 
 	listnode_add(l, entry);
-
+  printf("eigrp_nexthop_entry_add(): ");
 	if (listnode_lookup(node->entries, entry) == NULL) {
 		listnode_add_sort(node->entries, entry);
 		entry->prefix = node;
 
 		eigrp_zebra_route_add(node->destination, l);
+		printf("Added\n");
+	} else {
+		printf("NOT Added\n");
 	}
 
 	list_delete_and_null(&l);
@@ -275,6 +278,7 @@ struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *table_node)
 	struct list *successors = list_new();
 	struct eigrp_nexthop_entry *data;
 	struct listnode *node1, *node2;
+	char joebuf[255];
 
 	for (ALL_LIST_ELEMENTS(table_node->entries, node1, node2, data)) {
 		if (data->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG) {
@@ -286,6 +290,8 @@ struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *table_node)
 	 * If we have no successors return NULL
 	 */
 	if (!successors->count) {
+		prefix2str(table_node->destination,joebuf,sizeof(joebuf));
+		printf("NO SUCCESSORS FOR [%s]",joebuf);
 		list_delete_and_null(&successors);
 		successors = NULL;
 	}
@@ -298,6 +304,7 @@ eigrp_topology_get_successor_max(struct eigrp_prefix_entry *table_node,
 				 unsigned int maxpaths)
 {
 	struct list *successors = eigrp_topology_get_successor(table_node);
+	char joebuf[255];
 
 	if (successors && successors->count > maxpaths) {
 		do {
@@ -306,6 +313,11 @@ eigrp_topology_get_successor_max(struct eigrp_prefix_entry *table_node,
 			list_delete_node(successors, node);
 
 		} while (successors->count > maxpaths);
+	} else {
+		if (!successors) {
+			prefix2str(table_node->destination,joebuf,sizeof(joebuf));
+			printf("%s NO SUCCESSORS FOR [%s]\n",__PRETTY_FUNCTION__,joebuf);
+		}
 	}
 
 	return successors;
@@ -448,7 +460,9 @@ void eigrp_topology_update_node_flags(struct eigrp_prefix_entry *dest)
 			if (((uint64_t)entry->distance
 			     <= (uint64_t)dest->distance
 					* (uint64_t)eigrp->variance)
-			    && entry->distance != EIGRP_MAX_METRIC) {
+					// Why would we care if it is max if it matches the first criteria? --JATF
+			    // && entry->distance != EIGRP_MAX_METRIC
+					) {
 				// is successor
 				entry->flags |=
 					EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
@@ -475,14 +489,19 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 		eigrp_topology_get_successor_max(prefix, eigrp->max_paths);
 	struct listnode *node;
 	struct eigrp_nexthop_entry *entry;
+	char joebuf[255];
+
+	prefix2str(prefix->destination, joebuf, 255);
 
 	if (successors) {
+		printf("%s: Adding %s\n", __PRETTY_FUNCTION__, joebuf);
 		eigrp_zebra_route_add(prefix->destination, successors);
 		for (ALL_LIST_ELEMENTS_RO(successors, node, entry))
 			entry->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 
 		list_delete_and_null(&successors);
 	} else {
+		printf("%s: Removing %s\n", __PRETTY_FUNCTION__, joebuf);
 		eigrp_zebra_route_delete(prefix->destination);
 		for (ALL_LIST_ELEMENTS_RO(prefix->entries, node, entry))
 			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
@@ -496,12 +515,16 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_nexthop_entry *entry;
 	struct route_node *rn;
+	char joebuf[255];
 
 	for (rn = route_top(eigrp->topology_table); rn; rn = route_next(rn)) {
 		pe = rn->info;
 
-		if (!pe)
+		if (!pe) {
+			prefix2str(&(rn->p), joebuf, 255);
+			printf("%s: No PE for routei[%s]\n", __PRETTY_FUNCTION__, joebuf);
 			continue;
+		}
 
 		for (ALL_LIST_ELEMENTS(pe->entries, node2, node22, entry)) {
 			struct eigrp_fsm_action_message msg;

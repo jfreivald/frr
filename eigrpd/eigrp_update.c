@@ -284,7 +284,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));
 			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_PENDING);
-			zlog_info("Neighbor %s (%s) is pending: new adjacency",
+			zlog_info("%s: Neighbor %s (%s) is pending from UPDATE: new adjacency", __PRETTY_FUNCTION__,
 				  inet_ntoa(nbr->src),
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));

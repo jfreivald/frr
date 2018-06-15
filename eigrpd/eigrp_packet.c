@@ -610,7 +610,7 @@ int eigrp_read(struct thread *thread)
 	   start of the eigrp TLVs */
 	opcode = eigrph->opcode;
 
-	if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV)) {
+//	if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV)) {
 		char src[PREFIX_STRLEN], dst[PREFIX_STRLEN];
 
 		strlcpy(src, inet_ntoa(iph->ip_src), sizeof(src));
@@ -620,7 +620,7 @@ int eigrp_read(struct thread *thread)
 			lookup_msg(eigrp_packet_type_str, opcode, NULL),
 			ntohl(eigrph->sequence), ntohl(eigrph->ack), length,
 			IF_NAME(ei), src, dst);
-	}
+//	}
 
 	/* Read rest of the packet and call each sort of packet routine. */
 	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);
@@ -643,7 +643,7 @@ int eigrp_read(struct thread *thread)
 			    && (ntohl(eigrph->ack)
 				== nbr->init_sequence_number)) {
 				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
-				zlog_info("Neighbor(%s) adjacency became full",
+				zlog_info("Neighbor(%s) up",
 					  inet_ntoa(nbr->src));
 				nbr->init_sequence_number = 0;
 				nbr->recv_sequence_number =
@@ -670,6 +670,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_PROBE:
+		zlog_warn("%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
 		//      eigrp_probe_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -680,6 +681,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_REQUEST:
+		zlog_warn("%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
 		//      eigrp_request_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
