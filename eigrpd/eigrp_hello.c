@@ -88,7 +88,7 @@ int eigrp_hello_timer(struct thread *thread)
 	ei->t_hello = NULL;
 
 	if (IS_DEBUG_EIGRP(0, TIMERS))
-		zlog_debug("Start Hello Timer (%s) Expire [%u]", IF_NAME(ei),
+		L(zlog_debug,"Start Hello Timer (%s) Expire [%u]", IF_NAME(ei),
 			   ei->params.v_hello);
 
 	/* Sending hello packet. */
@@ -143,7 +143,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 	    && (eigrp->k_values[4] == nbr->K5)) {
 
 		if (eigrp_nbr_state_get(nbr) == EIGRP_NEIGHBOR_DOWN) {
-			zlog_info("%s: Neighbor %s (%s) is pending from HELLO: new adjacency", __PRETTY_FUNCTION__,
+			L(zlog_info,"%s: Neighbor %s (%s) is pending from HELLO: new adjacency", __PRETTY_FUNCTION__,
 				  inet_ntoa(nbr->src),
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));
@@ -162,7 +162,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 			if ((param->K1 & param->K2 & param->K3 & param->K4
 			     & param->K5)
 			    == 255) {
-				zlog_info(
+				L(zlog_info,
 					"Neighbor %s (%s) is down: Interface PEER-TERMINATION received",
 					inet_ntoa(nbr->src),
 					ifindex2ifname(nbr->ei->ifp->ifindex,
@@ -170,7 +170,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 				eigrp_nbr_delete(nbr);
 				return NULL;
 			} else {
-				zlog_info(
+				L(zlog_info,
 					"Neighbor %s (%s) going down: Kvalue mismatch",
 					inet_ntoa(nbr->src),
 					ifindex2ifname(nbr->ei->ifp->ifindex,
@@ -251,7 +251,7 @@ static void eigrp_peer_termination_decode(struct eigrp_neighbor *nbr,
 	uint32_t received_ip = param->neighbor_ip;
 
 	if (my_ip == received_ip) {
-		zlog_info("Neighbor %s (%s) is down: Peer Termination received",
+		L(zlog_info,"Neighbor %s (%s) is down: Peer Termination received",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 		/* set neighbor to DOWN */
@@ -328,7 +328,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	assert(nbr);
 
 	if (IS_DEBUG_EIGRP_PACKET(eigrph->opcode - 1, RECV))
-		zlog_debug("Processing Hello size[%u] int(%s) nbr(%s)", size,
+		L(zlog_debug,"Processing Hello size[%u] int(%s) nbr(%s)", size,
 			   ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT),
 			   inet_ntoa(nbr->src));
 
@@ -344,7 +344,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 
 		if ((length > 0) && (length <= size)) {
 			if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-				zlog_debug(
+				L(zlog_debug,
 					"  General TLV(%s)",
 					lookup_msg(eigrp_general_tlv_type_str,
 						   type, NULL));
@@ -401,7 +401,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	}
 
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		zlog_debug("Hello Packet received from %s",
+		L(zlog_debug,"Hello Packet received from %s",
 			   inet_ntoa(nbr->src));
 }
 
@@ -419,7 +419,7 @@ void eigrp_sw_version_initialize(void)
 
 	ret = sscanf(ver_string, "%d.%d", &FRR_MAJOR, &FRR_MINOR);
 	if (ret != 2)
-		zlog_err("Did not Properly parse %s, please fix VERSION string",
+		L(zlog_err,"Did not Properly parse %s, please fix VERSION string",
 			 VERSION);
 }
 
@@ -717,7 +717,7 @@ void eigrp_hello_send_ack(struct eigrp_neighbor *nbr)
 
 	if (ep) {
 		if (IS_DEBUG_EIGRP_PACKET(0, SEND))
-			zlog_debug("Queueing [Hello] Ack Seq [%u] nbr [%s]",
+			L(zlog_debug,"Queueing [Hello] Ack Seq [%u] nbr [%s]",
 				   nbr->recv_sequence_number,
 				   inet_ntoa(nbr->src));
 
@@ -761,7 +761,7 @@ void eigrp_hello_send(struct eigrp_interface *ei, uint8_t flags,
 	*/
 
 	if (IS_DEBUG_EIGRP_PACKET(0, SEND))
-		zlog_debug("Queueing [Hello] Interface(%s)", IF_NAME(ei));
+		L(zlog_debug,"Queueing [Hello] Interface(%s)", IF_NAME(ei));
 
 	/* if packet was succesfully created, then add it to the interface queue
 	 */

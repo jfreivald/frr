@@ -240,7 +240,7 @@ void eigrp_distribute_update(struct distribute *dist)
   /* route-map IN for whole process */
   if (dist->route[DISTRIBUTE_V4_IN])
     {
-      zlog_info("<DEBUG ACL ALL in");
+      L(zlog_info,"<DEBUG ACL ALL in");
       routemap = route_map_lookup_by_name (dist->route[DISTRIBUTE_V4_IN]);
       if (routemap)
         ei->routemap[EIGRP_FILTER_IN] = routemap;

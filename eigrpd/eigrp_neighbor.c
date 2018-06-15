@@ -87,7 +87,7 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 	nbr->src = iph->ip_src;
 
 	//  if (IS_DEBUG_EIGRP_EVENT)
-	//    zlog_debug("NSM[%s:%s]: start", IF_NAME (nbr->oi),
+	//    L(zlog_debug,"NSM[%s:%s]: start", IF_NAME (nbr->oi),
 	//               inet_ntoa (nbr->router_id));
 
 	return nbr;
@@ -197,7 +197,7 @@ int holddown_timer_expired(struct thread *thread)
 
 	nbr = THREAD_ARG(thread);
 
-	zlog_info("Neighbor %s (%s) is down: holding time expired",
+	L(zlog_info,"Neighbor %s (%s) is down: holding time expired",
 		  inet_ntoa(nbr->src),
 		  ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
@@ -305,7 +305,7 @@ int eigrp_nbr_count_get(void)
 	uint32_t counter;
 
 	if (eigrp == NULL) {
-		zlog_debug("EIGRP Routing Process not enabled");
+		L(zlog_debug,"EIGRP Routing Process not enabled");
 		return 0;
 	}
 
@@ -335,11 +335,11 @@ int eigrp_nbr_count_get(void)
 void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 {
 	if (nbr == NULL) {
-		zlog_err("Nbr Hard restart: Neighbor not specified.");
+		L(zlog_err,"Nbr Hard restart: Neighbor not specified.");
 		return;
 	}
 
-	zlog_debug("Neighbor %s (%s) is down: manually cleared",
+	L(zlog_debug,"Neighbor %s (%s) is down: manually cleared",
 		   inet_ntoa(nbr->src),
 		   ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 	if (vty != NULL) {

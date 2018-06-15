@@ -171,7 +171,7 @@ int eigrp_check_md5_digest(struct stream *s,
 	struct eigrp_header *eigrph;
 
 	if (ntohl(nbr->crypt_seqnum) > ntohl(authTLV->key_sequence)) {
-		zlog_warn(
+		L(zlog_warn,
 			"interface %s: eigrp_check_md5 bad sequence %d (expect %d)",
 			IF_NAME(nbr->ei), ntohl(authTLV->key_sequence),
 			ntohl(nbr->crypt_seqnum));
@@ -195,7 +195,7 @@ int eigrp_check_md5_digest(struct stream *s,
 		key = key_lookup_for_send(keychain);
 
 	if (!key) {
-		zlog_warn(
+		L(zlog_warn,
 			"Interface %s: Expected key value not found in config",
 			nbr->ei->ifp->name);
 		return 0;
@@ -231,7 +231,7 @@ int eigrp_check_md5_digest(struct stream *s,
 
 	/* compare the two */
 	if (memcmp(orig, digest, EIGRP_AUTH_TYPE_MD5_LEN) != 0) {
-		zlog_warn("interface %s: eigrp_check_md5 checksum mismatch",
+		L(zlog_warn,"interface %s: eigrp_check_md5 checksum mismatch",
 			  IF_NAME(nbr->ei));
 		return 0;
 	}
@@ -272,7 +272,7 @@ int eigrp_make_sha256_digest(struct eigrp_interface *ei, struct stream *s,
 		key = key_lookup_for_send(keychain);
 
 	if (!key) {
-		zlog_warn(
+		L(zlog_warn,
 			"Interface %s: Expected key value not found in config",
 			ei->ifp->name);
 		eigrp_authTLV_SHA256_free(auth_TLV);
@@ -346,12 +346,12 @@ int eigrp_write(struct thread *thread)
 	/* Get one packet from queue. */
 	ep = eigrp_fifo_next(ei->obuf);
 	if (!ep) {
-		zlog_err("%s: Interface %s no packet on queue?",
+		L(zlog_err,"%s: Interface %s no packet on queue?",
 			 __PRETTY_FUNCTION__, ei->ifp->name);
 		goto out;
 	}
 	if (ep->length < EIGRP_HEADER_LEN) {
-		zlog_err("%s: Packet just has a header?", __PRETTY_FUNCTION__);
+		L(zlog_err,"%s: Packet just has a header?", __PRETTY_FUNCTION__);
 		eigrp_header_dump((struct eigrp_header *)ep->s->data);
 		eigrp_packet_delete(ei);
 		goto out;
@@ -435,14 +435,14 @@ int eigrp_write(struct thread *thread)
 
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, SEND)) {
 		eigrph = (struct eigrp_header *)STREAM_DATA(ep->s);
-		zlog_debug(
+		L(zlog_debug,
 			"Sending [%s][%d/%d] to [%s] via [%s] ret [%d].",
 			lookup_msg(eigrp_packet_type_str, eigrph->opcode, NULL),
 			seqno, ack, inet_ntoa(ep->dst), IF_NAME(ei), ret);
 	}
 
 	if (ret < 0)
-		zlog_warn(
+		L(zlog_warn,
 			"*** sendmsg in eigrp_write failed to %s, "
 			"id %d, off %d, len %d, interface %s, mtu %u: %s",
 			inet_ntoa(iph.ip_dst), iph.ip_id, iph.ip_off,
@@ -545,7 +545,7 @@ int eigrp_read(struct thread *thread)
 	if (eigrp_if_lookup_by_local_addr(eigrp, NULL, iph->ip_src)
 	    || (IPV4_ADDR_SAME(&iph->ip_src, &ei->address->u.prefix4))) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			zlog_debug(
+			L(zlog_debug,
 				"eigrp_read[%s]: Dropping self-originated packet",
 				inet_ntoa(iph->ip_src));
 		return 0;
@@ -570,7 +570,7 @@ int eigrp_read(struct thread *thread)
 		char buf[3][INET_ADDRSTRLEN];
 
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			zlog_debug(
+			L(zlog_debug,
 				"ignoring packet from router %s sent to %s, "
 				"received on a passive interface, %s",
 				inet_ntop(AF_INET, &eigrph->vrid, buf[0],
@@ -591,7 +591,7 @@ int eigrp_read(struct thread *thread)
 	 */
 	else if (ei->ifp != ifp) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			zlog_warn("Packet from [%s] received on wrong link %s",
+			L(zlog_warn,"Packet from [%s] received on wrong link %s",
 				  inet_ntoa(iph->ip_src), ifp->name);
 		return 0;
 	}
@@ -600,7 +600,7 @@ int eigrp_read(struct thread *thread)
 	ret = eigrp_verify_header(ibuf, ei, iph, eigrph);
 	if (ret < 0) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			zlog_debug(
+			L(zlog_debug,
 				"eigrp_read[%s]: Header check failed, dropping.",
 				inet_ntoa(iph->ip_src));
 		return ret;
@@ -615,7 +615,7 @@ int eigrp_read(struct thread *thread)
 
 		strlcpy(src, inet_ntoa(iph->ip_src), sizeof(src));
 		strlcpy(dst, inet_ntoa(iph->ip_dst), sizeof(dst));
-		zlog_debug(
+		L(zlog_debug,
 			"Received [%s][%d/%d] length [%u] via [%s] src [%s] dst [%s]",
 			lookup_msg(eigrp_packet_type_str, opcode, NULL),
 			ntohl(eigrph->sequence), ntohl(eigrph->ack), length,
@@ -643,7 +643,7 @@ int eigrp_read(struct thread *thread)
 			    && (ntohl(eigrph->ack)
 				== nbr->init_sequence_number)) {
 				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
-				zlog_info("Neighbor(%s) up",
+				L(zlog_info,"Neighbor(%s) up",
 					  inet_ntoa(nbr->src));
 				nbr->init_sequence_number = 0;
 				nbr->recv_sequence_number =
@@ -670,7 +670,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_PROBE:
-		zlog_warn("%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,"%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
 		//      eigrp_probe_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -681,7 +681,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_REQUEST:
-		zlog_warn("%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,"%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
 		//      eigrp_request_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -695,7 +695,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_update_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	default:
-		zlog_warn(
+		L(zlog_warn,
 			"interface %s: EIGRP packet header type %d unsupported",
 			IF_NAME(ei), opcode);
 		break;
@@ -724,12 +724,12 @@ static struct stream *eigrp_recv_packet(int fd, struct interface **ifp,
 
 	ret = stream_recvmsg(ibuf, fd, &msgh, 0, (EIGRP_PACKET_MAX_LEN + 1));
 	if (ret < 0) {
-		zlog_warn("stream_recvmsg failed: %s", safe_strerror(errno));
+		L(zlog_warn,"stream_recvmsg failed: %s", safe_strerror(errno));
 		return NULL;
 	}
 	if ((unsigned int)ret < sizeof(iph)) /* ret must be > 0 now */
 	{
-		zlog_warn(
+		L(zlog_warn,
 			"eigrp_recv_packet: discarding runt packet of length %d "
 			"(ip header size is %u)",
 			ret, (unsigned int)sizeof(iph));
@@ -775,7 +775,7 @@ static struct stream *eigrp_recv_packet(int fd, struct interface **ifp,
 	*ifp = if_lookup_by_index(ifindex, VRF_DEFAULT);
 
 	if (ret != ip_len) {
-		zlog_warn(
+		L(zlog_warn,
 			"eigrp_recv_packet read length mismatch: ip_len is %d, "
 			"but recvmsg returned %d",
 			ip_len, ret);
@@ -899,7 +899,7 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 	eigrph->flags = htonl(flags);
 
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, PACKET_DETAIL))
-		zlog_debug("Packet Header Init Seq [%u] Ack [%u]",
+		L(zlog_debug,"Packet Header Init Seq [%u] Ack [%u]",
 			   htonl(eigrph->sequence), htonl(eigrph->ack));
 
 	stream_forward_endp(s, EIGRP_HEADER_LEN);
@@ -956,7 +956,7 @@ static int eigrp_verify_header(struct stream *ibuf, struct eigrp_interface *ei,
 {
 	/* Check network mask, Silently discarded. */
 	//if (!eigrp_check_network_mask(ei, iph->ip_src)) {
-	//	zlog_warn(
+	//	L(zlog_warn,
 	//		"interface %s: eigrp_read network address is not same [%s]",
 	//		IF_NAME(ei), inet_ntoa(iph->ip_src));
 	//	return -1;
@@ -1214,7 +1214,7 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 		stream_putw(s, length);
 		break;
 	default:
-		zlog_err("%s: Unexpected prefix length: %d",
+		L(zlog_err,"%s: Unexpected prefix length: %d",
 			 __PRETTY_FUNCTION__, pe->destination->prefixlen);
 		return 0;
 	}

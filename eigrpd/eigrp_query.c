@@ -62,7 +62,7 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp)
 	uint32_t counter;
 
 	if (eigrp == NULL) {
-		zlog_debug("EIGRP Routing Process not enabled");
+		L(zlog_debug,"EIGRP Routing Process not enabled");
 		return 0;
 	}
 

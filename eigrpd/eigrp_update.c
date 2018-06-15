@@ -142,7 +142,7 @@ static void eigrp_update_receive_GR_ask(struct eigrp *eigrp,
 	/* iterate over all prefixes which weren't advertised by neighbor */
 	for (ALL_LIST_ELEMENTS_RO(nbr_prefixes, node1, prefix)) {
 		char buffer[PREFIX_STRLEN];
-		zlog_debug(
+		L(zlog_debug,
 			"GR receive: Neighbor not advertised %s",
 			prefix2str(prefix->destination, buffer, PREFIX_STRLEN));
 
@@ -208,7 +208,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		zlog_debug(
+		L(zlog_debug,
 			"Processing Update size[%u] int(%s) nbr(%s) seq [%u] flags [%0x]",
 			size,
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT),
@@ -219,7 +219,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 	    && (!same)) {
 		/* Graceful restart Update received with all routes */
 
-		zlog_info("Neighbor %s (%s) is resync: peer graceful-restart",
+		L(zlog_info,"Neighbor %s (%s) is resync: peer graceful-restart",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 
@@ -231,7 +231,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 		/* Graceful restart Update received, routes also in next packet
 		 */
 
-		zlog_info("Neighbor %s (%s) is resync: peer graceful-restart",
+		L(zlog_info,"Neighbor %s (%s) is resync: peer graceful-restart",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 
@@ -279,12 +279,12 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
 			eigrp_topology_neighbor_down(nbr->ei->eigrp, nbr);
 			nbr->recv_sequence_number = ntohl(eigrph->sequence);
-			zlog_info("Neighbor %s (%s) is down: peer restarted",
+			L(zlog_info,"Neighbor %s (%s) is down: peer restarted",
 				  inet_ntoa(nbr->src),
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));
 			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_PENDING);
-			zlog_info("%s: Neighbor %s (%s) is pending from UPDATE: new adjacency", __PRETTY_FUNCTION__,
+			L(zlog_info,"%s: Neighbor %s (%s) is pending from UPDATE: new adjacency", __PRETTY_FUNCTION__,
 				  inet_ntoa(nbr->src),
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));
@@ -424,7 +424,7 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 
 	/* Prepare EIGRP INIT UPDATE header */
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		zlog_debug("Enqueuing Update Init Seq [%u] Ack [%u]",
+		L(zlog_debug,"Enqueuing Update Init Seq [%u] Ack [%u]",
 			   nbr->ei->eigrp->sequence_number,
 			   nbr->recv_sequence_number);
 
@@ -450,7 +450,7 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 	nbr->init_sequence_number = nbr->ei->eigrp->sequence_number;
 	ep->sequence_number = nbr->ei->eigrp->sequence_number;
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		zlog_debug("Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
+		L(zlog_debug,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
 			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
 
 	/*Put packet to retransmission queue*/
@@ -480,7 +480,7 @@ static void eigrp_update_place_on_nbr_queue(struct eigrp_neighbor *nbr,
 	ep->sequence_number = seq_no;
 
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		zlog_debug("Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
+		L(zlog_debug,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
 			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
 
 	/*Put packet to retransmission queue*/
@@ -694,7 +694,7 @@ void eigrp_update_send(struct eigrp_interface *ei)
 	ep->sequence_number = eigrp->sequence_number;
 
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		zlog_debug("Enqueuing Update length[%u] Seq [%u]", length,
+		L(zlog_debug,"Enqueuing Update length[%u] Seq [%u]", length,
 			   ep->sequence_number);
 
 	eigrp_update_send_to_all_nbrs(ei, ep);
@@ -816,7 +816,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
 					      dest_addr)) {
 			/* do not send filtered route */
-			zlog_info("Filtered prefix %s won't be sent out.",
+			L(zlog_info,"Filtered prefix %s won't be sent out.",
 				  inet_ntoa(dest_addr->u.prefix4));
 		} else {
 			/* sending route which wasn't filtered */
@@ -831,7 +831,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN,
 					      dest_addr)) {
 			/* do not send filtered route */
-			zlog_info("Filtered prefix %s will be removed.",
+			L(zlog_info,"Filtered prefix %s will be removed.",
 				  inet_ntoa(dest_addr->u.prefix4));
 
 			/* prepare message for FSM */
@@ -881,7 +881,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 	ep->sequence_number = eigrp->sequence_number;
 
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		zlog_debug("Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
+		L(zlog_debug,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
 			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
 
 	/*Put packet to retransmission queue*/
@@ -963,13 +963,13 @@ void eigrp_update_send_GR(struct eigrp_neighbor *nbr, enum GR_type gr_type,
 
 	if (gr_type == EIGRP_GR_FILTER) {
 		/* function was called after applying filtration */
-		zlog_info(
+		L(zlog_info,
 			"Neighbor %s (%s) is resync: route configuration changed",
 			inet_ntoa(nbr->src),
 			ifindex2ifname(ei->ifp->ifindex, VRF_DEFAULT));
 	} else if (gr_type == EIGRP_GR_MANUAL) {
 		/* Graceful restart was called manually */
-		zlog_info("Neighbor %s (%s) is resync: manually cleared",
+		L(zlog_info,"Neighbor %s (%s) is resync: manually cleared",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(ei->ifp->ifindex, VRF_DEFAULT));
 

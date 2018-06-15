@@ -314,7 +314,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 			if (prefix->rij->count)
 				return EIGRP_FSM_KEEP_STATE;
 
-			zlog_info("All reply received\n");
+			L(zlog_info,"All reply received\n");
 			if (head->reported_distance < prefix->fdistance) {
 				return EIGRP_FSM_EVENT_LR_FCS;
 			}
@@ -344,7 +344,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 			} else if (prefix->rij->count) {
 				return EIGRP_FSM_KEEP_STATE;
 			} else {
-				zlog_info("All reply received\n");
+				L(zlog_info,"All reply received\n");
 				return EIGRP_FSM_EVENT_LR;
 			}
 		} else if (msg->packet_type == EIGRP_OPC_UPDATE
@@ -366,7 +366,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 			if (prefix->rij->count) {
 				return EIGRP_FSM_KEEP_STATE;
 			} else {
-				zlog_info("All reply received\n");
+				L(zlog_info,"All reply received\n");
 				if (head->reported_distance
 				    < prefix->fdistance) {
 					return EIGRP_FSM_EVENT_LR_FCS;
@@ -390,7 +390,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 			} else if (prefix->rij->count) {
 				return EIGRP_FSM_KEEP_STATE;
 			} else {
-				zlog_info("All reply received\n");
+				L(zlog_info,"All reply received\n");
 				return EIGRP_FSM_EVENT_LR;
 			}
 		} else if (msg->packet_type == EIGRP_OPC_UPDATE
@@ -416,7 +416,7 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 {
 	enum eigrp_fsm_events event = eigrp_get_fsm_event(msg);
 
-	zlog_info(
+	L(zlog_info,
 		"EIGRP AS: %d State: %s Event: %s Network: %s Packet Type: %s Reply RIJ Count: %d change: %s",
 		msg->eigrp->AS, prefix_state2str(msg->prefix->state),
 		fsm_state2str(event), eigrp_topology_ip_string(msg->prefix),

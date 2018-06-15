@@ -112,7 +112,7 @@ void eigrp_router_id_update(struct eigrp *eigrp)
 	eigrp->router_id = router_id;
 	if (router_id_old != router_id) {
 		//      if (IS_DEBUG_EIGRP_EVENT)
-		//        zlog_debug("Router-ID[NEW:%s]: Update",
+		//        L(zlog_debug,"Router-ID[NEW:%s]: Update",
 		//        inet_ntoa(eigrp->router_id));
 
 		/* update eigrp_interface's */
@@ -161,7 +161,7 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->networks = eigrp_topology_new();
 
 	if ((eigrp_socket = eigrp_sock_init()) < 0) {
-		zlog_err(
+		L(zlog_err,
 			"eigrp_new: fatal error: eigrp_sock_init was unable to open "
 			"a socket");
 		exit(1);
@@ -171,7 +171,7 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->maxsndbuflen = getsockopt_so_sendbuf(eigrp->fd);
 
 	if ((eigrp->ibuf = stream_new(EIGRP_PACKET_MAX_LEN + 1)) == NULL) {
-		zlog_err(
+		L(zlog_err,
 			"eigrp_new: fatal error: stream_new (%u) failed allocating ibuf",
 			EIGRP_PACKET_MAX_LEN + 1);
 		exit(1);

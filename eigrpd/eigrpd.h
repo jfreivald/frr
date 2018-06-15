@@ -32,6 +32,7 @@
 
 #include "filter.h"
 #include "log.h"
+#include "debug_prefix.h"
 
 /* Set EIGRP version is "classic" - wide metrics comes next */
 #define EIGRP_MAJOR_VERSION     1

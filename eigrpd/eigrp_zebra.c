@@ -195,11 +195,11 @@ static int eigrp_interface_delete(int command, struct zclient *zclient,
 		return 0;
 
 	if (if_is_up(ifp))
-		zlog_warn("Zebra: got delete of %s, but interface is still up",
+		L(zlog_warn,"Zebra: got delete of %s, but interface is still up",
 			  ifp->name);
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE))
-		zlog_debug(
+		L(zlog_debug,
 			"Zebra: interface delete %s index %d flags %llx metric %d mtu %d",
 			ifp->name, ifp->ifindex, (unsigned long long)ifp->flags,
 			ifp->metric, ifp->mtu);
@@ -224,7 +224,7 @@ static int eigrp_interface_address_add(int command, struct zclient *zclient,
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE)) {
 		char buf[128];
 		prefix2str(c->address, buf, sizeof(buf));
-		zlog_debug("Zebra: interface %s address add %s", c->ifp->name,
+		L(zlog_debug,"Zebra: interface %s address add %s", c->ifp->name,
 			   buf);
 	}
 
@@ -248,7 +248,7 @@ static int eigrp_interface_address_delete(int command, struct zclient *zclient,
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE)) {
 		char buf[128];
 		prefix2str(c->address, buf, sizeof(buf));
-		zlog_debug("Zebra: interface %s address delete %s",
+		L(zlog_debug,"Zebra: interface %s address delete %s",
 			   c->ifp->name, buf);
 	}
 
@@ -284,12 +284,12 @@ static int eigrp_interface_state_up(int command, struct zclient *zclient,
 		zebra_interface_if_set_value(zclient->ibuf, ifp);
 
 		if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE))
-			zlog_debug("Zebra: Interface[%s] state update.",
+			L(zlog_debug,"Zebra: Interface[%s] state update.",
 				   ifp->name);
 
 		if (if_tmp.bandwidth != ifp->bandwidth) {
 			if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE))
-				zlog_debug(
+				L(zlog_debug,
 					"Zebra: Interface[%s] bandwidth change %d -> %d.",
 					ifp->name, if_tmp.bandwidth,
 					ifp->bandwidth);
@@ -299,7 +299,7 @@ static int eigrp_interface_state_up(int command, struct zclient *zclient,
 
 		if (if_tmp.mtu != ifp->mtu) {
 			if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE))
-				zlog_debug(
+				L(zlog_debug,
 					"Zebra: Interface[%s] MTU change %u -> %u.",
 					ifp->name, if_tmp.mtu, ifp->mtu);
 
@@ -313,7 +313,7 @@ static int eigrp_interface_state_up(int command, struct zclient *zclient,
 	zebra_interface_if_set_value(zclient->ibuf, ifp);
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE))
-		zlog_debug("Zebra: Interface[%s] state change to up.",
+		L(zlog_debug,"Zebra: Interface[%s] state change to up.",
 			   ifp->name);
 
 	if (ifp->info)
@@ -333,7 +333,7 @@ static int eigrp_interface_state_down(int command, struct zclient *zclient,
 		return 0;
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_INTERFACE))
-		zlog_debug("Zebra: Interface[%s] state change to down.",
+		L(zlog_debug,"Zebra: Interface[%s] state change to down.",
 			   ifp->name);
 
 	if (ifp->info)
@@ -391,7 +391,7 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_REDISTRIBUTE)) {
 		char buf[2][PREFIX_STRLEN];
-		zlog_debug("Zebra: Route add %s nexthop %s",
+		L(zlog_debug,"Zebra: Route add %s nexthop %s",
 			   prefix2str(p, buf[0], PREFIX_STRLEN),
 			   inet_ntop(AF_INET, 0, buf[1], PREFIX_STRLEN));
 	}
@@ -415,7 +415,7 @@ void eigrp_zebra_route_delete(struct prefix *p)
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_REDISTRIBUTE)) {
 		char buf[PREFIX_STRLEN];
-		zlog_debug("Zebra: Route del %s",
+		L(zlog_debug,"Zebra: Route del %s",
 			   prefix2str(p, buf, PREFIX_STRLEN));
 	}
 
@@ -443,7 +443,7 @@ int eigrp_redistribute_set(struct eigrp *eigrp, int type,
 		eigrp_external_routes_refresh(eigrp, type);
 
 		//      if (IS_DEBUG_EIGRP(zebra, ZEBRA_REDISTRIBUTE))
-		//        zlog_debug ("Redistribute[%s]: Refresh  Type[%d],
+		//        L(zlog_debug,"Redistribute[%s]: Refresh  Type[%d],
 		//        Metric[%d]",
 		//                   eigrp_redist_string(type),
 		//                   metric_type (eigrp, type), metric_value

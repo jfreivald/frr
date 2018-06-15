@@ -142,7 +142,7 @@ void eigrp_prefix_entry_add(struct route_table *topology,
 		if (IS_DEBUG_EIGRP_EVENT) {
 			char buf[PREFIX_STRLEN];
 
-			zlog_debug(
+			L(zlog_debug,
 				"%s: %s Should we have found this entry in the topo table?",
 				__PRETTY_FUNCTION__,
 				prefix2str(pe->destination, buf, sizeof(buf)));
@@ -162,15 +162,14 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node,
 	struct list *l = list_new();
 
 	listnode_add(l, entry);
-  printf("eigrp_nexthop_entry_add(): ");
 	if (listnode_lookup(node->entries, entry) == NULL) {
 		listnode_add_sort(node->entries, entry);
 		entry->prefix = node;
 
 		eigrp_zebra_route_add(node->destination, l);
-		printf("Added\n");
+		L(zlog_warn,"Route Added.");
 	} else {
-		printf("NOT Added\n");
+		L(zlog_warn,"Route NOT Added.");
 	}
 
 	list_delete_and_null(&l);
@@ -291,7 +290,7 @@ struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *table_node)
 	 */
 	if (!successors->count) {
 		prefix2str(table_node->destination,joebuf,sizeof(joebuf));
-		printf("NO SUCCESSORS FOR [%s]",joebuf);
+		L(zlog_warn,"NO SUCCESSORS FOR [%s]",joebuf);
 		list_delete_and_null(&successors);
 		successors = NULL;
 	}
@@ -316,7 +315,7 @@ eigrp_topology_get_successor_max(struct eigrp_prefix_entry *table_node,
 	} else {
 		if (!successors) {
 			prefix2str(table_node->destination,joebuf,sizeof(joebuf));
-			printf("%s NO SUCCESSORS FOR [%s]\n",__PRETTY_FUNCTION__,joebuf);
+			L(zlog_warn,"NO SUCCESSORS FOR [%s]",joebuf);
 		}
 	}
 
@@ -420,7 +419,7 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 		}
 		break;
 	default:
-		zlog_err("%s: Please implement handler", __PRETTY_FUNCTION__);
+		L(zlog_err,"%s: Please implement handler", __PRETTY_FUNCTION__);
 		break;
 	}
 distance_done:
@@ -494,14 +493,14 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 	prefix2str(prefix->destination, joebuf, 255);
 
 	if (successors) {
-		printf("%s: Adding %s\n", __PRETTY_FUNCTION__, joebuf);
+		L(zlog_warn,"Adding Route[%s]", joebuf);
 		eigrp_zebra_route_add(prefix->destination, successors);
 		for (ALL_LIST_ELEMENTS_RO(successors, node, entry))
 			entry->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 
 		list_delete_and_null(&successors);
 	} else {
-		printf("%s: Removing %s\n", __PRETTY_FUNCTION__, joebuf);
+		L(zlog_warn,"Removing Route[%s]", joebuf);
 		eigrp_zebra_route_delete(prefix->destination);
 		for (ALL_LIST_ELEMENTS_RO(prefix->entries, node, entry))
 			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
@@ -522,7 +521,7 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 
 		if (!pe) {
 			prefix2str(&(rn->p), joebuf, 255);
-			printf("%s: No PE for routei[%s]\n", __PRETTY_FUNCTION__, joebuf);
+			L(zlog_warn,"No PE for route[%s]", joebuf);
 			continue;
 		}
 
