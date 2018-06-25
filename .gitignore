@@ -82,6 +82,9 @@ GPATH
 *.lo
 compile_commands.json
 .dirstamp
+backup*.tgz
+description-pak
+doc-pak
 
 # clippy generated source
 *_clippy.c
