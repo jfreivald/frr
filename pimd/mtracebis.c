@@ -296,6 +296,10 @@ static int recv_response(int fd, int *hops, struct igmp_mtrace *mtracer)
 
 	mtrace_len = ntohs(ip->ip_len) - ip->ip_hl * 4;
 
+	if ((char *)mtrace + mtrace_len
+	    > (char *)mtrace_buf + IP_AND_MTRACE_BUF_LEN)
+		return -1;
+
 	if (mtrace_len < (int)MTRACE_HDR_SIZE)
 		return -1;
 
@@ -332,7 +336,7 @@ static int wait_for_response(int fd, int *hops, struct igmp_mtrace *mtrace,
 {
 	fd_set readfds;
 	struct timeval timeout;
-	int ret = -1;
+	int ret;
 	long msec, rmsec, tmsec;
 
 	FD_ZERO(&readfds);

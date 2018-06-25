@@ -184,6 +184,9 @@ void eigrp_prefix_entry_delete(struct route_table *table,
 	struct eigrp *eigrp = eigrp_lookup();
 	struct route_node *rn;
 
+	if (!eigrp)
+		return;
+
 	rn = route_node_lookup(table, pe->destination);
 	if (!rn)
 		return;
@@ -437,6 +440,9 @@ void eigrp_topology_update_all_node_flags(struct eigrp *eigrp)
 	struct eigrp_prefix_entry *pe;
 	struct route_node *rn;
 
+	if (!eigrp)
+		return;
+
 	for (rn = route_top(eigrp->topology_table); rn; rn = route_next(rn)) {
 		pe = rn->info;
 
@@ -484,13 +490,17 @@ void eigrp_topology_update_node_flags(struct eigrp_prefix_entry *dest)
 void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 {
 	struct eigrp *eigrp = eigrp_lookup();
-	struct list *successors =
-		eigrp_topology_get_successor_max(prefix, eigrp->max_paths);
+	struct list *successors;
 	struct listnode *node;
 	struct eigrp_nexthop_entry *entry;
 	char joebuf[255];
 
 	prefix2str(prefix->destination, joebuf, 255);
+
+	if (!eigrp)
+		return;
+
+	successors = eigrp_topology_get_successor_max(prefix, eigrp->max_paths);
 
 	if (successors) {
 		L(zlog_warn,"Adding Route[%s]", joebuf);

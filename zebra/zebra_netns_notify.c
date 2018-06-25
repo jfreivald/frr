@@ -212,6 +212,10 @@ static int zebra_ns_notify_read(struct thread *t)
 			continue;
 		if (event->mask & IN_DELETE)
 			return zebra_ns_delete(event->name);
+		if (&event->name[event->len] >= &buf[sizeof(buf)]) {
+			zlog_err("NS notify read: buffer underflow");
+			break;
+		}
 		netnspath = ns_netns_pathname(NULL, event->name);
 		if (!netnspath)
 			continue;

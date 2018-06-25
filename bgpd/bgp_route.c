@@ -1185,12 +1185,8 @@ static int bgp_input_modifier(struct peer *peer, struct prefix *p,
 
 		peer->rmap_type = 0;
 
-		if (ret == RMAP_DENYMATCH) {
-			/* Free newly generated AS path and community by
-			 * route-map. */
-			bgp_attr_flush(attr);
+		if (ret == RMAP_DENYMATCH)
 			return RMAP_DENY;
-		}
 	}
 	return RMAP_PERMIT;
 }
@@ -1321,6 +1317,8 @@ void bgp_attr_add_gshut_community(struct attr *attr)
 
 	old = attr->community;
 	gshut = community_str2com("graceful-shutdown");
+
+	assert(gshut);
 
 	if (old) {
 		merge = community_merge(community_dup(old), gshut);
@@ -6568,14 +6566,8 @@ void route_vty_out(struct vty *vty, struct prefix *p, struct bgp_info *binfo,
 		} else {
 			char buf[BUFSIZ];
 
-			if ((safi == SAFI_MPLS_VPN) || (safi == SAFI_EVPN))
-				snprintf(buf, sizeof(buf), "%s%s",
-					inet_ntoa(attr->mp_nexthop_global_in),
-					vrf_id_str);
-			else
-				snprintf(buf, sizeof(buf), "%s%s",
-					inet_ntoa(attr->nexthop),
-					vrf_id_str);
+			snprintf(buf, sizeof(buf), "%s%s",
+				inet_ntoa(attr->nexthop), vrf_id_str);
 			vty_out(vty, "%-16s", buf);
 		}
 	}

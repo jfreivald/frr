@@ -1197,6 +1197,9 @@ int str2prefix(const char *str, struct prefix *p)
 {
 	int ret;
 
+	if (!str || !p)
+		return 0;
+
 	/* First we try to convert string to struct prefix_ipv4. */
 	ret = str2prefix_ipv4(str, (struct prefix_ipv4 *)p);
 	if (ret)
@@ -1368,17 +1371,6 @@ struct prefix *prefix_new()
 void prefix_free(struct prefix *p)
 {
 	XFREE(MTYPE_PREFIX, p);
-}
-
-/* Utility function.  Check the string only contains digit
- * character.
- * FIXME str.[c|h] would be better place for this function. */
-int all_digit(const char *str)
-{
-	for (; *str != '\0'; str++)
-		if (!isdigit((int)*str))
-			return 0;
-	return 1;
 }
 
 /* Utility function to convert ipv4 prefixes to Classful prefixes */

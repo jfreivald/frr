@@ -53,7 +53,10 @@ static int eigrp_network_match_iface(const struct connected *,
 int eigrp_sock_init(void)
 {
 	int eigrp_sock;
-	int ret, hincl = 1;
+	int ret;
+#ifdef IP_HDRINCL
+	int hincl = 1;
+#endif
 
 	if (eigrpd_privs.change(ZPRIVS_RAISE))
 		L(zlog_err,"eigrp_sock_init: could not raise privs, %s",

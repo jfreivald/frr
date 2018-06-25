@@ -662,7 +662,8 @@ static int rfapi_str2route_type(const char *l3str, const char *pstr, afi_t *afi,
 			vnc_import_bgp_exterior_redist_enable((bgp), (afi));   \
 			break;                                                 \
 		default:                                                       \
-			vnc_redistribute_set((bgp), (afi), (type));            \
+			if ((type) < ZEBRA_ROUTE_MAX)			       \
+				vnc_redistribute_set((bgp), (afi), (type));    \
 			break;                                                 \
 		}                                                              \
 	} while (0)
@@ -677,7 +678,8 @@ static int rfapi_str2route_type(const char *l3str, const char *pstr, afi_t *afi,
 			vnc_import_bgp_exterior_redist_disable((bgp), (afi));  \
 			break;                                                 \
 		default:                                                       \
-			vnc_redistribute_unset((bgp), (afi), (type));          \
+			if ((type) < ZEBRA_ROUTE_MAX)			       \
+				vnc_redistribute_unset((bgp), (afi), (type));  \
 			break;                                                 \
 		}                                                              \
 	} while (0)
@@ -1424,7 +1426,8 @@ DEFUN (vnc_export_nvegroup,
 	if (rfg_new == NULL) {
 		rfg_new = bgp_rfapi_cfg_match_byname(bgp, argv[5]->arg,
 						     RFAPI_GROUP_CFG_VRF);
-		vnc_add_vrf_opener(bgp, rfg_new);
+		if (rfg_new)
+			vnc_add_vrf_opener(bgp, rfg_new);
 	}
 
 	if (rfg_new == NULL) {

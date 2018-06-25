@@ -78,6 +78,9 @@ char *frrstr_join(const char **parts, int argc, const char *join)
 	size_t len = 0;
 	size_t joinlen = join ? strlen(join) : 0;
 
+	if (!argc)
+		return NULL;
+
 	for (i = 0; i < argc; i++)
 		len += strlen(parts[i]);
 	len += argc * joinlen + 1;
@@ -157,4 +160,12 @@ bool begins_with(const char *str, const char *prefix)
 		return 0;
 
 	return strncmp(str, prefix, lenprefix) == 0;
+}
+
+int all_digit(const char *str)
+{
+	for (; *str != '\0'; str++)
+		if (!isdigit((int)*str))
+			return 0;
+	return 1;
 }
