@@ -60,7 +60,10 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 
 	/* Allcate new neighbor. */
 	nbr = XCALLOC(MTYPE_EIGRP_NEIGHBOR, sizeof(struct eigrp_neighbor));
-
+	if (!nbr) {
+		L(zlog_err, "Unable to allocate memory for new neighbor");
+		return NULL;
+	}
 	/* Relate neighbor to the interface. */
 	nbr->ei = ei;
 
@@ -83,7 +86,10 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 {
 	struct eigrp_neighbor *nbr;
 
-	nbr = eigrp_nbr_new(ei);
+	if ( NULL == (nbr = eigrp_nbr_new(ei))) {
+		L(zlog_err, "Neighbor not allocated. Unable to process new neighbor.");
+		return NULL;
+	}
 	nbr->src = iph->ip_src;
 
 	//  if (IS_DEBUG_EIGRP_EVENT)
@@ -106,7 +112,12 @@ struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *ei,
 		}
 	}
 
-	nbr = eigrp_nbr_add(ei, eigrph, iph);
+	L(zlog_debug,"Adding new neighbor.");
+	if (NULL == (nbr = eigrp_nbr_add(ei, eigrph, iph))) {
+			L(zlog_err, "Unable to add new neigbor.");
+			return NULL;
+	}
+	
 	listnode_add(ei->nbrs, nbr);
 
 	return nbr;

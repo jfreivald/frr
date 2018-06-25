@@ -50,4 +50,6 @@ extern uint8_t eigrp_metrics_is_same(struct eigrp_metrics,
 				     struct eigrp_metrics);
 extern void eigrp_external_routes_refresh(struct eigrp *, int);
 
+extern void eigrp_network_run_interface(struct eigrp *, struct prefix *,
+					struct interface *);
 #endif /* EIGRP_NETWORK_H_ */

@@ -49,8 +49,6 @@
 
 static int eigrp_network_match_iface(const struct connected *,
 				     const struct prefix *);
-static void eigrp_network_run_interface(struct eigrp *, struct prefix *,
-					struct interface *);
 
 int eigrp_sock_init(void)
 {
@@ -266,7 +264,7 @@ static int eigrp_network_match_iface(const struct connected *co,
 	return prefix_match_network_statement(net, CONNECTED_PREFIX(co));
 }
 
-static void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
+void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 					struct interface *ifp)
 {
 	struct eigrp_interface *ei;

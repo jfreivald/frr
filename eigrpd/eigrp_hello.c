@@ -321,8 +321,15 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	uint16_t type;
 	uint16_t length;
 
+	L(zlog_info,"Hello: EI[%s],EIGRPH[v:%02x|op:%02x|csum:%04x|fl:%08x|seq:%08x|ack:%04x|vrid:%02x|as:%d]", 
+			ei->ifp->name, eigrph->version, eigrph->opcode, ntohs(eigrph->checksum), ntohl(eigrph->flags), 
+			ntohl(eigrph->sequence), ntohl(eigrph->ack), eigrph->vrid, ntohs(eigrph->ASNumber));
+
 	/* get neighbor struct */
-	nbr = eigrp_nbr_get(ei, eigrph, iph);
+	if (NULL == (nbr = eigrp_nbr_get(ei, eigrph, iph))) {
+		L(zlog_err, "Unable to process hello packet.");
+		return;
+	}
 
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);

@@ -56,6 +56,7 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_fsm.h"
 #include "eigrpd/eigrp_memory.h"
+#include "eigrpd/eigrp_network.h"
 
 /* Packet Type String. */
 const struct message eigrp_packet_type_str[] = {
@@ -479,6 +480,8 @@ int eigrp_read(struct thread *thread)
 	struct eigrp_header *eigrph;
 	struct interface *ifp;
 	struct eigrp_neighbor *nbr;
+	struct route_node *rn;
+	route_table_iter_t rtit;
 
 	uint16_t opcode = 0;
 	uint16_t length = 0;
@@ -531,6 +534,32 @@ int eigrp_read(struct thread *thread)
 
 	/* associate packet with eigrp interface */
 	ei = ifp->info;
+	
+	/* Check to see if the interface is running, else start the interface.
+	 * Not exactly sure what to check, but if this is a new interface and
+	 * this is the first packet from that interface, then it will not have
+	 * any neighbors, so checking for a NULL on nbrs should tell us whether
+	 * or not this needs to happen. Plus there are asserts later that die
+	 * if nbrs is NULL, so a good check anyway! */
+	if(ei->nbrs == NULL) {
+		char pstr[25];
+		L(zlog_debug,"Initialize Interface[%s]",ifp->name);
+
+		route_table_iter_init(&rtit, eigrp->networks);
+		while ((rn = route_table_iter_next(&rtit)) != NULL) {
+			prefix2str(&(rn->p), pstr, 25);
+			L(zlog_debug,"Adding prefix %s to interface %s.", pstr, ifp->name);
+			
+			struct prefix *pref = prefix_new();
+			PREFIX_COPY_IPV4(pref, &rn->p);
+			rn->info = (void *)pref;
+
+			eigrp_network_run_interface(eigrp, &rn->p, ifp);
+		}
+		L(zlog_debug,"Completed %s initialization.", ifp->name);
+		eigrp_if_up(ei);
+	}
+
 
 	/* eigrp_verify_header() relies on a valid "ei" and thus can be called
 	   only

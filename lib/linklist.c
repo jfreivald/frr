@@ -23,6 +23,8 @@
 
 #include "linklist.h"
 #include "memory.h"
+#include "debug_prefix.h"
+#include "debug.h"
 
 DEFINE_MTYPE_STATIC(LIB, LINK_LIST, "Link List")
 DEFINE_MTYPE_STATIC(LIB, LINK_NODE, "Link Node")
@@ -54,7 +56,10 @@ void listnode_add(struct list *list, void *val)
 {
 	struct listnode *node;
 
-	assert(val != NULL);
+	if (!val || !list) {
+		L(zlog_err, "Null parameters passed list[%d], val[%d]", list, val);
+		assert(val != NULL);
+	}
 
 	node = listnode_new();
 
@@ -238,7 +243,10 @@ void list_delete_all_node(struct list *list)
 
 void list_delete_and_null(struct list **list)
 {
-	assert(*list);
+	if (! (*list)) {
+		LBT(zlog_warn,"NULL passed as argument **list");
+		return;
+	}
 	list_delete_all_node(*list);
 	list_free_internal(*list);
 	*list = NULL;
