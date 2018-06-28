@@ -115,3 +115,6 @@ noinst_HEADERS += defaults.h
 
 indent:
 	tools/indent.py `find sharpd bgpd eigrpd include isisd lib nhrpd ospf6d ospfd pimd qpb ripd vtysh zebra -name '*.[ch]' | grep -v include/linux`
+
+deb:
+	sudo checkinstall -y --pkgversion=5.1.0 --pkgrelease=1 --maintainer='jfreivald@att.com' --conflicts='quagga,zebra' --replaces='quagga'
