@@ -33,6 +33,7 @@
 #include "table.h"
 #include "buffer.h"
 #include "log.h"
+#include "debug_wrapper.h"
 
 DEFINE_MTYPE(LIB, IF, "Interface")
 DEFINE_MTYPE_STATIC(LIB, CONNECTED, "Connected")

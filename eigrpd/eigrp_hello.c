@@ -44,6 +44,7 @@
 #include "checksum.h"
 #include "vty.h"
 #include "md5.h"
+#include "config.h"
 
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrpd.h"

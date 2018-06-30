@@ -1,4 +1,4 @@
-#include "debug_prefix.h"
+#include "debug_wrapper.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -24,8 +24,7 @@ void _logger(void (logfunc(const char *format, ...)), const char *file, const ch
 	/* Make sure the buffer is NULL terminated */
 	msgbuf[LOGGER_BUFFER_SIZE-1] = 0;
 
-	logfunc("%s\n", msgbuf);
-	fflush(stderr);
+	logfunc("%s", msgbuf);
 }
 
 void _logger_backtrace(void (logfunc(const char *format, ...)), const char *file, const char *func, int line, int e, const char *fmt, ...) {
@@ -50,7 +49,7 @@ void _logger_backtrace(void (logfunc(const char *format, ...)), const char *file
   /* Make sure the buffer is NULL terminated */
   msgbuf[LOGGER_BUFFER_SIZE-1] = 0;
 
-  logfunc("%s\n", msgbuf);
+  logfunc("%s", msgbuf);
 
 	/* Append Backtrace */
 #ifdef LOGGER_BT_W_VALGRIND

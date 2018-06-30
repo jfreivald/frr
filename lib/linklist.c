@@ -23,7 +23,7 @@
 
 #include "linklist.h"
 #include "memory.h"
-#include "debug_prefix.h"
+#include "debug_wrapper.h"
 #include "debug.h"
 
 DEFINE_MTYPE_STATIC(LIB, LINK_LIST, "Link List")

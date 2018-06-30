@@ -41,6 +41,8 @@
 #include "log.h"
 #include "keychain.h"
 #include "vty.h"
+#include "plist.h"
+#include "plist_int.h"
 
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrpd.h"
@@ -113,13 +115,26 @@ struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *ei,
 	}
 
 	L(zlog_debug,"Adding new neighbor.");
-	if (NULL == (nbr = eigrp_nbr_add(ei, eigrph, iph))) {
-			L(zlog_err, "Unable to add new neigbor.");
-			return NULL;
+	if (NULL != (nbr = eigrp_nbr_add(ei, eigrph, iph))) {
+		if (!ei->nbrs) {
+			struct eigrp *eigrp = eigrp_lookup();
+			struct prefix_list_entry *next;
+			char buf[INET6_ADDRSTRLEN];
+
+			L(zlog_warn, "Initialize interface.");
+			next = eigrp->prefix[EIGRP_FILTER_IN]->head;
+			while ( next ) {
+				prefix2str(&(next->prefix), buf, INET6_ADDRSTRLEN);
+				L(zlog_debug, "Adding %s to %s", buf, ei->ifp->name);
+				eigrp_if_new(eigrp, ei->ifp, &(next->prefix));
+				next = next->next;
+			}
+		}
+		listnode_add(ei->nbrs, nbr);
+	} else {
+		L(zlog_err, "Unable to add new neighbor.");
 	}
 	
-	listnode_add(ei->nbrs, nbr);
-
 	return nbr;
 }
 
@@ -224,7 +239,10 @@ uint8_t eigrp_nbr_state_get(struct eigrp_neighbor *nbr)
 
 void eigrp_nbr_state_set(struct eigrp_neighbor *nbr, uint8_t state)
 {
+
 	nbr->state = state;
+
+	//L(zlog_debug, "%s:%s", nbr->ei->ifp->name, eigrp_nbr_state_str(nbr));
 
 	if (eigrp_nbr_state_get(nbr) == EIGRP_NEIGHBOR_DOWN) {
 		// reset all the seq/ack counters
@@ -266,7 +284,7 @@ const char *eigrp_nbr_state_str(struct eigrp_neighbor *nbr)
 		state = "Down";
 		break;
 	case EIGRP_NEIGHBOR_PENDING:
-		state = "Waiting for Init";
+		state = "Pending";
 		break;
 	case EIGRP_NEIGHBOR_UP:
 		state = "Up";

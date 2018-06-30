@@ -281,9 +281,12 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 		if (CHECK_FLAG(co->flags, ZEBRA_IFA_SECONDARY))
 			continue;
 
-		if (p->family == co->address->family && !ifp->info
-		    && eigrp_network_match_iface(co, p)) {
+//		Interface that is brought up after the start of the daemon
+//		appears not to initialize becuase ifp->info is set. Removing check.
+//		if (p->family == co->address->family && !ifp->info
+		if (p->family == co->address->family && eigrp_network_match_iface(co, p)) {
 
+			L(zlog_info, "%s joining multicast group", ifp->name);
 			ei = eigrp_if_new(eigrp, ifp, co->address);
 			ei->connected = co;
 
@@ -297,6 +300,8 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 			 */
 			if (if_is_operative(ifp))
 				eigrp_if_up(ei);
+		} else {
+			L(zlog_debug, "%s skipped[%s|%s]", ifp->name, p->family == co->address->family ? "Family Match" : "Family Mismatch", eigrp_network_match_iface(co, p) ? "Network Match" : "Network Mismatch");
 		}
 	}
 }

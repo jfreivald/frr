@@ -61,8 +61,10 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	struct eigrp_interface *ei = ifp->info;
 	int i;
 
-	if (ei)
+	if (ei && ei->nbrs) {
+		L(zlog_err, "Attempting to initialize an interface that is already established.");
 		return ei;
+	}
 
 	ei = XCALLOC(MTYPE_EIGRP_IF, sizeof(struct eigrp_interface));
 
@@ -148,6 +150,8 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	if (ei == NULL)
 		return 0;
 
+	L(zlog_debug, "Interface %d Up", ei->ifp ? ei->ifp->name : "NEW" );
+	
 	eigrp = ei->eigrp;
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
 
@@ -190,7 +194,9 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
 					      &dest_addr);
 
+
 	if (pe == NULL) {
+		L(zlog_debug, "Not found in topology");
 		pe = eigrp_prefix_entry_new();
 		pe->serno = eigrp->serno;
 		pe->destination = (struct prefix *)prefix_ipv4_new();
@@ -215,6 +221,7 @@ int eigrp_if_up(struct eigrp_interface *ei)
 		pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
 		listnode_delete(eigrp->topology_changes_internalIPV4, pe);
 	} else {
+		L(zlog_debug, "Found in topology");
 		struct eigrp_fsm_action_message msg;
 
 		ne->prefix = pe;

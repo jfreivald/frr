@@ -32,11 +32,11 @@
 
 #include "filter.h"
 #include "log.h"
-#include "debug_prefix.h"
+#include "debug_wrapper.h"
 
 /* Set EIGRP version is "classic" - wide metrics comes next */
 #define EIGRP_MAJOR_VERSION     1
-#define EIGRP_MINOR_VERSION	2
+#define EIGRP_MINOR_VERSION		2
 
 /* Extern variables. */
 extern struct zclient *zclient;
