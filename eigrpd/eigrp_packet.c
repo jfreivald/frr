@@ -80,7 +80,7 @@ static struct stream *eigrp_recv_packet(int, struct interface **,
 					struct stream *);
 static int eigrp_verify_header(struct stream *, struct eigrp_interface *,
 			       struct ip *, struct eigrp_header *);
-static int eigrp_check_network_mask(struct eigrp_interface *, struct in_addr);
+//static int eigrp_check_network_mask(struct eigrp_interface *, struct in_addr);
 
 static int eigrp_retrans_count_exceeded(struct eigrp_packet *ep,
 					struct eigrp_neighbor *nbr)
@@ -1000,24 +1000,24 @@ static int eigrp_verify_header(struct stream *ibuf, struct eigrp_interface *ei,
 /* Unbound socket will accept any Raw IP packets if proto is matched.
    To prevent it, compare src IP address and i/f address with masking
    i/f network mask. */
-static int eigrp_check_network_mask(struct eigrp_interface *ei,
-				    struct in_addr ip_src)
-{
-	struct in_addr mask, me, him;
-
-	if (ei->type == EIGRP_IFTYPE_POINTOPOINT)
-		return 1;
-
-	masklen2ip(ei->address->prefixlen, &mask);
-
-	me.s_addr = ei->address->u.prefix4.s_addr & mask.s_addr;
-	him.s_addr = ip_src.s_addr & mask.s_addr;
-
-	if (IPV4_ADDR_SAME(&me, &him))
-		return 1;
-
-	return 0;
-}
+//static int eigrp_check_network_mask(struct eigrp_interface *ei,
+//				    struct in_addr ip_src)
+//{
+//	struct in_addr mask, me, him;
+//
+//	if (ei->type == EIGRP_IFTYPE_POINTOPOINT)
+//		return 1;
+//
+//	masklen2ip(ei->address->prefixlen, &mask);
+//
+//	me.s_addr = ei->address->u.prefix4.s_addr & mask.s_addr;
+//	him.s_addr = ip_src.s_addr & mask.s_addr;
+//
+//	if (IPV4_ADDR_SAME(&me, &him))
+//		return 1;
+//
+//	return 0;
+//}
 
 int eigrp_unack_packet_retrans(struct thread *thread)
 {
