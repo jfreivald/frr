@@ -49,8 +49,10 @@ extern void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *,
 				       struct eigrp_nexthop_entry *);
 extern void eigrp_topology_delete_all(struct route_table *table);
 extern unsigned int eigrp_topology_table_isempty(struct list *);
+
+#define eigrp_topology_table_lookup_ipv4(table,p)	eigrp_topology_table_lookup_ipv4_cf(table,p,__FILE__,__PRETTY_FUNCTION__,__LINE__)
 extern struct eigrp_prefix_entry *
-eigrp_topology_table_lookup_ipv4(struct route_table *table, struct prefix *p);
+eigrp_topology_table_lookup_ipv4_cf(struct route_table *table, struct prefix *p, const char *, const char *, int);
 extern struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *);
 extern struct list *
 eigrp_topology_get_successor_max(struct eigrp_prefix_entry *pe,

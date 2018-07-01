@@ -1381,10 +1381,9 @@ void apply_classful_mask_ipv4(struct prefix_ipv4 *p)
 
 	destination = ntohl(p->prefix.s_addr);
 
-	if (p->prefixlen == IPV4_MAX_PREFIXLEN)
-		;
-	/* do nothing for host routes */
-	else if (IN_CLASSC(destination)) {
+	if (p->prefixlen == IPV4_MAX_PREFIXLEN){
+		/* do nothing for host routes */
+	} else if (IN_CLASSC(destination)) {
 		p->prefixlen = 24;
 		apply_mask_ipv4(p);
 	} else if (IN_CLASSB(destination)) {

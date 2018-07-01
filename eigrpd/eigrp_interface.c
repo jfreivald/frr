@@ -146,6 +146,7 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	struct eigrp_interface *ei2;
 	struct listnode *node, *nnode;
 	struct eigrp *eigrp;
+	char addr_buf[INET6_ADDRSTRLEN];
 
 	if (ei == NULL)
 		return 0;
@@ -191,12 +192,13 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	dest_addr.u.prefix4 = ei->connected->address->u.prefix4;
 	dest_addr.prefixlen = ei->connected->address->prefixlen;
 	apply_mask(&dest_addr);
-	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
-					      &dest_addr);
 
+	inet_ntop(AF_INET, &dest_addr, addr_buf, INET6_ADDRSTRLEN);
+
+	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
 	if (pe == NULL) {
-		L(zlog_debug, "Not found in topology");
+		L(zlog_debug, "%s not found in topology", addr_buf);
 		pe = eigrp_prefix_entry_new();
 		pe->serno = eigrp->serno;
 		pe->destination = (struct prefix *)prefix_ipv4_new();
@@ -209,7 +211,9 @@ int eigrp_if_up(struct eigrp_interface *ei)
 		pe->state = EIGRP_FSM_STATE_PASSIVE;
 		pe->fdistance = eigrp_calculate_metrics(eigrp, metric);
 		pe->req_action |= EIGRP_FSM_NEED_UPDATE;
+
 		eigrp_prefix_entry_add(eigrp->topology_table, pe);
+
 		listnode_add(eigrp->topology_changes_internalIPV4, pe);
 
 		eigrp_nexthop_entry_add(pe, ne);

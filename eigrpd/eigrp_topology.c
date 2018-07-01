@@ -152,26 +152,27 @@ void eigrp_topology_cleanup(struct route_table *table)
 /*
  * Adding topology node to topology table
  */
-void eigrp_prefix_entry_add(struct route_table *topology,
-		struct eigrp_prefix_entry *pe)
+void eigrp_prefix_entry_add(struct route_table *topology, struct eigrp_prefix_entry *pe)
 {
 	LT(zlog_debug, "ENTER");
 	struct route_node *rn;
+	char buf[PREFIX2STR_BUFFER];
 
 	rn = route_node_get(topology, pe->destination);
-	if (rn->info) {
-		if (IS_DEBUG_EIGRP_EVENT) {
-			char buf[PREFIX_STRLEN];
 
-			L(zlog_debug,
-					"%s: %s Should we have found this entry in the topo table?",
-					__PRETTY_FUNCTION__,
-					prefix2str(pe->destination, buf, sizeof(buf)));
-		}
+	prefix2str(pe->destination, buf, PREFIX2STR_BUFFER);
+
+	if (!rn) {
+		L(zlog_err, "Route node not found for %s", buf);
+	} else {
+		L(zlog_debug, "Route node exists for %s", buf);
 	}
+
+	//TODO: CHECK THAT THE PREFIX ENTRY WAS ADDED
 
 	rn->info = pe;
 	route_lock_node(rn);
+
 	LT(zlog_debug, "EXIT");
 }
 
@@ -193,13 +194,13 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node,
 
 		prefix2str(node->destination, buf, INET6_ADDRSTRLEN);
 
-		eigrp_prefix_entry_add(entry->ei->eigrp->topology_table, node);
-		L(zlog_warn,"Route Added to AS %d Topology[%s]", entry->ei->eigrp->AS, buf);
 		eigrp_zebra_route_add(node->destination, l);
 		L(zlog_warn,"Route Added to Zebra[%s]", buf);
 	} else {
-		L(zlog_warn,"Route NOT Added[%s]", buf);
+		L(zlog_warn,"Route NOT Added to Zebra[%s]", buf);
 	}
+
+	//TODO: CHECK THAT THE ENTRY WAS ADDED
 
 	list_delete_and_null(&l);
 	LT(zlog_debug, "EXIT");
@@ -294,16 +295,25 @@ unsigned int eigrp_topology_table_isempty(struct list *topology)
 }
 
 struct eigrp_prefix_entry *
-eigrp_topology_table_lookup_ipv4(struct route_table *table,
-		struct prefix *address)
+eigrp_topology_table_lookup_ipv4_cf(struct route_table *table,
+		struct prefix *address, const char *file, const char *fun, int line)
 {
 	LT(zlog_debug, "ENTER");
 	struct eigrp_prefix_entry *pe;
 	struct route_node *rn;
+	char file_buf[256], fun_buf[256];
+	int line_num;
+
+	strncpy(file_buf, file, 256);
+	strncpy(fun_buf, fun, 256);
+	line_num = line;
+
+	char buf[PREFIX2STR_BUFFER];
+	prefix2str(address, buf, PREFIX2STR_BUFFER);
 
 	rn = route_node_lookup(table, address);
 	if (!rn) {
-		L(zlog_warn, "Route node does not exist.");
+		L(zlog_warn, "Route node does not exist[%s] [CF:%s:%s:%d]", buf, file_buf, fun_buf, line_num);
 		LT(zlog_debug, "EXIT");
 		return NULL;
 	}
@@ -575,6 +585,8 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 
 	successors = eigrp_topology_get_successor_max(prefix, eigrp->max_paths);
 
+	//TODO: CHECK THAT THE ROUTING TABLE GETS UPDATED PROPERLY
+
 	if (successors) {
 		L(zlog_warn,"Adding Route[%s]", buf);
 		eigrp_zebra_route_add(prefix->destination, successors);
@@ -588,6 +600,7 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 		for (ALL_LIST_ELEMENTS_RO(prefix->entries, node, entry))
 			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 	}
+
 	LT(zlog_debug, "EXIT");
 }
 

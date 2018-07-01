@@ -308,19 +308,18 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			struct eigrp_prefix_entry *dest =
 				eigrp_topology_table_lookup_ipv4(
 					eigrp->topology_table, &dest_addr);
-
+			char pre_text[PREFIX_STRLEN];
+			prefix2str(&dest_addr, pre_text, PREFIX_STRLEN);
 			/*if exists it comes to DUAL*/
 			if (dest != NULL) {
-				/* remove received prefix from neighbor prefix
-				 * list if in GR */
+				L(zlog_debug, "Prefix entry already exists for %s", pre_text);
+				/* remove received prefix from neighbor prefix list if in GR */
 				if (graceful_restart)
-					remove_received_prefix_gr(nbr_prefixes,
-								  dest);
+					remove_received_prefix_gr(nbr_prefixes, dest);
 
 				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *entry =
-					eigrp_prefix_entry_lookup(dest->entries,
-								  nbr);
+					eigrp_prefix_entry_lookup(dest->entries, nbr);
 
 				msg.packet_type = EIGRP_OPC_UPDATE;
 				msg.eigrp = eigrp;
@@ -332,50 +331,43 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				eigrp_fsm_event(&msg);
 			} else {
 				/*Here comes topology information save*/
+				L(zlog_debug, "Create prefix entry for %s", pre_text);
 				pe = eigrp_prefix_entry_new();
 				pe->serno = eigrp->serno;
-				pe->destination =
-					(struct prefix *)prefix_ipv4_new();
+				pe->destination = (struct prefix *)prefix_ipv4_new();
 				prefix_copy(pe->destination, &dest_addr);
 				pe->af = AF_INET;
 				pe->state = EIGRP_FSM_STATE_PASSIVE;
 				pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
 
+				L(zlog_debug, "Create nexthop entry for %s", pre_text);
 				ne = eigrp_nexthop_entry_new();
 				ne->ei = ei;
 				ne->adv_router = nbr;
 				ne->reported_metric = tlv->metric;
-				ne->reported_distance = eigrp_calculate_metrics(
-					eigrp, tlv->metric);
+				ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
 				/*
 				 * Filtering
 				 */
-				if (eigrp_update_prefix_apply(eigrp, ei,
-							      EIGRP_FILTER_IN,
-							      &dest_addr))
-					ne->reported_metric.delay =
-						EIGRP_MAX_METRIC;
+				if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+					ne->reported_metric.delay = EIGRP_MAX_METRIC;
 
-				ne->distance = eigrp_calculate_total_metrics(
-					eigrp, ne);
-
-				pe->fdistance = pe->distance = pe->rdistance =
-					ne->distance;
+				ne->distance = eigrp_calculate_total_metrics( eigrp, ne);
+				pe->fdistance = pe->distance = pe->rdistance = ne->distance;
 				ne->prefix = pe;
 				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-				eigrp_prefix_entry_add(eigrp->topology_table,
-						       pe);
+				L(zlog_debug, "Add prefix entry for %s", pre_text);
+				eigrp_prefix_entry_add(eigrp->topology_table, pe);
+				L(zlog_debug, "Add nexthop entry for %s", pre_text);
 				eigrp_nexthop_entry_add(pe, ne);
-				pe->distance = pe->fdistance = pe->rdistance =
-					ne->distance;
+
+				pe->distance = pe->fdistance = pe->rdistance = ne->distance;
 				pe->reported_metric = ne->total_metric;
 				eigrp_topology_update_node_flags(pe);
 
 				pe->req_action |= EIGRP_FSM_NEED_UPDATE;
-				listnode_add(
-					eigrp->topology_changes_internalIPV4,
-					pe);
+				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 			}
 			eigrp_IPv4_InternalTLV_free(tlv);
 			break;
