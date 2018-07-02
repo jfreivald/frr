@@ -146,12 +146,12 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	struct eigrp_interface *ei2;
 	struct listnode *node, *nnode;
 	struct eigrp *eigrp;
-	char addr_buf[INET6_ADDRSTRLEN];
+	char addr_buf[PREFIX2STR_BUFFER];
 
 	if (ei == NULL)
 		return 0;
 
-	L(zlog_debug, "Interface %d Up", ei->ifp ? ei->ifp->name : "NEW" );
+	L(zlog_debug, "Turning EIGRP Interface %s Up", ei->ifp ? ei->ifp->name : "NEW" );
 	
 	eigrp = ei->eigrp;
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
@@ -193,7 +193,7 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	dest_addr.prefixlen = ei->connected->address->prefixlen;
 	apply_mask(&dest_addr);
 
-	inet_ntop(AF_INET, &dest_addr, addr_buf, INET6_ADDRSTRLEN);
+	prefix2str(&dest_addr, addr_buf, PREFIX2STR_BUFFER);
 
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
@@ -212,7 +212,7 @@ int eigrp_if_up(struct eigrp_interface *ei)
 		pe->fdistance = eigrp_calculate_metrics(eigrp, metric);
 		pe->req_action |= EIGRP_FSM_NEED_UPDATE;
 
-		eigrp_prefix_entry_add(eigrp->topology_table, pe);
+		eigrp_prefix_entry_add(eigrp, pe);
 
 		listnode_add(eigrp->topology_changes_internalIPV4, pe);
 

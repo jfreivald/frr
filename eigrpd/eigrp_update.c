@@ -268,9 +268,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 	} else if ((flags & EIGRP_INIT_FLAG)
 		   && (!same)) { /* When in pending state, send INIT update only
-				    if it wasn't
-				    already sent before (only if init_sequence
-				    is 0) */
+				    if it wasn't already sent before (init_sequence is 0) */
 		if ((nbr->state == EIGRP_NEIGHBOR_PENDING)
 		    && (nbr->init_sequence_number == 0))
 			eigrp_update_send_init(nbr);
@@ -284,10 +282,8 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));
 			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_PENDING);
-			L(zlog_info,"%s: Neighbor %s (%s) is pending from UPDATE: new adjacency", __PRETTY_FUNCTION__,
-				  inet_ntoa(nbr->src),
-				  ifindex2ifname(nbr->ei->ifp->ifindex,
-						 VRF_DEFAULT));
+			L(zlog_info,"Neighbor %s (%s) is pending from UPDATE: new adjacency",
+				  inet_ntoa(nbr->src), ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 			eigrp_update_send_init(nbr);
 		}
 	}
@@ -306,8 +302,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			dest_addr.u.prefix4 = tlv->destination;
 			dest_addr.prefixlen = tlv->prefix_length;
 			struct eigrp_prefix_entry *dest =
-				eigrp_topology_table_lookup_ipv4(
-					eigrp->topology_table, &dest_addr);
+					eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 			char pre_text[PREFIX_STRLEN];
 			prefix2str(&dest_addr, pre_text, PREFIX_STRLEN);
 			/*if exists it comes to DUAL*/
@@ -318,8 +313,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 					remove_received_prefix_gr(nbr_prefixes, dest);
 
 				struct eigrp_fsm_action_message msg;
-				struct eigrp_nexthop_entry *entry =
-					eigrp_prefix_entry_lookup(dest->entries, nbr);
+				struct eigrp_nexthop_entry *entry = eigrp_prefix_entry_lookup(dest->entries, nbr);
 
 				msg.packet_type = EIGRP_OPC_UPDATE;
 				msg.eigrp = eigrp;
@@ -357,8 +351,8 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				ne->prefix = pe;
 				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-				L(zlog_debug, "Add prefix entry for %s", pre_text);
-				eigrp_prefix_entry_add(eigrp->topology_table, pe);
+				L(zlog_debug, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+				eigrp_prefix_entry_add(eigrp, pe);
 				L(zlog_debug, "Add nexthop entry for %s", pre_text);
 				eigrp_nexthop_entry_add(pe, ne);
 

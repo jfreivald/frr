@@ -57,6 +57,8 @@ struct eigrp_master {
 #define EIGRP_MASTER_SHUTDOWN (1 << 0) /* deferred-shutdown */
 };
 
+#define EIGRP_INFINITE_DISTANCE		(0xFFFF)
+
 struct eigrp_metrics {
 	uint32_t delay;
 	uint32_t bandwidth;
@@ -67,6 +69,13 @@ struct eigrp_metrics {
 	uint8_t tag;
 	uint8_t flags;
 };
+
+extern const struct eigrp_metrics infinite_metrics;
+
+#define EIGRP_INFINITE_METRIC			infinite_metrics
+
+#define EIGRP_PRINTF		"[%s:%d:%02x:%04x:%04x]"
+#define EIGRP_VALUES(e)		e->name,e->AS,e->vrid,e->router_id,e->router_id_static
 
 struct eigrp {
 	uint16_t AS;	 /* Autonomous system number */

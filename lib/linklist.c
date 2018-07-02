@@ -29,9 +29,18 @@
 DEFINE_MTYPE_STATIC(LIB, LINK_LIST, "Link List")
 DEFINE_MTYPE_STATIC(LIB, LINK_NODE, "Link Node")
 
-struct list *list_new(void)
+struct list *list_new_cb_cf(int (*cmp)(void *val1, void *val2), void (*del)(void *val),const char *file,const char *func,int line)
 {
-	return XCALLOC(MTYPE_LINK_LIST, sizeof(struct list));
+
+	struct list *new_list = XCALLOC(MTYPE_LINK_LIST, sizeof(struct list));
+
+//	if (cmp == NULL || del == NULL) {
+//		L(zlog_warn, "Creating a list without Compare and Delete callbacks is DEPRECATED: CF[%s:%s:%d]", file, func, line);
+//	}
+
+	new_list->cmp = cmp;
+	new_list->del = del;
+	return new_list;
 }
 
 /* Free list. */
@@ -101,6 +110,8 @@ void listnode_add_sort(struct list *list, void *val)
 			}
 		}
 	}
+
+	//No sort function. Add unsorted.
 
 	new->prev = list->tail;
 
@@ -205,6 +216,53 @@ void listnode_delete(struct list *list, void *val)
 				node->next->prev = node->prev;
 			else
 				list->tail = node->prev;
+
+			//If list node is head or tail, adjust list -- JATF
+			if (list->head == node)
+				list->head = node->next;
+
+			if (list->tail == node)
+				list->tail = node->prev;
+
+			list->count--;
+			listnode_free(node);
+			return;
+		}
+	}
+}
+
+void listnode_destroy(struct list *list, void *val)
+{
+	struct listnode *node;
+
+	assert(list);
+	for (node = list->head; node; node = node->next) {
+		if (node->data == val) {
+			if (node->prev)
+				node->prev->next = node->next;
+			else
+				list->head = node->next;
+
+			if (node->next)
+				node->next->prev = node->prev;
+			else
+				list->tail = node->prev;
+
+			//If list node is head or tail, adjust list -- JATF
+			if (list->head == node)
+				list->head = node->next;
+
+			if (list->tail == node)
+				list->tail = node->prev;
+
+			//If there is a delete function for the data, use it!
+			if (list->del) {
+				list->del(node->data);
+			} else {
+				free(node->data);
+			}
+
+			node->data = NULL;
 
 			list->count--;
 			listnode_free(node);

@@ -39,8 +39,7 @@ extern struct eigrp_prefix_entry *eigrp_prefix_entry_new(void);
 extern struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(void);
 extern void eigrp_topology_free(struct route_table *table);
 extern void eigrp_topology_cleanup(struct route_table *table);
-extern void eigrp_prefix_entry_add(struct route_table *table,
-				   struct eigrp_prefix_entry *pe);
+extern void eigrp_prefix_entry_add(struct eigrp *, struct eigrp_prefix_entry *);
 extern void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *,
 				    struct eigrp_nexthop_entry *);
 extern void eigrp_prefix_entry_delete(struct route_table *table,

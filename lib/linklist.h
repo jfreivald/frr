@@ -65,7 +65,9 @@ struct list {
  * Returns:
  *    the created linked list
  */
-extern struct list *list_new(void);
+#define list_new()		list_new_cb_cf(NULL,NULL,__FILE__,__PRETTY_FUNCTION__,__LINE__)
+#define list_new_cb(cmp,del)	list_new_cb_cf(cmp,del,__FILE__,__PRETTY_FUNCTION__,__LINE__)
+extern struct list *list_new_cb_cf(int (*cmp)(void *val1, void *val2), void (*del)(void *val), const char *, const char *, int);
 
 /*
  * Add a new element to the tail of a list.
@@ -151,7 +153,7 @@ extern struct listnode *listnode_add_before(struct list *list,
 extern void listnode_move_to_tail(struct list *list, struct listnode *node);
 
 /*
- * Delete an element from a list.
+ * Delete an element from a list. List node is deleted. Data is not.
  *
  * Runtime is O(N).
  *
@@ -162,6 +164,20 @@ extern void listnode_move_to_tail(struct list *list, struct listnode *node);
  *    data to insert into list
  */
 extern void listnode_delete(struct list *list, void *data);
+
+/*
+ * Destroy an element from a list. If there is a delete callback, the
+ * data is destroyed with it, otherwise it is freed with free();
+ *
+ * Runtime is O(N).
+ *
+ * list
+ *    list to operate on
+ *
+ * data
+ *    data to insert into list
+ */
+extern void listnode_destroy(struct list *list, void *data);
 
 /*
  * Find the listnode corresponding to an element in a list.
@@ -305,8 +321,7 @@ extern void list_add_list(struct list *list, struct list *add);
  */
 #define ALL_LIST_ELEMENTS(list, node, nextnode, data)                          \
 	(node) = listhead(list), ((data) = NULL);                              \
-	(node) != NULL                                                         \
-		&& ((data) = listgetdata(node), (nextnode) = node->next, 1);   \
+	(node) != NULL && ((data) = listgetdata(node), (nextnode) = node->next, 1);   \
 	(node) = (nextnode), ((data) = NULL)
 
 /* read-only list iteration macro.

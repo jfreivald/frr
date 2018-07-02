@@ -234,6 +234,12 @@ int eigrp_network_set(struct eigrp *eigrp, struct prefix *p)
 	struct route_node *rn;
 	struct interface *ifp;
 
+	if (!eigrp->name) {
+		L(zlog_debug, "EIGRP instance has no name. Add name of AS %d", eigrp->AS);
+		eigrp->name = malloc(20);
+		snprintf(eigrp->name, 20, "AS %d", eigrp->AS);
+	}
+
 	rn = route_node_get(eigrp->networks, (struct prefix *)p);
 	if (rn->info) {
 		/* There is already same network statement. */
@@ -244,6 +250,7 @@ int eigrp_network_set(struct eigrp *eigrp, struct prefix *p)
 	struct prefix *pref = prefix_new();
 	PREFIX_COPY_IPV4(pref, p);
 	rn->info = (void *)pref;
+
 
 	/* Schedule Router ID Update. */
 	if (eigrp->router_id == 0)
@@ -286,7 +293,7 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 //		if (p->family == co->address->family && !ifp->info
 		if (p->family == co->address->family && eigrp_network_match_iface(co, p)) {
 
-			L(zlog_info, "%s joining multicast group", ifp->name);
+			L(zlog_info, "%s configured for %s. Joining multicast group", ifp->name, eigrp->name);
 			ei = eigrp_if_new(eigrp, ifp, co->address);
 			ei->connected = co;
 
@@ -301,7 +308,7 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 			if (if_is_operative(ifp))
 				eigrp_if_up(ei);
 		} else {
-			L(zlog_debug, "%s skipped[%s|%s]", ifp->name, p->family == co->address->family ? "Family Match" : "Family Mismatch", eigrp_network_match_iface(co, p) ? "Network Match" : "Network Mismatch");
+			//L(zlog_debug, "%s skipped[%s|%s]", ifp->name, p->family == co->address->family ? "Family Match" : "Family Mismatch", eigrp_network_match_iface(co, p) ? "Network Match" : "Network Mismatch");
 		}
 	}
 }

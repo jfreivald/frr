@@ -38,7 +38,7 @@
 #include "linklist.h"
 #include "vty.h"
 
-//#define LOGGER_TRACE
+#define LOGGER_TRACE
 
 #include "debug_wrapper.h"
 
@@ -55,8 +55,8 @@
 #include "eigrpd/eigrp_fsm.h"
 #include "eigrpd/eigrp_memory.h"
 
-static int eigrp_nexthop_entry_cmp(struct eigrp_nexthop_entry *,
-		struct eigrp_nexthop_entry *);
+static int eigrp_nexthop_entry_cmp(void *, void *);
+static void eigrp_nexthop_entry_del(void *);
 
 /*
  * Returns linkedlist used as topology table
@@ -82,9 +82,8 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
 	struct eigrp_prefix_entry *new;
 	new = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
 			sizeof(struct eigrp_prefix_entry));
-	new->entries = list_new();
+	new->entries = list_new_cb(eigrp_nexthop_entry_cmp, eigrp_nexthop_entry_del);
 	new->rij = list_new();
-	new->entries->cmp = (int (*)(void *, void *))eigrp_nexthop_entry_cmp;
 	new->distance = new->fdistance = new->rdistance = EIGRP_MAX_METRIC;
 	new->destination = NULL;
 
@@ -95,11 +94,15 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
 /*
  * Topology entry comparison
  */
-static int eigrp_nexthop_entry_cmp(struct eigrp_nexthop_entry *entry1,
-		struct eigrp_nexthop_entry *entry2)
+static int eigrp_nexthop_entry_cmp(void *p1, void *p2)
 {
 	LT(zlog_debug, "ENTER");
+
 	int ret;
+
+	struct eigrp_nexthop_entry *entry1 = (struct eigrp_nexthop_entry *)p1;
+	struct eigrp_nexthop_entry *entry2 = (struct eigrp_nexthop_entry *)p2;
+
 	if (entry1->distance < entry2->distance) {
 		ret = -1;
 	} else if (entry1->distance > entry2->distance) {
@@ -109,6 +112,13 @@ static int eigrp_nexthop_entry_cmp(struct eigrp_nexthop_entry *entry1,
 	}
 	LT(zlog_debug, "EXIT");
 	return ret;
+}
+
+/*
+ * Topology entry delete
+ */
+static void eigrp_nexthop_entry_del(void *p1) {
+	XFREE(MTYPE_EIGRP_NEXTHOP_ENTRY, p1);
 }
 
 /*
@@ -152,35 +162,34 @@ void eigrp_topology_cleanup(struct route_table *table)
 /*
  * Adding topology node to topology table
  */
-void eigrp_prefix_entry_add(struct route_table *topology, struct eigrp_prefix_entry *pe)
+void eigrp_prefix_entry_add(struct eigrp *eigrp, struct eigrp_prefix_entry *pe)
 {
 	LT(zlog_debug, "ENTER");
 	struct route_node *rn;
-	char buf[PREFIX2STR_BUFFER];
-
-	rn = route_node_get(topology, pe->destination);
-
+	char buf[PREFIX2STR_BUFFER], buf2[PREFIX2STR_BUFFER];
 	prefix2str(pe->destination, buf, PREFIX2STR_BUFFER);
 
+	rn = route_node_get(eigrp->topology_table, pe->destination);
+
 	if (!rn) {
-		L(zlog_err, "Route node not found for %s", buf);
+		L(zlog_err, "Route node not found for %s in %s", buf, eigrp->name);
 	} else {
-		L(zlog_debug, "Route node exists for %s", buf);
+		L(zlog_debug, "Route node exists for %s in %s", buf, eigrp->name);
 	}
 
-	//TODO: CHECK THAT THE PREFIX ENTRY WAS ADDED
+	prefix2str(&(rn->p), buf2, PREFIX2STR_BUFFER);
+	L(zlog_debug, "Assign Prefix entry %s to route node %s", buf, buf2);
 
 	rn->info = pe;
-	route_lock_node(rn);
+	//route_lock_node(rn);
 
 	LT(zlog_debug, "EXIT");
 }
 
 /*
- * Adding topology entry to topology node
+ * Adding nexthop to the prefix topology entry on the topology node
  */
-void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node,
-		struct eigrp_nexthop_entry *entry)
+void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node, struct eigrp_nexthop_entry *entry)
 {
 	LT(zlog_debug, "ENTER");
 	struct list *l = list_new();
@@ -189,6 +198,7 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node,
 
 	listnode_add(l, entry);
 	if (listnode_lookup(node->entries, entry) == NULL) {
+		L(zlog_debug,"No route node entry not found on prefix. Adding.");
 		listnode_add_sort(node->entries, entry);
 		entry->prefix = node;
 
@@ -200,8 +210,6 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node,
 		L(zlog_warn,"Route NOT Added to Zebra[%s]", buf);
 	}
 
-	//TODO: CHECK THAT THE ENTRY WAS ADDED
-
 	list_delete_and_null(&l);
 	LT(zlog_debug, "EXIT");
 }
@@ -209,12 +217,12 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node,
 /*
  * Deleting topology node from topology table
  */
-void eigrp_prefix_entry_delete(struct route_table *table,
-		struct eigrp_prefix_entry *pe)
+void eigrp_prefix_entry_delete(struct route_table *table, struct eigrp_prefix_entry *pe)
 {
 	LT(zlog_debug, "ENTER");
 	struct eigrp *eigrp = eigrp_lookup();
-	struct route_node *rn;
+	struct route_node *rn, *this;
+	char pbuf[PREFIX_STRLEN];
 
 	if (!eigrp) {
 		L(zlog_warn, "EIGRP is not running");
@@ -224,7 +232,8 @@ void eigrp_prefix_entry_delete(struct route_table *table,
 
 	rn = route_node_lookup(table, pe->destination);
 	if (!rn) {
-		L(zlog_warn, "Route node does not exist.");
+		L(zlog_warn, "Route node does not exist. Just freeing the prefix entry.");
+		XFREE(MTYPE_EIGRP_PREFIX_ENTRY, pe);
 		LT(zlog_debug, "EXIT");
 		return;
 	}
@@ -232,6 +241,8 @@ void eigrp_prefix_entry_delete(struct route_table *table,
 	 * Emergency removal of the node from this list.
 	 * Whatever it is.
 	 */
+	prefix2str(pe->destination, pbuf, PREFIX_STRLEN);
+	L(zlog_debug,"Removing prefix entry %s", pbuf);
 	listnode_delete(eigrp->topology_changes_internalIPV4, pe);
 
 	list_delete_and_null(&pe->entries);
@@ -239,8 +250,76 @@ void eigrp_prefix_entry_delete(struct route_table *table,
 	eigrp_zebra_route_delete(pe->destination);
 
 	rn->info = NULL;
-	route_unlock_node(rn); // Lookup above
-	route_unlock_node(rn); // Initial creation
+
+
+	/* The route table functions aren't removing the routes properly so
+	 * I'm doing it manually here.
+	 * TODO: Move into delegate functions to use with the topology.
+	 */
+	if (rn->l_left && rn->l_right) {
+		//Both branches
+		//Find left-most of the right branch.
+		this = rn->l_right;
+		while(this->l_left)
+			this=this->l_left;
+		//Replace parent or root, as appropriate
+		if (rn->parent) {
+			rn->parent->l_right = this;
+			this->parent = rn->parent;
+		} else {
+			table->top = this;
+			this->parent = NULL;
+		}
+		//Link the left to this node.
+		this->l_left = rn->l_left;
+	} else if (rn->l_left) {
+		//Left branch only.
+		if (rn->parent) {
+			if (rn->parent->l_left == rn) {
+				rn->parent->l_left = rn->l_left;
+			} else if (rn->parent->l_right == rn) {
+				rn->parent->l_right = rn->l_left;
+			} else {
+				L(zlog_warn, "Route table linking error!");
+			}
+		} else {
+			table->top = rn->l_left;
+		}
+	} else if (rn->l_right) {
+		//Right branch only.
+		if (rn->parent) {
+			if (rn->parent->l_left == rn) {
+				rn->parent->l_left = rn->l_right;
+			} else if (rn->parent->l_right == rn) {
+				rn->parent->l_right = rn->l_right;
+			} else {
+				L(zlog_warn, "Route table linking error!");
+			}
+		} else if (table->top == rn) {
+			table->top = rn->l_right;
+		} else {
+			L(zlog_warn, "Route table linking error!");
+		}
+	} else {
+		//We are a leaf
+		if (rn->parent) {
+			if (rn->parent->l_left == rn) {
+				rn->parent->l_left = NULL;
+			} else if (rn->parent->l_right == rn) {
+				rn->parent->l_right = NULL;
+			} else {
+				L(zlog_warn, "Route table linking error!");
+			}
+		} else if (table->top == rn) {
+			table->top = NULL;
+		} else {
+			L(zlog_warn, "Route table linking error!");
+		}
+	}
+
+	hash_release(rn->table->hash, rn);
+
+	XFREE(MTYPE_ROUTE_NODE, rn);
 	XFREE(MTYPE_EIGRP_PREFIX_ENTRY, pe);
 	LT(zlog_debug, "EXIT");
 }
@@ -248,14 +327,16 @@ void eigrp_prefix_entry_delete(struct route_table *table,
 /*
  * Deleting topology entry from topology node
  */
-void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *node,
-		struct eigrp_nexthop_entry *entry)
+void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *prefix_entry, struct eigrp_nexthop_entry *entry)
 {
 	LT(zlog_debug, "ENTER");
-	if (listnode_lookup(node->entries, entry) != NULL) {
-		listnode_delete(node->entries, entry);
-		eigrp_zebra_route_delete(node->destination);
-		XFREE(MTYPE_EIGRP_NEXTHOP_ENTRY, entry);
+	char pbuf[PREFIX_STRLEN];
+
+	prefix2str(prefix_entry->destination, pbuf, PREFIX_STRLEN);
+	if (listnode_lookup(prefix_entry->entries, entry) != NULL) {
+		L(zlog_debug,"Remove nexthop entry and delete route for %s", pbuf);
+		eigrp_zebra_route_delete(prefix_entry->destination);
+		listnode_delete(prefix_entry->entries, entry);
 	}
 	LT(zlog_debug, "EXIT");
 }
@@ -341,20 +422,24 @@ struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *table_node)
 	struct listnode *node1, *node2;
 	char buf[INET6_ADDRSTRLEN];
 
-	for (ALL_LIST_ELEMENTS(table_node->entries, node1, node2, data)) {
-		if (data->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG) {
-			listnode_add(successors, data);
+	if (!table_node->entries)
+		table_node->entries = list_new();
+	else if (table_node->entries->count) {
+		for (ALL_LIST_ELEMENTS(table_node->entries, node1, node2, data)) {
+			if (data && (data->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+				listnode_add(successors, data);
+			}
+		}
+	} else {
+		if (table_node->entries->head || table_node->entries->tail) {
+			L(zlog_warn, "Table Node Entries has count of 0 but head and tail are not null[%08x:%08x]",
+					table_node->entries->head, table_node->entries->tail);
 		}
 	}
 
-	/*
-	 * If we have no successors return NULL
-	 */
 	if (!successors->count) {
 		prefix2str(table_node->destination,buf,sizeof(buf));
 		L(zlog_warn,"NO SUCCESSORS FOR [%s]",buf);
-		list_delete_and_null(&successors);
-		successors = NULL;
 	}
 
 	LT(zlog_debug, "EXIT");
@@ -540,11 +625,8 @@ void eigrp_topology_update_node_flags(struct eigrp_prefix_entry *dest)
 	for (ALL_LIST_ELEMENTS_RO(dest->entries, node, entry)) {
 		if (entry->reported_distance < dest->fdistance) {
 			// is feasible successor, can be successor
-			if (((uint64_t)entry->distance
-					<= (uint64_t)dest->distance
-					* (uint64_t)eigrp->variance)
-					// Why would we care if it is max if it matches the first criteria? --JATF
-					// && entry->distance != EIGRP_MAX_METRIC
+			if (((uint64_t)entry->distance <= (uint64_t)dest->distance	* (uint64_t)eigrp->variance)
+					&& entry->distance != EIGRP_MAX_METRIC
 			) {
 				// is successor
 				entry->flags |=
@@ -585,9 +667,7 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 
 	successors = eigrp_topology_get_successor_max(prefix, eigrp->max_paths);
 
-	//TODO: CHECK THAT THE ROUTING TABLE GETS UPDATED PROPERLY
-
-	if (successors) {
+	if (successors->count) {
 		L(zlog_warn,"Adding Route[%s]", buf);
 		eigrp_zebra_route_add(prefix->destination, successors);
 		for (ALL_LIST_ELEMENTS_RO(successors, node, entry))
@@ -612,27 +692,37 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_nexthop_entry *entry;
 	struct route_node *rn;
-	char buf[INET_ADDRSTRLEN];
+	struct eigrp_fsm_action_message msg;
 
-	inet_ntop(AF_INET, &(nbr->src), buf, INET_ADDRSTRLEN);
+	struct listnode *node, *nextnode;
+	struct list *update_prefixes = list_new();
 
-	L(zlog_info, "%s Down",	buf);
+	char abuf[INET_ADDRSTRLEN], abuf2[PREFIX_STRLEN];
+
+	inet_ntop(AF_INET, &(nbr->src), abuf, INET_ADDRSTRLEN);
+
+	L(zlog_info, "Neighbor %s Down", abuf);
 
 	for (rn = route_top(eigrp->topology_table); rn; rn = route_next(rn)) {
 		pe = rn->info;
 
+		prefix2str(&(rn->p), abuf2, PREFIX_STRLEN);
+
 		if (!pe) {
-			prefix2str(&(rn->p), buf, INET6_ADDRSTRLEN);
-			L(zlog_warn,"No PE for route[%s]", buf);
+			L(zlog_debug,"Skip summary route[%s]", abuf2);
 			continue;
 		}
 
 		for (ALL_LIST_ELEMENTS(pe->entries, node2, node22, entry)) {
-			struct eigrp_fsm_action_message msg;
-
-			if (entry->adv_router != nbr)
+			if (entry->adv_router != nbr) {
+				L(zlog_debug, "Route %s does not belong to neighbor %s.", abuf2, abuf);
 				continue;
+			}
 
+			//Setting distance to EIGRP_MAX_METRIC removes the prefix on next topology update.
+			entry->distance = EIGRP_MAX_METRIC;
+
+			L(zlog_debug, "Build route update for %s", abuf2);
 			msg.metrics.delay = EIGRP_MAX_METRIC;
 			msg.packet_type = EIGRP_OPC_UPDATE;
 			msg.eigrp = eigrp;
@@ -640,30 +730,45 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 			msg.adv_router = nbr;
 			msg.entry = entry;
 			msg.prefix = pe;
+
+			L(zlog_debug, "Send message to FSM");
 			eigrp_fsm_event(&msg);
+
 		}
+
+		listnode_add(update_prefixes, pe);
+
 	}
 
+	for (ALL_LIST_ELEMENTS(update_prefixes, node, nextnode, pe)) {
+		L(zlog_debug,"Update the topology table");
+		eigrp_update_topology_table_prefix(eigrp->topology_table, pe);
+		L(zlog_debug,"Update the routing table for %s", abuf2);
+		eigrp_update_routing_table(pe);
+		listnode_delete(update_prefixes, pe);
+	}
+
+	L(zlog_debug, "Query all neighbors");
 	eigrp_query_send_all(eigrp);
+	L(zlog_debug, "Update all neighbors except %s", abuf);
 	eigrp_update_send_all(eigrp, nbr->ei);
 	LT(zlog_debug, "EXIT");
 }
 
-void eigrp_update_topology_table_prefix(struct route_table *table,
-		struct eigrp_prefix_entry *prefix)
+void eigrp_update_topology_table_prefix(struct route_table *topology, struct eigrp_prefix_entry *prefix)
 {
 	LT(zlog_debug, "ENTER");
 	struct listnode *node1, *node2;
-
 	struct eigrp_nexthop_entry *entry;
+
 	for (ALL_LIST_ELEMENTS(prefix->entries, node1, node2, entry)) {
-		if (entry->distance == EIGRP_MAX_METRIC) {
+		if (entry && entry->distance == EIGRP_MAX_METRIC) {
 			eigrp_nexthop_entry_delete(prefix, entry);
 		}
 	}
-	if (prefix->distance == EIGRP_MAX_METRIC
-			&& prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED) {
-		eigrp_prefix_entry_delete(table, prefix);
+
+	if (prefix->distance == EIGRP_MAX_METRIC && prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED) {
+		eigrp_prefix_entry_delete(topology, prefix);
 	}
 	LT(zlog_debug, "EXIT");
 }

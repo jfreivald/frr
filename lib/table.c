@@ -27,6 +27,8 @@
 #include "table.h"
 #include "memory.h"
 #include "sockunion.h"
+#include "debug.h"
+#include "debug_wrapper.h"
 
 DEFINE_MTYPE(LIB, ROUTE_TABLE, "Route table")
 DEFINE_MTYPE(LIB, ROUTE_NODE, "Route node")
@@ -78,6 +80,8 @@ static struct route_node *route_node_set(struct route_table *table,
 
 	inserted = hash_get(node->table->hash, node, hash_alloc_intern);
 	assert(inserted == node);
+
+	L(zlog_debug, "Route hash inserted.");
 
 	return node;
 }
@@ -145,7 +149,7 @@ static void route_table_free(struct route_table *rt)
 static const uint8_t maskbit[] = {0x00, 0x80, 0xc0, 0xe0, 0xf0,
 				  0xf8, 0xfc, 0xfe, 0xff};
 
-/* Common prefix route genaration. */
+/* Common prefix route generation. */
 static void route_common(const struct prefix *n, const struct prefix *p,
 			 struct prefix *new)
 {
@@ -275,57 +279,80 @@ struct route_node *route_node_lookup_maynull(const struct route_table *table,
 }
 
 /* Add node to routing table. */
-struct route_node *route_node_get(struct route_table *const table,
-				  union prefixconstptr pu)
+struct route_node *route_node_get_cf(struct route_table *const table, union prefixconstptr pu, const char *file, const char *func, int line)
 {
 	const struct prefix *p = pu.p;
 	struct route_node *new;
 	struct route_node *node;
-	struct route_node *match;
+	struct route_node *prev_node;
 	struct route_node *inserted;
 	uint8_t prefixlen = p->prefixlen;
 	const uint8_t *prefix = &p->u.prefix;
 
+	char pstr[PREFIX2STR_BUFFER], pstr2[PREFIX2STR_BUFFER];
+	prefix2str(p, pstr, PREFIX2STR_BUFFER);
+
+	L(zlog_debug, "Fetching route node for %s [CF: %s:%s:%d]", pstr, file, func, line);
+
 	apply_mask((struct prefix *)p);
 	node = hash_get(table->hash, (void *)p, NULL);
-	if (node && node->info)
+
+	if (node && node->info) {
+		L(zlog_debug, "Route node with prefix entry found for %s", pstr);
 		return route_lock_node(node);
+	}
 
-	match = NULL;
+	L(zlog_debug, "Route node with prefix entry not found for %s. Perform more detailed search.", pstr);
+
+	prev_node = NULL;
 	node = table->top;
-	while (node && node->p.prefixlen <= prefixlen
-	       && prefix_match(&node->p, p)) {
-		if (node->p.prefixlen == prefixlen)
-			return route_lock_node(node);
 
-		match = node;
+	while (node && node->p.prefixlen <= prefixlen && prefix_match(&node->p, p)) {
+		prefix2str(&(node->p), pstr2, PREFIX2STR_BUFFER);
+		L(zlog_debug, "Checking %s against existing existing route node %s", pstr, pstr2);
+		if (node->p.prefixlen == prefixlen) {
+			L(zlog_debug, "%s matches %s", pstr, pstr2);
+			return route_lock_node(node);
+		}
+		prev_node = node;
 		node = node->link[prefix_bit(prefix, node->p.prefixlen)];
 	}
 
 	if (node == NULL) {
+		L(zlog_debug, "Route not found. Set route: %s", pstr);
 		new = route_node_set(table, p);
-		if (match)
-			set_link(match, new);
-		else
+		if (prev_node) {
+			L(zlog_debug, "Link nodes [%s->%s]", pstr2, pstr);
+			set_link(prev_node, new);
+		} else {
+			L(zlog_debug, "Table was empty. New head: %s", pstr);
 			table->top = new;
+		}
 	} else {
+		prefix2str(&(node->p), pstr2, PREFIX2STR_BUFFER);
+		L(zlog_debug, "Route found[%s]. Create common route for %s", pstr2, pstr);
 		new = route_node_new(table);
 		route_common(&node->p, p, &new->p);
 		new->p.family = p->family;
 		new->table = table;
 		set_link(new, node);
 		inserted = hash_get(node->table->hash, new, hash_alloc_intern);
+		L(zlog_debug, "Route hash inserted.");
 		assert(inserted == new);
 
-		if (match)
-			set_link(match, new);
-		else
+		if (prev_node) {
+			L(zlog_debug, "Link nodes [%s->%s]", pstr2, pstr);
+			set_link(prev_node, new);
+		} else {
+			L(zlog_debug, "Table was empty. New head: %s", pstr);
 			table->top = new;
+		}
 
 		if (new->p.prefixlen != p->prefixlen) {
-			match = new;
+			L(zlog_debug, "Prefix lengths do not match [%d:%d]. Create new route node for %s", new->p.prefixlen, p->prefixlen, pstr);
+			prev_node = new;
 			new = route_node_set(table, p);
-			set_link(match, new);
+			set_link(prev_node, new);
 			table->count++;
 		}
 	}
@@ -344,8 +371,10 @@ void route_node_delete(struct route_node *node)
 	assert(node->lock == 0);
 	assert(node->info == NULL);
 
-	if (node->l_left && node->l_right)
+	if (node->l_left && node->l_right) {
+		L(zlog_debug, "Returning without delete!?");
 		return;
+	}
 
 	if (node->l_left)
 		child = node->l_left;
@@ -374,14 +403,14 @@ void route_node_delete(struct route_node *node)
 	 * table.
 	 * this is permitted only if table->count got decremented to zero above,
 	 * because in that case parent will also be NULL, so that we won't try
-	 * to
-	 * delete a now-stale parent below.
+	 * to delete a now-stale parent below.
 	 *
 	 * cf. srcdest_srcnode_destroy() in zebra/zebra_rib.c */
 
 	route_node_free(node->table, node);
 
 	/* If parent node is stub then delete it also. */
+	/* Uhhh....won't the assert at the top cause this to break? */
 	if (parent && parent->lock == 0)
 		route_node_delete(parent);
 }
