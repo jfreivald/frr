@@ -40,6 +40,7 @@
 #include "plist.h"
 #include "log.h"
 #include "nexthop.h"
+#include "config.h"
 
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrpd.h"

@@ -609,8 +609,7 @@ void eigrp_update_send(struct eigrp_interface *ei)
 	}
 
 	has_tlv = 0;
-	for (ALL_LIST_ELEMENTS(ei->eigrp->topology_changes_internalIPV4, node,
-			       nnode, pe)) {
+	for (ALL_LIST_ELEMENTS(ei->eigrp->topology_changes_internalIPV4, node, nnode, pe)) {
 		struct eigrp_nexthop_entry *ne;
 
 		if (!(pe->req_action & EIGRP_FSM_NEED_UPDATE))
