@@ -32,6 +32,9 @@ struct listnode {
 	void *data;
 };
 
+typedef enum { LIST_DEBUG_DEFAULT, LIST_DEBUG_PRE_DELETE, LIST_DEBUG_POST_DELETE, LIST_DEBUG_PRE_INSERT, LIST_DEBUG_POST_INSERT } list_debug_stage_t;
+extern const char * const list_debug_stage_s[];
+
 struct list {
 	struct listnode *head;
 	struct listnode *tail;
@@ -51,14 +54,9 @@ struct list {
 	void (*del)(void *val);
 
 	/*
-	 * callback for debugging inserts
+	 * callback for debugging list inserts and deletes
 	 */
-	void (*insert_debug)(struct list *, struct listnode*, void *val, const char *, const char *, int);
-
-	/*
-	 * callback for debugging deletes
-	 */
-	void (*delete_debug)(struct list *, struct listnode*, void *val, const char *, const char *, int);
+	void (*debug)(list_debug_stage_t, struct list *, struct listnode*, void *val, const char *, const char *, int);
 
 	int debug_on;
 };
@@ -77,13 +75,12 @@ struct list {
  * Returns:
  *    the created linked list
  */
-#define list_new()		list_new_cb_cf(NULL,NULL,NULL,NULL,0,__FILE__,__PRETTY_FUNCTION__,__LINE__)
-#define list_new_cb(cmp,del,ins,rem,dbg)	list_new_cb_cf(cmp,del,ins,rem,dbg,__FILE__,__PRETTY_FUNCTION__,__LINE__)
+#define list_new()		list_new_cb_cf(NULL,NULL,NULL,0,__FILE__,__PRETTY_FUNCTION__,__LINE__)
+#define list_new_cb(cmp,del,ins,dbg)	list_new_cb_cf(cmp,del,ins,dbg,__FILE__,__PRETTY_FUNCTION__,__LINE__)
 extern struct list *list_new_cb_cf(
 		int (*cmp)(void *val1, void *val2),
 		void (*del)(void *val),
-		void (*debug_insert)(struct list *, struct listnode*, void *val, const char *, const char *, int),
-		void (*debug_delete)(struct list *, struct listnode*, void *val, const char *, const char *, int),
+		void (*debug)(list_debug_stage_t, struct list *, struct listnode*, void *val, const char *, const char *, int),
 		int debug_val,
 		const char *, const char *, int);
 

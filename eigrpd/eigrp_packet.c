@@ -486,6 +486,8 @@ int eigrp_read(struct thread *thread)
 	uint16_t opcode = 0;
 	uint16_t length = 0;
 
+	LT(zlog_debug,"ENTER");
+
 	/* first of all get interface pointer. */
 	eigrp = THREAD_ARG(thread);
 

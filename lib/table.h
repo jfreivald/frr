@@ -200,6 +200,7 @@ extern struct route_node *route_node_match_ipv4(const struct route_table *,
 						const struct in_addr *);
 extern struct route_node *route_node_match_ipv6(const struct route_table *,
 						const struct in6_addr *);
+extern void route_unlock_node(struct route_node *node);
 
 extern unsigned long route_table_count(const struct route_table *);
 
@@ -231,16 +232,6 @@ static inline struct route_node *route_lock_node(struct route_node *node)
 {
 	(*(unsigned *)&node->lock)++;
 	return node;
-}
-
-/* Unlock node. */
-static inline void route_unlock_node(struct route_node *node)
-{
-	if (node->lock > 0)
-		(*(unsigned *)&node->lock)--;
-
-	if (node->lock == 0)
-		route_node_delete(node);
 }
 
 /*

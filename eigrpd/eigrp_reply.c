@@ -50,6 +50,7 @@
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrpd.h"
 #include "eigrpd/eigrp_interface.h"
+#include "eigrpd/eigrp_network.h"
 #include "eigrpd/eigrp_neighbor.h"
 #include "eigrpd/eigrp_packet.h"
 #include "eigrpd/eigrp_zebra.h"
@@ -160,13 +161,13 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 		dest_addr.family = AF_INET;
 		dest_addr.u.prefix4 = tlv->destination;
 		dest_addr.prefixlen = tlv->prefix_length;
-		struct eigrp_prefix_entry *dest =
+		struct eigrp_prefix_entry *pe =
 			eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
 							 &dest_addr);
 		/*
 		 * Destination must exists
 		 */
-		if (!dest) {
+		if (!pe) {
 			char buf[PREFIX_STRLEN];
 
 			L(zlog_err,
@@ -178,24 +179,34 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 		}
 
 		struct eigrp_fsm_action_message msg;
-		struct eigrp_nexthop_entry *entry =
-			eigrp_prefix_entry_lookup(dest->entries, nbr);
+		struct eigrp_nexthop_entry *ne =
+			eigrp_prefix_entry_lookup(pe->entries, nbr);
 
-		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN,
-					      &dest_addr)) {
-			tlv->metric.delay = EIGRP_MAX_METRIC;
+		if (!ne) {
+			ne = eigrp_nexthop_entry_new();
+			ne->ei = ei;
+			ne->adv_router = nbr;
+			ne->reported_metric = tlv->metric;
+			ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
+			/*
+			 * Filtering
+			 */
+			if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+				ne->reported_metric.delay = EIGRP_MAX_METRIC;
+
+			ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
+			pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+			ne->prefix = pe;
+			ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 		}
-		/*
-		 * End of filtering
-		 */
 
 		msg.packet_type = EIGRP_OPC_REPLY;
 		msg.eigrp = eigrp;
 		msg.data_type = EIGRP_INT;
 		msg.adv_router = nbr;
 		msg.metrics = tlv->metric;
-		msg.entry = entry;
-		msg.prefix = dest;
+		msg.entry = ne;
+		msg.prefix = pe;
 		eigrp_fsm_event(&msg);
 
 		eigrp_IPv4_InternalTLV_free(tlv);

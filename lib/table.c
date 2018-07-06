@@ -35,6 +35,20 @@ DEFINE_MTYPE(LIB, ROUTE_NODE, "Route node")
 
 static void route_table_free(struct route_table *);
 
+void route_unlock_node(struct route_node *node)
+{
+	char pbuf[PREFIX2STR_BUFFER];
+
+	if (node->lock > 0)
+		(*(unsigned *)&node->lock)--;
+
+	if (node->lock == 0) {
+		prefix2str(&node->p, pbuf, PREFIX2STR_BUFFER);
+		route_node_delete(node);
+		L(zlog_debug,"Deleting Route Node %s", pbuf);
+	}
+}
+
 static int route_table_hash_cmp(const void *a, const void *b)
 {
 	const struct prefix *pa = a, *pb = b;
@@ -367,12 +381,14 @@ void route_node_delete(struct route_node *node)
 {
 	struct route_node *child;
 	struct route_node *parent;
+	char pbuf[PREFIX2STR_BUFFER];
 
 	assert(node->lock == 0);
 	assert(node->info == NULL);
 
 	if (node->l_left && node->l_right) {
-		L(zlog_debug, "Returning without delete!?");
+		prefix2str(&node->p, pbuf, PREFIX2STR_BUFFER);
+		L(zlog_warn,"%s has two children. Return without delete.", pbuf);
 		return;
 	}
 
@@ -398,6 +414,99 @@ void route_node_delete(struct route_node *node)
 
 	hash_release(node->table->hash, node);
 
+//	struct route_node *this;
+//
+//	struct route_table *table = node->table;
+//
+//	parent = node->parent;
+//
+//	if (node->l_left && node->l_right) {
+//		//Both branches
+//		//Find left-most of the right branch [next highest value from this node].
+//		this = node->l_right;
+//		while(this->l_left)
+//			this=this->l_left;
+//
+//		//Remove this [has no left. Only need to manage the right and parent]
+//		this->parent->l_left = this->l_right;
+//		if (this->l_right) {
+//			this->l_right->parent = this->parent;
+//		}
+//
+//		//Replace node with this
+//		this->l_right = node->l_right;
+//		this->l_left = node->l_left;
+//		this->parent = parent;
+//
+//		//Update parent or root, as appropriate
+//		if (parent) {
+//			if (parent->l_right == node) {
+//				parent->l_right = this;
+//			} else if (parent->l_left == node){
+//				parent->l_left = this;
+//			} else {
+//				L(zlog_warn, "Route Table Binary tree error. Child points to invalid parent.");
+//			}
+//		} else {
+//			table->top = this;
+//		}
+//	} else if (node->l_left) {
+//		//Left branch only.
+//		if (parent) {
+//			node->l_left->parent = parent;
+//			if (parent->l_left == node) {
+//				parent->l_left = node->l_left;
+//			} else if (parent->l_right == node) {
+//				parent->l_right = node->l_left;
+//			} else {
+//				L(zlog_warn, "Route table linking error. Child points to invalid parent.");
+//			}
+//		} else if (table->top == node) {
+//			node->l_left->parent = NULL;
+//			table->top = node->l_left;
+//		} else {
+//			L(zlog_warn, "Route table linking error in root node.");
+//		}
+//	} else if (node->l_right) {
+//		//Right branch only.
+//		if (parent) {
+//			node->l_right->parent = parent;
+//			if (parent->l_left == node) {
+//				parent->l_left = node->l_right;
+//			} else if (parent->l_right == node) {
+//				parent->l_right = node->l_right;
+//			} else {
+//				L(zlog_warn, "Route table linking error. Child points to invalid parent.");
+//			}
+//		} else if (table->top == node) {
+//			node->l_right->parent = NULL;
+//			table->top = node->l_right;
+//		} else {
+//			L(zlog_warn, "Route table linking error in root node.");
+//		}
+//	} else {
+//		//We are a leaf
+//		if (parent) {
+//			if (parent->l_left == node) {
+//				parent->l_left = NULL;
+//			} else if (parent->l_right == node) {
+//				parent->l_right = NULL;
+//			} else {
+//				L(zlog_warn, "Route table linking error!");
+//			}
+//		} else if (table->top == node) {
+//			table->top = NULL;
+//		} else {
+//			L(zlog_warn, "Route table linking error in root node.");
+//		}
+//	}
+//
+//	node->parent = node->l_right = node->l_left = NULL;
+//
+//	table->count--;
+//
+//	hash_release(node->table->hash, node);
+
 	/* WARNING: FRAGILE CODE!
 	 * route_node_free may have the side effect of free'ing the entire
 	 * table.
@@ -410,7 +519,6 @@ void route_node_delete(struct route_node *node)
 	route_node_free(node->table, node);
 
 	/* If parent node is stub then delete it also. */
-	/* Uhhh....won't the assert at the top cause this to break? */
 	if (parent && parent->lock == 0)
 		route_node_delete(parent);
 }

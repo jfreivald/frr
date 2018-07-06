@@ -7,6 +7,7 @@
     --sbindir=/usr/local/sbin \
     --sysconfdir=/usr/local/etc \
     --libdir=/usr/local/lib \
+		--enable-dev-build \
     --enable-pimd \
     --enable-watchfrr \
     --enable-ospfclient=yes \
