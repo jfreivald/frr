@@ -1407,7 +1407,13 @@ in_addr_t ipv4_broadcast_addr(in_addr_t hostaddr, int masklen)
 {
 	struct in_addr mask;
 
+	if (masklen == IPV4_MAX_PREFIXLEN) {
+		/* PtP interface using 255.255.255.255 address */
+		return 0xFFFFFFFF;
+	}
+
 	masklen2ip(masklen, &mask);
+
 	return (masklen != IPV4_MAX_PREFIXLEN - 1) ?
 						   /* normal case */
 		       (hostaddr | ~mask.s_addr)

@@ -416,28 +416,34 @@ struct TLV_IPv4_Internal_type {
 
 	uint8_t prefix_length;
 
-	unsigned char destination_part[4];
-	struct in_addr destination;
+	union {
+		unsigned char destination_part[4];
+		struct in_addr destination;
+	};
 } __attribute__((packed));
 
 struct TLV_IPv4_External_type {
 	uint16_t type;
 	uint16_t length;
 	struct in_addr next_hop;
-	struct in_addr originating_router;
-	uint32_t originating_as;
-	uint32_t administrative_tag;
-	uint32_t external_metric;
-	uint16_t reserved;
-	uint8_t external_protocol;
-	uint8_t external_flags;
 
+	struct {
+		struct in_addr originating_router;
+		uint32_t originating_as;
+		uint32_t administrative_tag;
+		uint32_t external_metric;
+		uint16_t reserved;
+		uint8_t external_protocol;
+		uint8_t external_flags;
+	} __attribute__((packed));
 	/*Metrics*/
 	struct eigrp_metrics metric;
 
 	uint8_t prefix_length;
-	unsigned char destination_part[4];
-	struct in_addr destination;
+	union {
+		unsigned char destination_part[4];
+		struct in_addr destination;
+	} __attribute__((packed));
 } __attribute__((packed));
 
 /* EIGRP Peer Termination TLV - used for hard restart */

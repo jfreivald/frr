@@ -1190,6 +1190,74 @@ struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *s)
 	return tlv;
 }
 
+static struct TLV_IPv4_External_type *eigrp_IPv4_ExternalTLV_new()
+{
+	struct TLV_IPv4_External_type *new;
+
+	new = XCALLOC(MTYPE_EIGRP_IPV4_EXT_TLV,
+		      sizeof(struct TLV_IPv4_External_type));
+
+	return new;
+}
+
+struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s)
+{
+	struct TLV_IPv4_External_type *etlv;
+
+	etlv = eigrp_IPv4_ExternalTLV_new();
+
+	etlv->type = stream_getw(s);
+	etlv->length = stream_getw(s);
+	etlv->next_hop.s_addr = stream_getl(s);
+	etlv->originating_router.s_addr = stream_getl(s);
+	etlv->originating_as = stream_getl(s);
+	etlv->administrative_tag = stream_getl(s);
+	etlv->external_metric = stream_getl(s);
+	etlv->reserved = stream_getw(s);
+	etlv->external_protocol = stream_getc(s);
+	etlv->external_flags = stream_getc(s);
+
+	etlv->metric.delay = stream_getl(s);
+	etlv->metric.bandwidth = stream_getl(s);
+	etlv->metric.mtu[0] = stream_getc(s);
+	etlv->metric.mtu[1] = stream_getc(s);
+	etlv->metric.mtu[2] = stream_getc(s);
+	etlv->metric.hop_count = stream_getc(s);
+	etlv->metric.reliability = stream_getc(s);
+	etlv->metric.load = stream_getc(s);
+	etlv->metric.tag = stream_getc(s);
+	etlv->metric.flags = stream_getc(s);
+
+	etlv->prefix_length = stream_getc(s);
+
+	if (etlv->prefix_length <= 8) {
+				etlv->destination_part[0] = stream_getc(s);
+		etlv->destination.s_addr = (etlv->destination_part[0]);
+	} else if (etlv->prefix_length > 8 && etlv->prefix_length <= 16) {
+		etlv->destination_part[0] = stream_getc(s);
+		etlv->destination_part[1] = stream_getc(s);
+		etlv->destination.s_addr = ((etlv->destination_part[1] << 8)
+					   + etlv->destination_part[0]);
+	} else if (etlv->prefix_length > 16 && etlv->prefix_length <= 24) {
+		etlv->destination_part[0] = stream_getc(s);
+		etlv->destination_part[1] = stream_getc(s);
+		etlv->destination_part[2] = stream_getc(s);
+		etlv->destination.s_addr = ((etlv->destination_part[2] << 16)
+					   + (etlv->destination_part[1] << 8)
+					   + etlv->destination_part[0]);
+	} else if (etlv->prefix_length > 24 && etlv->prefix_length <= 32) {
+		etlv->destination_part[0] = stream_getc(s);
+		etlv->destination_part[1] = stream_getc(s);
+		etlv->destination_part[2] = stream_getc(s);
+		etlv->destination_part[3] = stream_getc(s);
+		etlv->destination.s_addr = ((etlv->destination_part[3] << 24)
+					   + (etlv->destination_part[2] << 16)
+					   + (etlv->destination_part[1] << 8)
+					   + etlv->destination_part[0]);
+	}
+	return etlv;
+}
+
 uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 					 struct eigrp_prefix_entry *pe)
 {
@@ -1390,6 +1458,12 @@ void eigrp_IPv4_InternalTLV_free(
 	struct TLV_IPv4_Internal_type *IPv4_InternalTLV)
 {
 	XFREE(MTYPE_EIGRP_IPV4_INT_TLV, IPv4_InternalTLV);
+}
+
+void eigrp_IPv4_ExternalTLV_free(
+	struct TLV_IPv4_External_type *IPv4_ExternalTLV)
+{
+	XFREE(MTYPE_EIGRP_IPV4_EXT_TLV, IPv4_ExternalTLV);
 }
 
 struct TLV_Sequence_Type *eigrp_SequenceTLV_new()

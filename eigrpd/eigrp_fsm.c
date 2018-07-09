@@ -425,7 +425,7 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 	assert(msg && msg->entry && msg->prefix);
 	enum eigrp_fsm_events event = eigrp_get_fsm_event(msg);
 
-	assert(msg->prefix->entries && msg->prefix->rij && msg->prefix->entries->count < 10 && msg->prefix->rij->count < 10);
+	assert(msg->prefix->entries && msg->prefix->rij);
 
 	(*(NSM[msg->prefix->state][event].func))(msg);
 

@@ -278,6 +278,7 @@ void connected_add_ipv4(struct interface *ifp, int flags, struct in_addr *addr,
 {
 	struct prefix_ipv4 *p;
 	struct connected *ifc;
+	struct in_addr bcast32;
 
 	if (ipv4_martian(addr))
 		return;
@@ -297,6 +298,26 @@ void connected_add_ipv4(struct interface *ifp, int flags, struct in_addr *addr,
 	p->prefixlen = CHECK_FLAG(flags, ZEBRA_IFA_PEER) ? IPV4_MAX_PREFIXLEN
 							 : prefixlen;
 	ifc->address = (struct prefix *)p;
+
+	if (!broad) {
+		if (CHECK_FLAG(ifc->flags, ZEBRA_IFA_PEER)) {
+			zlog_warn(
+					"warning: %s called for interface %s "
+					"with peer flag set, but no peer address supplied",
+					__func__, ifp->name);
+			UNSET_FLAG(ifc->flags, ZEBRA_IFA_PEER);
+		}
+
+		/* no broadcast or destination address was supplied */
+		if ((prefixlen == IPV4_MAX_PREFIXLEN) && if_is_pointopoint(ifp)) {
+			zlog_debug(
+					"debug: PtP interface %s with addr %s/%d using 255.255.255.255"
+					"for peer address",
+					ifp->name, inet_ntoa(*addr), prefixlen);
+			broad = &bcast32;
+			broad->s_addr = 0xFFFFFFFF;
+		}
+	}
 
 	/* If there is broadcast or peer address. */
 	if (broad) {
@@ -331,22 +352,6 @@ void connected_add_ipv4(struct interface *ifp, int flags, struct in_addr *addr,
 						  sizeof(buf[1])));
 			}
 		}
-
-	} else {
-		if (CHECK_FLAG(ifc->flags, ZEBRA_IFA_PEER)) {
-			zlog_warn(
-				"warning: %s called for interface %s "
-				"with peer flag set, but no peer address supplied",
-				__func__, ifp->name);
-			UNSET_FLAG(ifc->flags, ZEBRA_IFA_PEER);
-		}
-
-		/* no broadcast or destination address was supplied */
-		if ((prefixlen == IPV4_MAX_PREFIXLEN) && if_is_pointopoint(ifp))
-			zlog_warn(
-				"warning: PtP interface %s with addr %s/%d needs a "
-				"peer address",
-				ifp->name, inet_ntoa(*addr), prefixlen);
 	}
 
 	/* Label of this address. */
