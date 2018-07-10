@@ -84,6 +84,7 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp)
 	return counter;
 }
 
+//TODO: Fix null entry problem and make good on external route management.
 /*EIGRP QUERY read function*/
 void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			 struct eigrp_header *eigrph, struct stream *s,
