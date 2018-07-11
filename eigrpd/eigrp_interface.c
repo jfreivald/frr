@@ -60,10 +60,12 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 {
 	struct eigrp_interface *ei = ifp->info;
 	int i;
+	struct prefix *my_prefix;
 
-	if (ei && && ei->nbrs && ei->nbrs->count > 0) {
-		L(zlog_err, "Attempting to initialize an interface that is already established.");
-		return ei;
+	if (ei && ei->nbrs) {
+		L(zlog_err, "Reinitialize an interface %s.", ei->ifp->name);
+		list_delete_and_null(&(ei->nbrs));
+		listnode_delete(eigrp->eiflist, ei);
 	}
 
 	ei = XCALLOC(MTYPE_EIGRP_IF, sizeof(struct eigrp_interface));

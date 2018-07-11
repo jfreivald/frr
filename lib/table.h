@@ -187,9 +187,8 @@ extern struct route_node *route_top(struct route_table *);
 extern struct route_node *route_next(struct route_node *);
 extern struct route_node *route_next_until(struct route_node *,
 					   const struct route_node *);
-#define route_node_get(rt,p)	route_node_get_cf(rt,p,__FILE__,__PRETTY_FUNCTION__,__LINE__)
-extern struct route_node *route_node_get_cf(struct route_table *const,
-					 union prefixconstptr, const char *file, const char *func, int line);
+extern struct route_node *route_node_get(struct route_table *const,
+					 union prefixconstptr);
 extern struct route_node *route_node_lookup(const struct route_table *,
 					    union prefixconstptr);
 extern struct route_node *route_node_lookup_maynull(const struct route_table *,
@@ -200,7 +199,6 @@ extern struct route_node *route_node_match_ipv4(const struct route_table *,
 						const struct in_addr *);
 extern struct route_node *route_node_match_ipv6(const struct route_table *,
 						const struct in6_addr *);
-extern void route_unlock_node(struct route_node *node);
 
 extern unsigned long route_table_count(const struct route_table *);
 
@@ -232,6 +230,16 @@ static inline struct route_node *route_lock_node(struct route_node *node)
 {
 	(*(unsigned *)&node->lock)++;
 	return node;
+}
+
+/* Unlock node. */
+static inline void route_unlock_node(struct route_node *node)
+{
+	assert(node->lock > 0);
+	(*(unsigned *)&node->lock)--;
+
+	if (node->lock == 0)
+		route_node_delete(node);
 }
 
 /*
