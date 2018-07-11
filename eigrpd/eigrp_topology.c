@@ -767,6 +767,10 @@ void eigrp_update_topology_table_prefix(struct route_table *topology, struct eig
 	for (ALL_LIST_ELEMENTS(prefix->entries, node1, node2, entry)) {
 		if (entry && entry->distance == EIGRP_MAX_METRIC) {
 			eigrp_nexthop_entry_delete(prefix, entry);
+		} else {
+			if (entry->distance < prefix->distance) {
+				prefix->distance = entry->distance;
+			}
 		}
 	}
 

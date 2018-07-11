@@ -56,7 +56,7 @@
 #include "eigrpd/eigrp_fsm.h"
 
 struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
-				     struct prefix *p)
+		struct prefix *p)
 {
 	struct eigrp_interface *ei = ifp->info;
 	int i;
@@ -146,13 +146,16 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	struct eigrp_interface *ei2;
 	struct listnode *node, *nnode;
 	struct eigrp *eigrp;
+	struct eigrp_fsm_action_message msg;
+	struct prefix dest_addr;
+
 	char addr_buf[PREFIX2STR_BUFFER];
 
 	if (ei == NULL)
 		return 0;
 
 	L(zlog_debug, "Turning EIGRP Interface %s Up", ei->ifp ? ei->ifp->name : "NEW" );
-	
+
 	eigrp = ei->eigrp;
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
 
@@ -186,8 +189,6 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	ne->adv_router = eigrp->neighbor_self;
 	ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-	struct prefix dest_addr;
-
 	dest_addr.family = AF_INET;
 	dest_addr.u.prefix4 = ei->connected->address->u.prefix4;
 	dest_addr.prefixlen = ei->connected->address->prefixlen;
@@ -214,32 +215,29 @@ int eigrp_if_up(struct eigrp_interface *ei)
 
 		eigrp_prefix_entry_add(eigrp, pe);
 
-		listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
-		eigrp_nexthop_entry_add(pe, ne);
-
-		for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei2)) {
-			eigrp_update_send(ei2);
-		}
-
-		pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
-		listnode_delete(eigrp->topology_changes_internalIPV4, pe);
-	} else {
-		L(zlog_debug, "Found in topology");
-		struct eigrp_fsm_action_message msg;
-
-		ne->prefix = pe;
-		eigrp_nexthop_entry_add(pe, ne);
-
-		msg.packet_type = EIGRP_OPC_UPDATE;
-		msg.eigrp = eigrp;
-		msg.data_type = EIGRP_CONNECTED;
-		msg.adv_router = NULL;
-		msg.entry = ne;
-		msg.prefix = pe;
-
-		eigrp_fsm_event(&msg);
 	}
+
+	ne->prefix = pe;
+
+	listnode_add(eigrp->topology_changes_internalIPV4, pe);
+
+	eigrp_nexthop_entry_add(pe, ne);
+
+	for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei2)) {
+		eigrp_update_send(ei2);
+	}
+
+	msg.packet_type = EIGRP_OPC_UPDATE;
+	msg.eigrp = eigrp;
+	msg.data_type = EIGRP_CONNECTED;
+	msg.adv_router = NULL;
+	msg.entry = ne;
+	msg.prefix = pe;
+
+	eigrp_fsm_event(&msg);
+
+	pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
+	listnode_delete(eigrp->topology_changes_internalIPV4, pe);
 
 	return 1;
 }
@@ -308,9 +306,9 @@ void eigrp_if_set_multicast(struct eigrp_interface *ei)
 		/* The interface should belong to the EIGRP-all-routers group.
 		 */
 		if (!ei->member_allrouters
-		    && (eigrp_if_add_allspfrouters(ei->eigrp, ei->address,
-						   ei->ifp->ifindex)
-			>= 0))
+				&& (eigrp_if_add_allspfrouters(ei->eigrp, ei->address,
+						ei->ifp->ifindex)
+						>= 0))
 			/* Set the flag only if the system call to join
 			 * succeeded. */
 			ei->member_allrouters = true;
@@ -320,7 +318,7 @@ void eigrp_if_set_multicast(struct eigrp_interface *ei)
 		if (ei->member_allrouters) {
 			/* Only actually drop if this is the last reference */
 			eigrp_if_drop_allspfrouters(ei->eigrp, ei->address,
-						    ei->ifp->ifindex);
+					ei->ifp->ifindex);
 			/* Unset the flag regardless of whether the system call
 			   to leave
 			   the group succeeded, since it's much safer to assume
@@ -358,7 +356,7 @@ void eigrp_if_free(struct eigrp_interface *ei, int source)
 	dest_addr = *ei->connected->address;
 	apply_mask(&dest_addr);
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
-					      &dest_addr);
+			&dest_addr);
 	if (pe)
 		eigrp_prefix_entry_delete(eigrp->topology_table, pe);
 
@@ -382,8 +380,8 @@ void eigrp_if_reset(struct interface *ifp)
 }
 
 struct eigrp_interface *eigrp_if_lookup_by_local_addr(struct eigrp *eigrp,
-						      struct interface *ifp,
-						      struct in_addr address)
+		struct interface *ifp,
+		struct in_addr address)
 {
 	struct listnode *node;
 	struct eigrp_interface *ei;
@@ -411,7 +409,7 @@ struct eigrp_interface *eigrp_if_lookup_by_local_addr(struct eigrp *eigrp,
  * Function is used for lookup interface by name.
  */
 struct eigrp_interface *eigrp_if_lookup_by_name(struct eigrp *eigrp,
-						const char *if_name)
+		const char *if_name)
 {
 	struct eigrp_interface *ei;
 	struct listnode *node;
@@ -432,7 +430,7 @@ uint32_t eigrp_bandwidth_to_scaled(uint32_t bandwidth)
 	uint64_t temp_bandwidth = (256ull * 10000000) / bandwidth;
 
 	temp_bandwidth = temp_bandwidth < EIGRP_MAX_METRIC ? temp_bandwidth
-							   : EIGRP_MAX_METRIC;
+			: EIGRP_MAX_METRIC;
 
 	return (uint32_t)temp_bandwidth;
 }
@@ -442,7 +440,7 @@ uint32_t eigrp_scaled_to_bandwidth(uint32_t scaled)
 	uint64_t temp_scaled = scaled * (256ull * 10000000);
 
 	temp_scaled =
-		temp_scaled < EIGRP_MAX_METRIC ? temp_scaled : EIGRP_MAX_METRIC;
+			temp_scaled < EIGRP_MAX_METRIC ? temp_scaled : EIGRP_MAX_METRIC;
 
 	return (uint32_t)temp_scaled;
 }

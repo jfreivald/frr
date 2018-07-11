@@ -397,7 +397,11 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 			   inet_ntop(AF_INET, 0, buf[1], PREFIX_STRLEN));
 	}
 
-	zclient_route_send(ZEBRA_ROUTE_ADD, zclient, &api);
+	if ((zclient_route_send(ZEBRA_ROUTE_ADD, zclient, &api)) < 0) {
+		char buf[2][PREFIX_STRLEN];
+		L(zlog_warn, "Zebra: Error adding %s nexthop %s", prefix2str(p, buf[0], PREFIX_STRLEN),
+			   inet_ntop(AF_INET, 0, buf[1], PREFIX_STRLEN));
+	}
 }
 
 void eigrp_zebra_route_delete(struct prefix *p)

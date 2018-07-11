@@ -56,6 +56,7 @@ extern void eigrp_fifo_reset(struct eigrp_fifo *);
 extern void eigrp_send_packet_reliably(struct eigrp_neighbor *);
 
 extern struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *);
+struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s);
 extern uint16_t eigrp_add_internalTLV_to_stream(struct stream *,
 						struct eigrp_prefix_entry *);
 extern uint16_t eigrp_add_authTLV_MD5_to_stream(struct stream *,
@@ -155,6 +156,7 @@ extern int eigrp_check_sha256_digest(struct stream *,
 
 
 extern void eigrp_IPv4_InternalTLV_free(struct TLV_IPv4_Internal_type *);
+extern void eigrp_IPv4_ExternalTLV_free(struct TLV_IPv4_External_type *);
 
 extern struct TLV_Sequence_Type *eigrp_SequenceTLV_new(void);
 
