@@ -61,7 +61,7 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	struct eigrp_interface *ei = ifp->info;
 	int i;
 
-	if (ei && ei->nbrs) {
+	if (ei && && ei->nbrs && ei->nbrs->count > 0) {
 		L(zlog_err, "Attempting to initialize an interface that is already established.");
 		return ei;
 	}

@@ -296,10 +296,7 @@ struct route_node *route_node_lookup_maynull(const struct route_table *table,
 struct route_node *route_node_get_cf(struct route_table *const table, union prefixconstptr pu, const char *file, const char *func, int line)
 {
 	const struct prefix *p = pu.p;
-	struct route_node *new;
-	struct route_node *node;
-	struct route_node *prev_node;
-	struct route_node *inserted;
+	struct route_node *new, *node, *prev_node, *inserted;
 	uint8_t prefixlen = p->prefixlen;
 	const uint8_t *prefix = &p->u.prefix;
 
@@ -339,7 +336,7 @@ struct route_node *route_node_get_cf(struct route_table *const table, union pref
 			L(zlog_debug, "Link nodes [%s->%s]", pstr2, pstr);
 			set_link(prev_node, new);
 		} else {
-			L(zlog_debug, "Table was empty. New head: %s", pstr);
+			L(zlog_debug, "New head: %s", pstr);
 			table->top = new;
 		}
 	} else {
@@ -364,6 +361,14 @@ struct route_node *route_node_get_cf(struct route_table *const table, union pref
 
 		if (new->p.prefixlen != p->prefixlen) {
 			L(zlog_debug, "Prefix lengths do not match [%d:%d]. Create new route node for %s", new->p.prefixlen, p->prefixlen, pstr);
+			prev_node = new;
+			new = route_node_set(table, p);
+			set_link(prev_node, new);
+			table->count++;
+		}
+
+		if ((route_node_get(table, p)) == NULL) {
+			L(zlog_debug, "Route node does not exist. Create new route node for %s", pstr);
 			prev_node = new;
 			new = route_node_set(table, p);
 			set_link(prev_node, new);
