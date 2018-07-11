@@ -312,7 +312,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			}
-			L(zlog_info,"All reply received");
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 			if (head->reported_distance < msg->prefix->fdistance) {
 				ret_state = EIGRP_FSM_EVENT_LR_FCS;
 				break;
@@ -346,7 +346,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			} else {
-				L(zlog_info,"All reply received");
+				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 				ret_state = EIGRP_FSM_EVENT_LR;
 				break;
 			}
@@ -370,7 +370,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			} else {
-				L(zlog_info,"All reply received");
+				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 				if (head->reported_distance
 				    < msg->prefix->fdistance) {
 					ret_state = EIGRP_FSM_EVENT_LR_FCS;
@@ -397,7 +397,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			} else {
-				L(zlog_info,"All reply received");
+				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 				ret_state = EIGRP_FSM_EVENT_LR;
 				break;
 			}

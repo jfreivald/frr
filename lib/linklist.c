@@ -49,7 +49,7 @@ struct list *list_new_cb_cf(
 	struct list *new_list = XCALLOC(MTYPE_LINK_LIST, sizeof(struct list));
 
 //	if (cmp == NULL || del == NULL) {
-//		L(zlog_warn, "Creating a list without Compare and Delete callbacks is DEPRECATED: CF[%s:%s:%d]", file, func, line);
+//		L(zlog_warn, LOGGER_LIB, LOGGER_LIB_LIST, "Creating a list without Compare and Delete callbacks is DEPRECATED: CF[%s:%s:%d]", file, func, line);
 //	}
 
 	new_list->cmp = cmp;
@@ -82,7 +82,7 @@ void listnode_add_cf(struct list *list, void *val, const char *file, const char 
 	struct listnode *node;
 
 	if (!val || !list || val == (void *)-1 || val == (void *)1) {
-		L(zlog_err, "Invalid parameters passed to list[%d], val[%d] CF[%s:%s:%d]", list, val, file, func, line);
+		L(zlog_err, LOGGER_LIB, LOGGER_LIB_LIST, "Invalid parameters passed to list[%d], val[%d] CF[%s:%s:%d]", list, val, file, func, line);
 		assert(list != NULL && val != NULL && val != (void *)-1 && val != (void *)1);
 	}
 
@@ -115,7 +115,7 @@ void listnode_add_sort_cf(struct list *list, void *val, const char *file, const 
 	struct listnode *new;
 
 	if (!val || !list || val == (void *)-1 || val == (void *)1) {
-		L(zlog_err, "Invalid parameters passed list[%d], val[%d] CF[%s:%s:%d]", list, val, file, func, line);
+		L(zlog_err, LOGGER_LIB, LOGGER_LIB_LIST, "Invalid parameters passed list[%d], val[%d] CF[%s:%s:%d]", list, val, file, func, line);
 		assert(list != NULL && val != NULL && val != (void *)-1 && val != (void *)1);
 	}
 
@@ -390,7 +390,7 @@ void list_delete_all_node_cf(struct list *list,
 void list_delete_and_null(struct list **list)
 {
 	if (! (*list)) {
-		LBT(zlog_warn,"NULL passed as argument **list");
+		LBT(zlog_warn, LOGGER_LIB, LOGGER_LIB_LIST,"NULL passed as argument **list");
 		return;
 	}
 	list_delete_all_node(*list);

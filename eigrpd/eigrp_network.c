@@ -59,16 +59,16 @@ int eigrp_sock_init(void)
 #endif
 
 	if (eigrpd_privs.change(ZPRIVS_RAISE))
-		L(zlog_err,"eigrp_sock_init: could not raise privs, %s",
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrp_sock_init: could not raise privs, %s",
 			 safe_strerror(errno));
 
 	eigrp_sock = socket(AF_INET, SOCK_RAW, IPPROTO_EIGRPIGP);
 	if (eigrp_sock < 0) {
 		int save_errno = errno;
 		if (eigrpd_privs.change(ZPRIVS_LOWER))
-			L(zlog_err,"eigrp_sock_init: could not lower privs, %s",
+			L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrp_sock_init: could not lower privs, %s",
 				 safe_strerror(errno));
-		L(zlog_err,"eigrp_read_sock_init: socket: %s",
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrp_read_sock_init: socket: %s",
 			 safe_strerror(save_errno));
 		exit(1);
 	}
@@ -80,9 +80,9 @@ int eigrp_sock_init(void)
 	if (ret < 0) {
 		int save_errno = errno;
 		if (eigrpd_privs.change(ZPRIVS_LOWER))
-			L(zlog_err,"eigrp_sock_init: could not lower privs, %s",
+			L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrp_sock_init: could not lower privs, %s",
 				 safe_strerror(errno));
-		L(zlog_warn,"Can't set IP_HDRINCL option for fd %d: %s",
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Can't set IP_HDRINCL option for fd %d: %s",
 			  eigrp_sock, safe_strerror(save_errno));
 	}
 #elif defined(IPTOS_PREC_INTERNETCONTROL)
@@ -92,25 +92,25 @@ int eigrp_sock_init(void)
 	if (ret < 0) {
 		int save_errno = errno;
 		if (eigrpd_privs.change(ZPRIVS_LOWER))
-			L(zlog_err,"eigrpd_sock_init: could not lower privs, %s",
+			L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrpd_sock_init: could not lower privs, %s",
 				 safe_strerror(errno));
-		L(zlog_warn,"can't set sockopt IP_TOS %d to socket %d: %s", tos,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"can't set sockopt IP_TOS %d to socket %d: %s", tos,
 			  eigrp_sock, safe_strerror(save_errno));
 		close(eigrp_sock); /* Prevent sd leak. */
 		return ret;
 	}
 #else /* !IPTOS_PREC_INTERNETCONTROL */
 #warning "IP_HDRINCL not available, nor is IPTOS_PREC_INTERNETCONTROL"
-	L(zlog_warn,"IP_HDRINCL option not available");
+	L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"IP_HDRINCL option not available");
 #endif /* IP_HDRINCL */
 
 	ret = setsockopt_ifindex(AF_INET, eigrp_sock, 1);
 
 	if (ret < 0)
-		L(zlog_warn,"Can't set pktinfo option for fd %d", eigrp_sock);
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Can't set pktinfo option for fd %d", eigrp_sock);
 
 	if (eigrpd_privs.change(ZPRIVS_LOWER)) {
-		L(zlog_err,"eigrp_sock_init: could not lower privs, %s",
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrp_sock_init: could not lower privs, %s",
 			 safe_strerror(errno));
 	}
 
@@ -124,7 +124,7 @@ void eigrp_adjust_sndbuflen(struct eigrp *eigrp, unsigned int buflen)
 	if (eigrp->maxsndbuflen >= buflen)
 		return;
 	if (eigrpd_privs.change(ZPRIVS_RAISE))
-		L(zlog_err,"%s: could not raise privs, %s", __func__,
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"%s: could not raise privs, %s", __func__,
 			 safe_strerror(errno));
 
 	/* Now we try to set SO_SNDBUF to what our caller has requested
@@ -137,12 +137,12 @@ void eigrp_adjust_sndbuflen(struct eigrp *eigrp, unsigned int buflen)
 	setsockopt_so_sendbuf(eigrp->fd, buflen);
 	newbuflen = getsockopt_so_sendbuf(eigrp->fd);
 	if (newbuflen < 0 || newbuflen < (int)buflen)
-		L(zlog_warn,"%s: tried to set SO_SNDBUF to %u, but got %d",
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"%s: tried to set SO_SNDBUF to %u, but got %d",
 			  __func__, buflen, newbuflen);
 	if (newbuflen >= 0)
 		eigrp->maxsndbuflen = (unsigned int)newbuflen;
 	else
-		L(zlog_warn,"%s: failed to get SO_SNDBUF", __func__);
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"%s: failed to get SO_SNDBUF", __func__);
 	if (eigrpd_privs.change(ZPRIVS_LOWER))
 		L(zlog_err,"%s: could not lower privs, %s", __func__,
 			 safe_strerror(errno));
@@ -161,7 +161,7 @@ int eigrp_if_ipmulticast(struct eigrp *top, struct prefix *p,
 	ret = setsockopt(top->fd, IPPROTO_IP, IP_MULTICAST_LOOP, (void *)&val,
 			 len);
 	if (ret < 0)
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,
 			"can't setsockopt IP_MULTICAST_LOOP (0) for fd %d: %s",
 			top->fd, safe_strerror(errno));
 
@@ -170,12 +170,12 @@ int eigrp_if_ipmulticast(struct eigrp *top, struct prefix *p,
 	ret = setsockopt(top->fd, IPPROTO_IP, IP_MULTICAST_TTL, (void *)&val,
 			 len);
 	if (ret < 0)
-		L(zlog_warn,"can't setsockopt IP_MULTICAST_TTL (1) for fd %d: %s",
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"can't setsockopt IP_MULTICAST_TTL (1) for fd %d: %s",
 			  top->fd, safe_strerror(errno));
 
 	ret = setsockopt_ipv4_multicast_if(top->fd, p->u.prefix4, ifindex);
 	if (ret < 0)
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,
 			"can't setsockopt IP_MULTICAST_IF (fd %d, addr %s, "
 			"ifindex %u): %s",
 			top->fd, inet_ntoa(p->u.prefix4), ifindex,
@@ -194,14 +194,14 @@ int eigrp_if_add_allspfrouters(struct eigrp *top, struct prefix *p,
 		top->fd, IP_ADD_MEMBERSHIP, p->u.prefix4,
 		htonl(EIGRP_MULTICAST_ADDRESS), ifindex);
 	if (ret < 0)
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,
 			"can't setsockopt IP_ADD_MEMBERSHIP (fd %d, addr %s, "
 			"ifindex %u, AllSPFRouters): %s; perhaps a kernel limit "
 			"on # of multicast group memberships has been exceeded?",
 			top->fd, inet_ntoa(p->u.prefix4), ifindex,
 			safe_strerror(errno));
 	else
-		L(zlog_debug,"interface %s [%u] join EIGRP Multicast group.",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"interface %s [%u] join EIGRP Multicast group.",
 			   inet_ntoa(p->u.prefix4), ifindex);
 
 	return ret;
@@ -216,13 +216,13 @@ int eigrp_if_drop_allspfrouters(struct eigrp *top, struct prefix *p,
 		top->fd, IP_DROP_MEMBERSHIP, p->u.prefix4,
 		htonl(EIGRP_MULTICAST_ADDRESS), ifindex);
 	if (ret < 0)
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,
 			"can't setsockopt IP_DROP_MEMBERSHIP (fd %d, addr %s, "
 			"ifindex %u, AllSPFRouters): %s",
 			top->fd, inet_ntoa(p->u.prefix4), ifindex,
 			safe_strerror(errno));
 	else
-		L(zlog_debug,"interface %s [%u] leave EIGRP Multicast group.",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"interface %s [%u] leave EIGRP Multicast group.",
 			   inet_ntoa(p->u.prefix4), ifindex);
 
 	return ret;
@@ -235,7 +235,7 @@ int eigrp_network_set(struct eigrp *eigrp, struct prefix *p)
 	struct interface *ifp;
 
 	if (!eigrp->name) {
-		L(zlog_debug, "EIGRP instance has no name. Add name of AS %d", eigrp->AS);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK, "EIGRP instance has no name. Add name of AS %d", eigrp->AS);
 		eigrp->name = malloc(20);
 		snprintf(eigrp->name, 20, "AS %d", eigrp->AS);
 	}
@@ -258,7 +258,7 @@ int eigrp_network_set(struct eigrp *eigrp, struct prefix *p)
 	/* Run network config now. */
 	/* Get target interface. */
 	FOR_ALL_INTERFACES (vrf, ifp) {
-		L(zlog_debug,"Setting up %s", ifp->name);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Setting up %s", ifp->name);
 		eigrp_network_run_interface(eigrp, p, ifp);
 	}
 	return 1;
@@ -293,7 +293,7 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 //		if (p->family == co->address->family && !ifp->info
 		if (p->family == co->address->family && eigrp_network_match_iface(co, p)) {
 
-			L(zlog_info, "%s configured for %s. Joining multicast group", ifp->name, eigrp->name);
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK, "%s configured for %s. Joining multicast group", ifp->name, eigrp->name);
 			ei = eigrp_if_new(eigrp, ifp, co->address);
 			ei->connected = co;
 

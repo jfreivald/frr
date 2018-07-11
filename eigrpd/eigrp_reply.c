@@ -78,7 +78,7 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 
 	if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
 				      pe2->destination)) {
-		L(zlog_info,"REPLY SEND: Setting Metric to max");
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"REPLY SEND: Setting Metric to max");
 		pe2->reported_metric.delay = EIGRP_MAX_METRIC;
 	}
 
@@ -170,7 +170,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 		if (!pe) {
 			char buf[PREFIX_STRLEN];
 
-			L(zlog_err,
+			L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 				"%s: Received prefix %s which we do not know about",
 				__PRETTY_FUNCTION__,
 				prefix2str(&dest_addr, buf, sizeof(buf)));

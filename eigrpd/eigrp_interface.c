@@ -60,10 +60,9 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 {
 	struct eigrp_interface *ei = ifp->info;
 	int i;
-	struct prefix *my_prefix;
 
 	if (ei && ei->nbrs) {
-		L(zlog_err, "Reinitialize an interface %s.", ei->ifp->name);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Reinitialize an interface %s.", ei->ifp->name);
 		list_delete_and_null(&(ei->nbrs));
 		listnode_delete(eigrp->eiflist, ei);
 	}
@@ -156,7 +155,7 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	if (ei == NULL)
 		return 0;
 
-	L(zlog_debug, "Turning EIGRP Interface %s Up", ei->ifp ? ei->ifp->name : "NEW" );
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Turning EIGRP Interface %s Up", ei->ifp ? ei->ifp->name : "NEW" );
 
 	eigrp = ei->eigrp;
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
@@ -201,7 +200,7 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
 	if (pe == NULL) {
-		L(zlog_debug, "%s not found in topology", addr_buf);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "%s not found in topology", addr_buf);
 		pe = eigrp_prefix_entry_new();
 		pe->serno = eigrp->serno;
 		pe->destination = (struct prefix *)prefix_ipv4_new();
