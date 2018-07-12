@@ -194,21 +194,21 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 
 			if (!ne) {
 				ne = eigrp_nexthop_entry_new();
-				ne->ei = ei;
-				ne->adv_router = nbr;
-				ne->reported_metric = tlv->metric;
-				ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
-				/*
-				 * Filtering
-				 */
-				if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-					ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-				ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-				pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-				ne->prefix = pe;
-				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 			}
+			ne->ei = ei;
+			ne->adv_router = nbr;
+			ne->reported_metric = tlv->metric;
+			ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
+			/*
+			 * Filtering
+			 */
+			if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+				ne->reported_metric.delay = EIGRP_MAX_METRIC;
+
+			ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
+			pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+			ne->prefix = pe;
+			ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;
@@ -249,21 +249,21 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 
 			if (!ne) {
 				ne = eigrp_nexthop_entry_new();
-				ne->ei = ei;
-				ne->adv_router = nbr;
-				ne->reported_metric = etlv->metric;
-				ne->reported_distance = eigrp_calculate_metrics(eigrp, etlv->metric);
-				/*
-				 * Filtering
-				 */
-				if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-					ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-				ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-				pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-				ne->prefix = pe;
-				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 			}
+			ne->ei = ei;
+			ne->adv_router = nbr;
+			ne->reported_metric = etlv->metric;
+			ne->reported_distance = eigrp_calculate_metrics(eigrp, etlv->metric);
+			/*
+			 * Filtering
+			 */
+			if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+				ne->reported_metric.delay = EIGRP_MAX_METRIC;
+
+			ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
+			pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+			ne->prefix = pe;
+			ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;

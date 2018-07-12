@@ -103,7 +103,7 @@ int eigrp_fsm_event_qact(struct eigrp_fsm_action_message *);
 
 //---------------------------------------------------------------------
 
-const struct eigrp_metrics infinite_metrics = {0,0,{0,0,0},255,0,0,0,0};
+const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_METRIC,0,{0,0,0},255,0,0,0,0};
 
 /*
  * NSM - field of fields of struct containing one function each.
@@ -312,12 +312,11 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			}
-			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All replies received");
 			if (head->reported_distance < msg->prefix->fdistance) {
 				ret_state = EIGRP_FSM_EVENT_LR_FCS;
 				break;
 			}
-
 			return EIGRP_FSM_EVENT_LR_FCN;
 		} else if (msg->packet_type == EIGRP_OPC_QUERY
 			   && (msg->entry->flags
@@ -541,7 +540,7 @@ int eigrp_fsm_event_lr(struct eigrp_fsm_action_message *msg)
 		prefix->fdistance = prefix->distance = prefix->rdistance = ne->distance;
 		prefix->reported_metric = ne->total_metric;
 	} else {
-		prefix->fdistance = prefix->distance = prefix->rdistance = EIGRP_MAX_METRIC;
+		prefix->fdistance = prefix->distance = prefix->rdistance = EIGRP_INFINITE_DISTANCE;
 	}
 
 	if (prefix->state == EIGRP_FSM_STATE_ACTIVE_3) {
@@ -587,7 +586,6 @@ int eigrp_fsm_event_dinc(struct eigrp_fsm_action_message *msg)
 		(*(NSM[msg->prefix->state][eigrp_get_fsm_event(msg)].func))(
 			msg);
 
-
 	list_delete_and_null(&successors);
 	return 1;
 }
@@ -619,9 +617,8 @@ int eigrp_fsm_event_lr_fcs(struct eigrp_fsm_action_message *msg)
 	listnode_add(eigrp->topology_changes_internalIPV4, prefix);
 	eigrp_topology_update_node_flags(prefix);
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
-	eigrp_update_topology_table_prefix(eigrp, msg->entry->prefix);
-	eigrp_update_routing_table(prefix);
 	eigrp_update_topology_table_prefix(eigrp, prefix);
+	eigrp_update_routing_table(prefix);
 
 	return 1;
 }

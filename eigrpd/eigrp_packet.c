@@ -1360,16 +1360,17 @@ uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
 	stream_putc(s, pe->extTLV->external_protocol);
 	stream_putc(s, pe->extTLV->external_flags);
 
-	stream_putl(s, pe->extTLV->metric.delay);
-	stream_putl(s, pe->extTLV->metric.bandwidth);
-	stream_putc(s, pe->extTLV->metric.mtu[0]);
-	stream_putc(s, pe->extTLV->metric.mtu[1]);
-	stream_putc(s, pe->extTLV->metric.mtu[2]);
-	stream_putc(s, pe->extTLV->metric.hop_count);
-	stream_putc(s, pe->extTLV->metric.reliability);
-	stream_putc(s, pe->extTLV->metric.load);
-	stream_putc(s, pe->extTLV->metric.tag);
-	stream_putc(s, pe->extTLV->metric.flags);
+	/*Metric*/
+	stream_putl(s, pe->reported_metric.delay);
+	stream_putl(s, pe->reported_metric.bandwidth);
+	stream_putc(s, pe->reported_metric.mtu[2]);
+	stream_putc(s, pe->reported_metric.mtu[1]);
+	stream_putc(s, pe->reported_metric.mtu[0]);
+	stream_putc(s, pe->reported_metric.hop_count);
+	stream_putc(s, pe->reported_metric.reliability);
+	stream_putc(s, pe->reported_metric.load);
+	stream_putc(s, pe->reported_metric.tag);
+	stream_putc(s, pe->reported_metric.flags);
 
 	stream_putc(s, pe->extTLV->prefix_length);
 

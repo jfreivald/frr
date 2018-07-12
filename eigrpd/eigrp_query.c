@@ -131,8 +131,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-				if (!ne) {
-					ne = eigrp_nexthop_entry_new();
+				if (ne) {
 					ne->ei = ei;
 					ne->adv_router = nbr;
 					ne->reported_metric = tlv->metric;
@@ -148,16 +147,15 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->prefix = pe;
 					ne->flags = 0;
 
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", inet_ntoa(nbr->src));
-					eigrp_nexthop_entry_add(pe, ne);
-
-					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
-					pe->reported_metric = ne->total_metric;
 					eigrp_topology_update_node_flags(pe);
 
-					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
+					pe->req_action |= EIGRP_FSM_NEED_QUERY;
 					listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
+				} else {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Missing entry for %s. Likely to crash.", inet_ntoa(nbr->src));
+					pe->fdistance = pe->distance = pe->rdistance = EIGRP_MAX_METRIC;
+					pe->req_action |= EIGRP_FSM_NEED_QUERY;
+					listnode_add(eigrp->topology_changes_internalIPV4, pe);
 				}
 
 				msg.packet_type = EIGRP_OPC_QUERY;
@@ -197,8 +195,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-				if (!ne) {
-					ne = eigrp_nexthop_entry_new();
+				if (ne) {
 					ne->ei = ei;
 					ne->adv_router = nbr;
 					ne->reported_metric = etlv->metric;
@@ -214,16 +211,16 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->prefix = pe;
 					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
 
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", inet_ntoa(nbr->src));
-					eigrp_nexthop_entry_add(pe, ne);
-
-					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
-					pe->reported_metric = ne->total_metric;
 					eigrp_topology_update_node_flags(pe);
 
-					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
+					pe->req_action |= EIGRP_FSM_NEED_QUERY;
 					listnode_add(eigrp->topology_changes_internalIPV4, pe);
 
+				} else {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Missing entry for %s. Likely to crash.", inet_ntoa(nbr->src));
+					pe->fdistance = pe->distance = pe->rdistance = EIGRP_MAX_METRIC;
+					pe->req_action |= EIGRP_FSM_NEED_QUERY;
+					listnode_add(eigrp->topology_changes_internalIPV4, pe);
 				}
 
 				msg.packet_type = EIGRP_OPC_QUERY;
@@ -246,7 +243,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 		}
 	}
-	eigrp_send_reply(nbr, pe);
 	eigrp_hello_send_ack(nbr);
 	eigrp_query_send_all(eigrp);
 	eigrp_update_send_all(eigrp, nbr->ei);

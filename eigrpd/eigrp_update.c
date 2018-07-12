@@ -786,15 +786,10 @@ void eigrp_update_send(struct eigrp_interface *ei)
 			continue;
 		}
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Checking %s", pbuf);
-		if (!(pe->req_action & EIGRP_FSM_NEED_UPDATE)) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Needs update. Skip.");
-			continue;
-		}
 
 		for (ALL_LIST_ELEMENTS(pe->entries, node, nnode, ne)) {
 			if (eigrp_nbr_split_horizon_check(ne, ei)) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Split horizon. Skip.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Split horizon. Skip.", pbuf);
 				continue;
 			}
 
@@ -838,10 +833,13 @@ void eigrp_update_send(struct eigrp_interface *ei)
 
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
 					      dest_addr)) {
-			// pe->reported_metric.delay = EIGRP_MAX_METRIC;
 			continue;
 		} else {
-			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+			if (pe->extTLV) {
+				length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+			} else {
+				length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+			}
 			has_tlv = 1;
 		}
 	}

@@ -537,12 +537,6 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 			change = METRIC_INCREASE;
 			goto distance_done;
 		}
-		if (eigrp_metrics_is_same(msg->metrics,
-				msg->entry->reported_metric)) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-			return change; // No change
-		}
-
 		new_reported_distance =
 				eigrp_calculate_metrics(msg->eigrp, msg->metrics);
 
@@ -557,11 +551,6 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 		break;
 	case EIGRP_EXT:
 		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL) {
-			if (eigrp_metrics_is_same(msg->metrics,
-					msg->entry->reported_metric)) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-				return change;
-			}
 			new_reported_distance =
 					eigrp_calculate_metrics(msg->eigrp, msg->metrics);
 
@@ -776,7 +765,7 @@ void eigrp_update_topology_table_prefix(struct eigrp *eigrp, struct eigrp_prefix
 	uint32_t new_distance = EIGRP_MAX_METRIC;
 
 	for (ALL_LIST_ELEMENTS(prefix->entries, node1, node2, entry)) {
-		if (entry && entry->distance == EIGRP_MAX_METRIC) {
+		if (entry && entry->distance == EIGRP_INFINITE_DISTANCE) {
 			eigrp_nexthop_entry_delete(prefix, entry);
 		} else {
 			if (entry->distance < new_distance) {
@@ -787,8 +776,8 @@ void eigrp_update_topology_table_prefix(struct eigrp *eigrp, struct eigrp_prefix
 
 	prefix->distance = new_distance;
 
-	if (prefix->distance == EIGRP_MAX_METRIC && prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Prefix MAX METRIC. Remove prefix.");
+	if (prefix->distance == EIGRP_INFINITE_DISTANCE && prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Prefix INFINITE_DISTANCE. Remove prefix.");
 		eigrp_prefix_entry_delete(eigrp, prefix);
 	}
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
