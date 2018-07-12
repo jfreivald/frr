@@ -21,6 +21,7 @@
 
 #define LOGGER_NO_LIB				(0)
 #define LOGGER_LIB_LIST				(0x0001)
+#define LOGGER_LIB_PREFIX			(0x0002)
 
 #define LOGGER_NO_ZEBRA				(0)
 #define LOGGER_ZEBRA_ROUTES			(0x0001)
@@ -40,6 +41,7 @@
 #define LOGGER_EIGRP_NEIGHBOR		(0x0200)
 #define LOGGER_EIGRP_PACKET			(0x0400)
 #define LOGGER_EIGRP_NETWORK		(0x0800)
+#define LOGGER_EIGRP_REPLY			(0x1000)
 #define LOGGER_EIGRP_TRACE			(0x8000)
 
 #define L(logfunc,m,f,...)     _logger(logfunc,m,f,__FILE__,__PRETTY_FUNCTION__,__LINE__,errno,__VA_ARGS__)

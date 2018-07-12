@@ -1344,6 +1344,53 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 	return length;
 }
 
+uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
+					 struct eigrp_prefix_entry *pe)
+{
+
+	/* We write out external routes exactly the same way we received them. */
+	stream_putw(s, pe->extTLV->type);
+	stream_putw(s, pe->extTLV->length);
+	stream_putl(s, pe->extTLV->next_hop.s_addr);
+	stream_putl(s, pe->extTLV->originating_router.s_addr);
+	stream_putl(s, pe->extTLV->originating_as);
+	stream_putl(s, pe->extTLV->administrative_tag);
+	stream_putl(s, pe->extTLV->external_metric);
+	stream_putw(s, pe->extTLV->reserved);
+	stream_putc(s, pe->extTLV->external_protocol);
+	stream_putc(s, pe->extTLV->external_flags);
+
+	stream_putl(s, pe->extTLV->metric.delay);
+	stream_putl(s, pe->extTLV->metric.bandwidth);
+	stream_putc(s, pe->extTLV->metric.mtu[0]);
+	stream_putc(s, pe->extTLV->metric.mtu[1]);
+	stream_putc(s, pe->extTLV->metric.mtu[2]);
+	stream_putc(s, pe->extTLV->metric.hop_count);
+	stream_putc(s, pe->extTLV->metric.reliability);
+	stream_putc(s, pe->extTLV->metric.load);
+	stream_putc(s, pe->extTLV->metric.tag);
+	stream_putc(s, pe->extTLV->metric.flags);
+
+	stream_putc(s, pe->extTLV->prefix_length);
+
+	if (pe->extTLV->prefix_length <= 8) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+	} else if (pe->extTLV->prefix_length > 8 && pe->extTLV->prefix_length <= 16) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+		stream_putc(s, pe->extTLV->destination_part[1]);
+	} else if (pe->extTLV->prefix_length > 16 && pe->extTLV->prefix_length <= 24) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+		stream_putc(s, pe->extTLV->destination_part[1]);
+		stream_putc(s, pe->extTLV->destination_part[2]);
+	} else if (pe->extTLV->prefix_length > 24 && pe->extTLV->prefix_length <= 32) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+		stream_putc(s, pe->extTLV->destination_part[1]);
+		stream_putc(s, pe->extTLV->destination_part[2]);
+		stream_putc(s, pe->extTLV->destination_part[3]);
+	}
+	return pe->extTLV->length;
+}
+
 uint16_t eigrp_add_authTLV_MD5_to_stream(struct stream *s,
 					 struct eigrp_interface *ei)
 {

@@ -59,6 +59,8 @@ extern struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *);
 struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s);
 extern uint16_t eigrp_add_internalTLV_to_stream(struct stream *,
 						struct eigrp_prefix_entry *);
+extern uint16_t eigrp_add_externalTLV_to_stream(struct stream *,
+						struct eigrp_prefix_entry *);
 extern uint16_t eigrp_add_authTLV_MD5_to_stream(struct stream *,
 						struct eigrp_interface *);
 extern uint16_t eigrp_add_authTLV_SHA256_to_stream(struct stream *,

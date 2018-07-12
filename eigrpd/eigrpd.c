@@ -285,8 +285,8 @@ void eigrp_finish_final(struct eigrp *eigrp)
 	list_delete_and_null(&eigrp->eiflist);
 	list_delete_and_null(&eigrp->oi_write_q);
 
-	eigrp_topology_cleanup(eigrp->topology_table);
-	eigrp_topology_free(eigrp->topology_table);
+	eigrp_topology_cleanup(eigrp);
+	eigrp_topology_free(eigrp);
 
 	eigrp_nbr_delete(eigrp->neighbor_self);
 

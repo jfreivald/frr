@@ -139,7 +139,7 @@ void eigrp_del_if_params(struct eigrp_if_params *eip)
 		free(eip->auth_keychain);
 }
 
-int eigrp_if_up(struct eigrp_interface *ei)
+int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *func, int line)
 {
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_nexthop_entry *ne;
@@ -152,10 +152,12 @@ int eigrp_if_up(struct eigrp_interface *ei)
 
 	char addr_buf[PREFIX2STR_BUFFER];
 
-	if (ei == NULL)
+	if (ei == NULL) {
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "NULL interface CF[%s:%s:%d]", file, func, line );
 		return 0;
+	}
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Turning EIGRP Interface %s Up", ei->ifp ? ei->ifp->name : "NEW" );
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Turning EIGRP Interface %s Up CF[%s:%s:%d]", ei->ifp ? ei->ifp->name : "NEW", file, func, line );
 
 	eigrp = ei->eigrp;
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
@@ -359,7 +361,7 @@ void eigrp_if_free(struct eigrp_interface *ei, int source)
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
 			&dest_addr);
 	if (pe)
-		eigrp_prefix_entry_delete(eigrp->topology_table, pe);
+		eigrp_prefix_entry_delete(eigrp, pe);
 
 	eigrp_if_down(ei);
 

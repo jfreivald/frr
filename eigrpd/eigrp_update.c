@@ -398,7 +398,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			break;
 
 		case EIGRP_TLV_IPv4_EXT:
-			//First attempt: Treat external routes as internal and see if we can get them to populate (albiet incorrectly)
+			//Second attempt: Treat external routes as internal, except for query and update responses.
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External IPv4 Route");
 			stream_set_getp(s, s->getp - (sizeof(uint16_t)));
 
@@ -442,7 +442,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
 					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
 					ne->prefix = pe;
-					ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
+					ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG | EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
 
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", pre_text);
 					eigrp_nexthop_entry_add(pe, ne);
@@ -474,7 +474,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				prefix_copy(pe->destination, &dest_addr);
 				pe->af = AF_INET;
 				pe->state = EIGRP_FSM_STATE_PASSIVE;
-				pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
+				pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL;
 
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry for %s", pre_text);
 				ne = eigrp_nexthop_entry_new();
@@ -656,6 +656,7 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 	struct prefix *dest_addr;
 	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(nbr->ei->ifp->mtu);
 	struct route_node *rn;
+	char pbuf[PREFIX2STR_BUFFER];
 
 	ep = eigrp_packet_new(eigrp_mtu, nbr);
 
@@ -679,8 +680,13 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 		}
 
 		for (ALL_LIST_ELEMENTS(pe->entries, node, nnode, ne)) {
+			if (ne->prefix && ne->prefix->destination) {
+				prefix2str(ne->prefix->destination, pbuf, PREFIX2STR_BUFFER);
+			} else {
+				snprintf(pbuf, PREFIX2STR_BUFFER, "INVALID PREFIX");
+			}
 			if (eigrp_nbr_split_horizon_check(ne, nbr->ei)) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Split horizon. Skip.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Split horizon. Skip.", pbuf);
 				continue;
 			}
 
@@ -725,8 +731,12 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 					nbr->ei->eigrp, nbr->ei, EIGRP_FILTER_OUT, dest_addr))
 				continue;
 			else {
-				length += eigrp_add_internalTLV_to_stream(ep->s,
-									  pe);
+				if (pe->extTLV) {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+					length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+				} else {
+					length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+				}
 			}
 		}
 	}

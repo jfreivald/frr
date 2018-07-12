@@ -41,7 +41,8 @@ extern bool eigrp_if_is_passive(struct eigrp_interface *ei);
 extern void eigrp_del_if_params(struct eigrp_if_params *);
 extern struct eigrp_interface *eigrp_if_new(struct eigrp *, struct interface *,
 					    struct prefix *);
-extern int eigrp_if_up(struct eigrp_interface *);
+#define eigrp_if_up(ei)		eigrp_if_up_cf(ei,__FILE__,__PRETTY_FUNCTION__,__LINE__)
+extern int eigrp_if_up_cf(struct eigrp_interface *, const char *, const char *, int);
 extern void eigrp_if_stream_set(struct eigrp_interface *);
 extern void eigrp_if_set_multicast(struct eigrp_interface *);
 extern uint8_t eigrp_default_iftype(struct interface *);

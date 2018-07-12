@@ -114,22 +114,14 @@ struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *ei,
 		}
 	}
 
+	if (!ei->nbrs) {
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "New Neighbor on uninitialized interface. Bringing interface %s up.");
+		eigrp_if_up(ei);
+	}
+
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Adding new neighbor.");
 	if (NULL != (nbr = eigrp_nbr_add(ei, eigrph, iph))) {
-		if (!ei->nbrs) {
-			struct eigrp *eigrp = eigrp_lookup();
-			struct prefix_list_entry *next;
-			char buf[INET6_ADDRSTRLEN];
-
-			L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Initialize interface.");
-			next = eigrp->prefix[EIGRP_FILTER_IN]->head;
-			while ( next ) {
-				prefix2str(&(next->prefix), buf, INET6_ADDRSTRLEN);
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Adding %s to %s", buf, ei->ifp->name);
-				eigrp_if_new(eigrp, ei->ifp, &(next->prefix));
-				next = next->next;
-			}
-		}
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Adding %s to %s", inet_ntoa(nbr->src), ei->ifp->name);
 		listnode_add(ei->nbrs, nbr);
 	} else {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to add new neighbor.");

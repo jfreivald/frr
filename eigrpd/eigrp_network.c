@@ -144,7 +144,7 @@ void eigrp_adjust_sndbuflen(struct eigrp *eigrp, unsigned int buflen)
 	else
 		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"%s: failed to get SO_SNDBUF", __func__);
 	if (eigrpd_privs.change(ZPRIVS_LOWER))
-		L(zlog_err,"%s: could not lower privs, %s", __func__,
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"%s: could not lower privs, %s", __func__,
 			 safe_strerror(errno));
 }
 
@@ -288,9 +288,19 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 		if (CHECK_FLAG(co->flags, ZEBRA_IFA_SECONDARY))
 			continue;
 
-//		Interface that is brought up after the start of the daemon
-//		appears not to initialize becuase ifp->info is set. Removing check.
-//		if (p->family == co->address->family && !ifp->info
+/*		Interface that is brought up after the start of the daemon
+ *		appears not to initialize because ifp->info is set. Removing check.
+ *		if (p->family == co->address->family && !ifp->info
+ *		Instead we will search through the eigrp->eiflist and see if
+ *		our interface is already attached. If it isn't then we'll start it up
+ */
+		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, cnode, ei)) {
+			if (ifp == ei->ifp) {
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK, "Interface %s is already attached to our eigrp instance. Skip.", ifp->name);
+				return;
+			}
+		}
+
 		if (p->family == co->address->family && eigrp_network_match_iface(co, p)) {
 
 			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK, "%s configured for %s. Joining multicast group", ifp->name, eigrp->name);

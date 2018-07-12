@@ -440,10 +440,10 @@ struct TLV_IPv4_External_type {
 	struct eigrp_metrics metric;
 
 	uint8_t prefix_length;
-	union {
-		unsigned char destination_part[4];
-		struct in_addr destination;
-	} __attribute__((packed));
+	unsigned char destination_part[4];
+
+	//We store this after the main structure for convenience sake
+	struct in_addr destination;
 } __attribute__((packed));
 
 /* EIGRP Peer Termination TLV - used for hard restart */

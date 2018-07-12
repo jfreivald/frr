@@ -1234,7 +1234,7 @@ DEFUN (clear_ip_eigrp_neighbors,
 		/* iterate over all neighbors on eigrp interface */
 		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
 			if (nbr->state != EIGRP_NEIGHBOR_DOWN) {
-				L(zlog_debug,
+				zlog_debug(
 					"Neighbor %s (%s) is down: manually cleared",
 					inet_ntoa(nbr->src),
 					ifindex2ifname(nbr->ei->ifp->ifindex,
@@ -1296,7 +1296,7 @@ DEFUN (clear_ip_eigrp_neighbors_int,
 	/* iterate over all neighbors on eigrp interface */
 	for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
 		if (nbr->state != EIGRP_NEIGHBOR_DOWN) {
-			L(zlog_debug,"Neighbor %s (%s) is down: manually cleared",
+			zlog_debug("Neighbor %s (%s) is down: manually cleared",
 				   inet_ntoa(nbr->src),
 				   ifindex2ifname(nbr->ei->ifp->ifindex,
 						  VRF_DEFAULT));

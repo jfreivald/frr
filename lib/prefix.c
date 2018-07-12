@@ -27,6 +27,7 @@
 #include "memory.h"
 #include "log.h"
 #include "jhash.h"
+#include "debug_wrapper.h"
 
 DEFINE_MTYPE_STATIC(LIB, PREFIX, "Prefix")
 
@@ -625,7 +626,7 @@ int prefix_match_network_statement(const struct prefix *n,
 	return 1;
 }
 
-void prefix_copy(struct prefix *dest, const struct prefix *src)
+void prefix_copy_cf(struct prefix *dest, const struct prefix *src, const char *file, const char *func, int line)
 {
 	dest->family = src->family;
 	dest->prefixlen = src->prefixlen;
@@ -656,8 +657,8 @@ void prefix_copy(struct prefix *dest, const struct prefix *src)
 		memcpy((void *)dest->u.prefix_flowspec.ptr,
 		       (void *)src->u.prefix_flowspec.ptr, len);
 	} else {
-		zlog_err("prefix_copy(): Unknown address family %d",
-			 src->family);
+		L(zlog_err, LOGGER_LIB, LOGGER_LIB_PREFIX, "prefix_copy(): Unknown address family %d CF[%s:%s:%d]",
+			 src->family, file, func, line);
 		assert(0);
 	}
 }
