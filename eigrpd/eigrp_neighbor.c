@@ -63,7 +63,7 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 	/* Allcate new neighbor. */
 	nbr = XCALLOC(MTYPE_EIGRP_NEIGHBOR, sizeof(struct eigrp_neighbor));
 	if (!nbr) {
-		L(zlog_err, "Unable to allocate memory for new neighbor");
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to allocate memory for new neighbor");
 		return NULL;
 	}
 	/* Relate neighbor to the interface. */
@@ -89,7 +89,7 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 	struct eigrp_neighbor *nbr;
 
 	if ( NULL == (nbr = eigrp_nbr_new(ei))) {
-		L(zlog_err, "Neighbor not allocated. Unable to process new neighbor.");
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Neighbor not allocated. Unable to process new neighbor.");
 		return NULL;
 	}
 	nbr->src = iph->ip_src;
@@ -114,25 +114,17 @@ struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *ei,
 		}
 	}
 
-	L(zlog_debug,"Adding new neighbor.");
-	if (NULL != (nbr = eigrp_nbr_add(ei, eigrph, iph))) {
-		if (!ei->nbrs) {
-			struct eigrp *eigrp = eigrp_lookup();
-			struct prefix_list_entry *next;
-			char buf[INET6_ADDRSTRLEN];
+	if (!ei->nbrs) {
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "New Neighbor on uninitialized interface. Bringing interface %s up.");
+		eigrp_if_up(ei);
+	}
 
-			L(zlog_warn, "Initialize interface.");
-			next = eigrp->prefix[EIGRP_FILTER_IN]->head;
-			while ( next ) {
-				prefix2str(&(next->prefix), buf, INET6_ADDRSTRLEN);
-				L(zlog_debug, "Adding %s to %s", buf, ei->ifp->name);
-				eigrp_if_new(eigrp, ei->ifp, &(next->prefix));
-				next = next->next;
-			}
-		}
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Adding new neighbor.");
+	if (NULL != (nbr = eigrp_nbr_add(ei, eigrph, iph))) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Adding %s to %s", inet_ntoa(nbr->src), ei->ifp->name);
 		listnode_add(ei->nbrs, nbr);
 	} else {
-		L(zlog_err, "Unable to add new neighbor.");
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to add new neighbor.");
 	}
 
 	return nbr;
@@ -225,7 +217,7 @@ int holddown_timer_expired(struct thread *thread)
 	nbr = THREAD_ARG(thread);
 	THREAD_OFF(nbr->t_holddown);
 
-	L(zlog_info,"Neighbor %s (%s) is down: holding time expired", inet_ntoa(nbr->src),
+	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is down: holding time expired", inet_ntoa(nbr->src),
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
 	eigrp_nbr_delete(nbr);
@@ -333,7 +325,7 @@ int eigrp_nbr_count_get(void)
 	uint32_t counter;
 
 	if (eigrp == NULL) {
-		L(zlog_debug,"EIGRP Routing Process not enabled");
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"EIGRP Routing Process not enabled");
 		return 0;
 	}
 
@@ -363,11 +355,11 @@ int eigrp_nbr_count_get(void)
 void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 {
 	if (nbr == NULL) {
-		L(zlog_err,"Nbr Hard restart: Neighbor not specified.");
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Nbr Hard restart: Neighbor not specified.");
 		return;
 	}
 
-	L(zlog_debug,"Neighbor %s (%s) is down: manually cleared",
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is down: manually cleared",
 			inet_ntoa(nbr->src),
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 	if (vty != NULL) {

@@ -62,8 +62,9 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	int i;
 
 	if (ei && ei->nbrs) {
-		L(zlog_err, "Attempting to initialize an interface that is already established.");
-		return ei;
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Reinitialize an interface %s.", ei->ifp->name);
+		list_delete_and_null(&(ei->nbrs));
+		listnode_delete(eigrp->eiflist, ei);
 	}
 
 	ei = XCALLOC(MTYPE_EIGRP_IF, sizeof(struct eigrp_interface));
@@ -138,7 +139,7 @@ void eigrp_del_if_params(struct eigrp_if_params *eip)
 		free(eip->auth_keychain);
 }
 
-int eigrp_if_up(struct eigrp_interface *ei)
+int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *func, int line)
 {
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_nexthop_entry *ne;
@@ -151,10 +152,12 @@ int eigrp_if_up(struct eigrp_interface *ei)
 
 	char addr_buf[PREFIX2STR_BUFFER];
 
-	if (ei == NULL)
+	if (ei == NULL) {
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "NULL interface CF[%s:%s:%d]", file, func, line );
 		return 0;
+	}
 
-	L(zlog_debug, "Turning EIGRP Interface %s Up", ei->ifp ? ei->ifp->name : "NEW" );
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Turning EIGRP Interface %s Up CF[%s:%s:%d]", ei->ifp ? ei->ifp->name : "NEW", file, func, line );
 
 	eigrp = ei->eigrp;
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
@@ -199,7 +202,7 @@ int eigrp_if_up(struct eigrp_interface *ei)
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
 	if (pe == NULL) {
-		L(zlog_debug, "%s not found in topology", addr_buf);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "%s not found in topology", addr_buf);
 		pe = eigrp_prefix_entry_new();
 		pe->serno = eigrp->serno;
 		pe->destination = (struct prefix *)prefix_ipv4_new();
@@ -358,7 +361,7 @@ void eigrp_if_free(struct eigrp_interface *ei, int source)
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
 			&dest_addr);
 	if (pe)
-		eigrp_prefix_entry_delete(eigrp->topology_table, pe);
+		eigrp_prefix_entry_delete(eigrp, pe);
 
 	eigrp_if_down(ei);
 

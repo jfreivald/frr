@@ -172,7 +172,7 @@ int eigrp_check_md5_digest(struct stream *s,
 	struct eigrp_header *eigrph;
 
 	if (ntohl(nbr->crypt_seqnum) > ntohl(authTLV->key_sequence)) {
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 			"interface %s: eigrp_check_md5 bad sequence %d (expect %d)",
 			IF_NAME(nbr->ei), ntohl(authTLV->key_sequence),
 			ntohl(nbr->crypt_seqnum));
@@ -196,7 +196,7 @@ int eigrp_check_md5_digest(struct stream *s,
 		key = key_lookup_for_send(keychain);
 
 	if (!key) {
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 			"Interface %s: Expected key value not found in config",
 			nbr->ei->ifp->name);
 		return 0;
@@ -232,7 +232,7 @@ int eigrp_check_md5_digest(struct stream *s,
 
 	/* compare the two */
 	if (memcmp(orig, digest, EIGRP_AUTH_TYPE_MD5_LEN) != 0) {
-		L(zlog_warn,"interface %s: eigrp_check_md5 checksum mismatch",
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"interface %s: eigrp_check_md5 checksum mismatch",
 			  IF_NAME(nbr->ei));
 		return 0;
 	}
@@ -273,7 +273,7 @@ int eigrp_make_sha256_digest(struct eigrp_interface *ei, struct stream *s,
 		key = key_lookup_for_send(keychain);
 
 	if (!key) {
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 			"Interface %s: Expected key value not found in config",
 			ei->ifp->name);
 		eigrp_authTLV_SHA256_free(auth_TLV);
@@ -347,12 +347,12 @@ int eigrp_write(struct thread *thread)
 	/* Get one packet from queue. */
 	ep = eigrp_fifo_next(ei->obuf);
 	if (!ep) {
-		L(zlog_err,"%s: Interface %s no packet on queue?",
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"%s: Interface %s no packet on queue?",
 			 __PRETTY_FUNCTION__, ei->ifp->name);
 		goto out;
 	}
 	if (ep->length < EIGRP_HEADER_LEN) {
-		L(zlog_err,"%s: Packet just has a header?", __PRETTY_FUNCTION__);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"%s: Packet just has a header?", __PRETTY_FUNCTION__);
 		eigrp_header_dump((struct eigrp_header *)ep->s->data);
 		eigrp_packet_delete(ei);
 		goto out;
@@ -436,14 +436,14 @@ int eigrp_write(struct thread *thread)
 
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, SEND)) {
 		eigrph = (struct eigrp_header *)STREAM_DATA(ep->s);
-		L(zlog_debug,
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 			"Sending [%s][%d/%d] to [%s] via [%s] ret [%d].",
 			lookup_msg(eigrp_packet_type_str, eigrph->opcode, NULL),
 			seqno, ack, inet_ntoa(ep->dst), IF_NAME(ei), ret);
 	}
 
 	if (ret < 0)
-		L(zlog_warn,
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 			"*** sendmsg in eigrp_write failed to %s, "
 			"id %d, off %d, len %d, interface %s, mtu %u: %s",
 			inet_ntoa(iph.ip_dst), iph.ip_id, iph.ip_off,
@@ -486,7 +486,7 @@ int eigrp_read(struct thread *thread)
 	uint16_t opcode = 0;
 	uint16_t length = 0;
 
-	LT(zlog_debug,"ENTER");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE,"ENTER");
 
 	/* first of all get interface pointer. */
 	eigrp = THREAD_ARG(thread);
@@ -545,12 +545,12 @@ int eigrp_read(struct thread *thread)
 	 * if nbrs is NULL, so a good check anyway! */
 	if(ei->nbrs == NULL) {
 		char pstr[25];
-		L(zlog_debug,"Initialize Interface[%s]",ifp->name);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE,"Initialize Interface[%s]",ifp->name);
 
 		route_table_iter_init(&rtit, eigrp->networks);
 		while ((rn = route_table_iter_next(&rtit)) != NULL) {
 			prefix2str(&(rn->p), pstr, 25);
-			L(zlog_debug,"Adding prefix %s to interface %s.", pstr, ifp->name);
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_INTERFACE,"Adding prefix %s to interface %s.", pstr, ifp->name);
 			
 			struct prefix *pref = prefix_new();
 			PREFIX_COPY_IPV4(pref, &rn->p);
@@ -558,7 +558,7 @@ int eigrp_read(struct thread *thread)
 
 			eigrp_network_run_interface(eigrp, &rn->p, ifp);
 		}
-		L(zlog_debug,"Completed %s initialization.", ifp->name);
+		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_INTERFACE,"Completed %s initialization.", ifp->name);
 		eigrp_if_up(ei);
 	}
 
@@ -576,7 +576,7 @@ int eigrp_read(struct thread *thread)
 	if (eigrp_if_lookup_by_local_addr(eigrp, NULL, iph->ip_src)
 	    || (IPV4_ADDR_SAME(&iph->ip_src, &ei->address->u.prefix4))) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			L(zlog_debug,
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
 				"eigrp_read[%s]: Dropping self-originated packet",
 				inet_ntoa(iph->ip_src));
 		return 0;
@@ -601,7 +601,7 @@ int eigrp_read(struct thread *thread)
 		char buf[3][INET_ADDRSTRLEN];
 
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			L(zlog_debug,
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
 				"ignoring packet from router %s sent to %s, "
 				"received on a passive interface, %s",
 				inet_ntop(AF_INET, &eigrph->vrid, buf[0],
@@ -622,7 +622,7 @@ int eigrp_read(struct thread *thread)
 	 */
 	else if (ei->ifp != ifp) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			L(zlog_warn,"Packet from [%s] received on wrong link %s",
+			L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet from [%s] received on wrong link %s",
 				  inet_ntoa(iph->ip_src), ifp->name);
 		return 0;
 	}
@@ -631,7 +631,7 @@ int eigrp_read(struct thread *thread)
 	ret = eigrp_verify_header(ibuf, ei, iph, eigrph);
 	if (ret < 0) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			L(zlog_debug,
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
 				"eigrp_read[%s]: Header check failed, dropping.",
 				inet_ntoa(iph->ip_src));
 		return ret;
@@ -646,7 +646,7 @@ int eigrp_read(struct thread *thread)
 
 		strlcpy(src, inet_ntoa(iph->ip_src), sizeof(src));
 		strlcpy(dst, inet_ntoa(iph->ip_dst), sizeof(dst));
-		L(zlog_debug,
+		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
 			"Received [%s][%d/%d] length [%u] via [%s] src [%s] dst [%s]",
 			lookup_msg(eigrp_packet_type_str, opcode, NULL),
 			ntohl(eigrph->sequence), ntohl(eigrph->ack), length,
@@ -674,7 +674,7 @@ int eigrp_read(struct thread *thread)
 			    && (ntohl(eigrph->ack)
 				== nbr->init_sequence_number)) {
 				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
-				L(zlog_info,"Neighbor(%s) up",
+				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Neighbor(%s) up",
 					  inet_ntoa(nbr->src));
 				nbr->init_sequence_number = 0;
 				nbr->recv_sequence_number =
@@ -701,7 +701,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_PROBE:
-		L(zlog_warn,"%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
 		//      eigrp_probe_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -712,7 +712,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_REQUEST:
-		L(zlog_warn,"%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
 		//      eigrp_request_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -726,7 +726,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_update_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	default:
-		L(zlog_warn,
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
 			"interface %s: EIGRP packet header type %d unsupported",
 			IF_NAME(ei), opcode);
 		break;
@@ -755,12 +755,12 @@ static struct stream *eigrp_recv_packet(int fd, struct interface **ifp,
 
 	ret = stream_recvmsg(ibuf, fd, &msgh, 0, (EIGRP_PACKET_MAX_LEN + 1));
 	if (ret < 0) {
-		L(zlog_warn,"stream_recvmsg failed: %s", safe_strerror(errno));
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvmsg failed: %s", safe_strerror(errno));
 		return NULL;
 	}
 	if ((unsigned int)ret < sizeof(iph)) /* ret must be > 0 now */
 	{
-		L(zlog_warn,
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
 			"eigrp_recv_packet: discarding runt packet of length %d "
 			"(ip header size is %u)",
 			ret, (unsigned int)sizeof(iph));
@@ -806,7 +806,7 @@ static struct stream *eigrp_recv_packet(int fd, struct interface **ifp,
 	*ifp = if_lookup_by_index(ifindex, VRF_DEFAULT);
 
 	if (ret != ip_len) {
-		L(zlog_warn,
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
 			"eigrp_recv_packet read length mismatch: ip_len is %d, "
 			"but recvmsg returned %d",
 			ip_len, ret);
@@ -930,7 +930,7 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 	eigrph->flags = htonl(flags);
 
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, PACKET_DETAIL))
-		L(zlog_debug,"Packet Header Init Seq [%u] Ack [%u]",
+		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet Header Init Seq [%u] Ack [%u]",
 			   htonl(eigrph->sequence), htonl(eigrph->ack));
 
 	stream_forward_endp(s, EIGRP_HEADER_LEN);
@@ -1311,7 +1311,7 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 		stream_putw(s, length);
 		break;
 	default:
-		L(zlog_err,"%s: Unexpected prefix length: %d",
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"%s: Unexpected prefix length: %d",
 			 __PRETTY_FUNCTION__, pe->destination->prefixlen);
 		return 0;
 	}
@@ -1342,6 +1342,53 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 			    (pe->destination->u.prefix4.s_addr >> 24) & 0xFF);
 
 	return length;
+}
+
+uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
+					 struct eigrp_prefix_entry *pe)
+{
+
+	/* We write out external routes exactly the same way we received them. */
+	stream_putw(s, pe->extTLV->type);
+	stream_putw(s, pe->extTLV->length);
+	stream_putl(s, pe->extTLV->next_hop.s_addr);
+	stream_putl(s, pe->extTLV->originating_router.s_addr);
+	stream_putl(s, pe->extTLV->originating_as);
+	stream_putl(s, pe->extTLV->administrative_tag);
+	stream_putl(s, pe->extTLV->external_metric);
+	stream_putw(s, pe->extTLV->reserved);
+	stream_putc(s, pe->extTLV->external_protocol);
+	stream_putc(s, pe->extTLV->external_flags);
+
+	stream_putl(s, pe->extTLV->metric.delay);
+	stream_putl(s, pe->extTLV->metric.bandwidth);
+	stream_putc(s, pe->extTLV->metric.mtu[0]);
+	stream_putc(s, pe->extTLV->metric.mtu[1]);
+	stream_putc(s, pe->extTLV->metric.mtu[2]);
+	stream_putc(s, pe->extTLV->metric.hop_count);
+	stream_putc(s, pe->extTLV->metric.reliability);
+	stream_putc(s, pe->extTLV->metric.load);
+	stream_putc(s, pe->extTLV->metric.tag);
+	stream_putc(s, pe->extTLV->metric.flags);
+
+	stream_putc(s, pe->extTLV->prefix_length);
+
+	if (pe->extTLV->prefix_length <= 8) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+	} else if (pe->extTLV->prefix_length > 8 && pe->extTLV->prefix_length <= 16) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+		stream_putc(s, pe->extTLV->destination_part[1]);
+	} else if (pe->extTLV->prefix_length > 16 && pe->extTLV->prefix_length <= 24) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+		stream_putc(s, pe->extTLV->destination_part[1]);
+		stream_putc(s, pe->extTLV->destination_part[2]);
+	} else if (pe->extTLV->prefix_length > 24 && pe->extTLV->prefix_length <= 32) {
+		stream_putc(s, pe->extTLV->destination_part[0]);
+		stream_putc(s, pe->extTLV->destination_part[1]);
+		stream_putc(s, pe->extTLV->destination_part[2]);
+		stream_putc(s, pe->extTLV->destination_part[3]);
+	}
+	return pe->extTLV->length;
 }
 
 uint16_t eigrp_add_authTLV_MD5_to_stream(struct stream *s,

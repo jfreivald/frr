@@ -92,13 +92,13 @@ struct thread_master *master;
 /* SIGHUP handler. */
 static void sighup(void)
 {
-	L(zlog_info,"SIGHUP received");
+	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TRACE,"SIGHUP received");
 }
 
 /* SIGINT / SIGTERM handler. */
 static void sigint(void)
 {
-	L(zlog_notice,"Terminating on signal");
+	L(zlog_notice, LOGGER_EIGRP, LOGGER_EIGRP_TRACE,"Terminating on signal");
 	eigrp_terminate();
 
 	exit(0);

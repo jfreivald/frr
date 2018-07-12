@@ -142,7 +142,7 @@ static void eigrp_update_receive_GR_ask(struct eigrp *eigrp,
 	/* iterate over all prefixes which weren't advertised by neighbor */
 	for (ALL_LIST_ELEMENTS_RO(nbr_prefixes, node1, prefix)) {
 		char buffer[PREFIX_STRLEN];
-		L(zlog_debug,
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
 			"GR receive: Neighbor not advertised %s",
 			prefix2str(prefix->destination, buffer, PREFIX_STRLEN));
 
@@ -212,7 +212,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug,
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,
 			"Processing Update size[%u] int(%s) nbr(%s) seq [%u] flags [%0x]",
 			size,
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT),
@@ -223,7 +223,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 	    && (!same)) {
 		/* Graceful restart Update received with all routes */
 
-		L(zlog_info,"Neighbor %s (%s) is resync: peer graceful-restart",
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is resync: peer graceful-restart",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 
@@ -235,7 +235,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 		/* Graceful restart Update received, routes also in next packet
 		 */
 
-		L(zlog_info,"Neighbor %s (%s) is resync: peer graceful-restart",
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is resync: peer graceful-restart",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 
@@ -281,12 +281,12 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
 			eigrp_topology_neighbor_down(nbr->ei->eigrp, nbr);
 			nbr->recv_sequence_number = ntohl(eigrph->sequence);
-			L(zlog_info,"Neighbor %s (%s) is down: peer restarted",
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is down: peer restarted",
 				  inet_ntoa(nbr->src),
 				  ifindex2ifname(nbr->ei->ifp->ifindex,
 						 VRF_DEFAULT));
 			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_PENDING);
-			L(zlog_info,"Neighbor %s (%s) is pending from UPDATE: new adjacency",
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is pending from UPDATE: new adjacency",
 				  inet_ntoa(nbr->src), ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 			eigrp_update_send_init(nbr);
 		}
@@ -309,7 +309,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			prefix2str(&dest_addr, pre_text, PREFIX_STRLEN);
 			/*if exists it comes to DUAL*/
 			if (pe != NULL) {
-				L(zlog_debug, "Prefix entry already exists for %s", pre_text);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
 				/* remove received prefix from neighbor prefix list if in GR */
 				if (graceful_restart)
 					remove_received_prefix_gr(nbr_prefixes, pe);
@@ -333,7 +333,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->prefix = pe;
 					ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-					L(zlog_debug, "Add nexthop entry for %s", pre_text);
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", pre_text);
 					eigrp_nexthop_entry_add(pe, ne);
 
 					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
@@ -356,7 +356,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				eigrp_fsm_event(&msg);
 			} else {
 				/*Here comes topology information save*/
-				L(zlog_debug, "Create prefix entry for %s", pre_text);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create prefix entry for %s", pre_text);
 				pe = eigrp_prefix_entry_new();
 				pe->serno = eigrp->serno;
 				pe->destination = (struct prefix *)prefix_ipv4_new();
@@ -365,7 +365,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				pe->state = EIGRP_FSM_STATE_PASSIVE;
 				pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
 
-				L(zlog_debug, "Create nexthop entry for %s", pre_text);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry for %s", pre_text);
 				ne = eigrp_nexthop_entry_new();
 				ne->ei = ei;
 				ne->adv_router = nbr;
@@ -382,9 +382,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				ne->prefix = pe;
 				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-				L(zlog_debug, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 				eigrp_prefix_entry_add(eigrp, pe);
-				L(zlog_debug, "Add nexthop entry for %s", pre_text);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", pre_text);
 				eigrp_nexthop_entry_add(pe, ne);
 
 				pe->distance = pe->fdistance = pe->rdistance = ne->distance;
@@ -398,8 +398,8 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			break;
 
 		case EIGRP_TLV_IPv4_EXT:
-			//First attempt: Treat external routes as internal and see if we can get them to populate (albiet incorrectly)
-			L(zlog_debug, "External IPv4 Route");
+			//Second attempt: Treat external routes as internal, except for query and update responses.
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External IPv4 Route");
 			stream_set_getp(s, s->getp - (sizeof(uint16_t)));
 
 			etlv = eigrp_read_ipv4_external_tlv(s);
@@ -419,7 +419,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			prefix2str(&dest_addr, pre_text, PREFIX_STRLEN);
 			/*if exists it comes to DUAL*/
 			if (pe != NULL) {
-				L(zlog_debug, "Prefix entry already exists for %s ent:rij[%08x:%08x]", pre_text, pe->entries, pe->rij);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s ent:rij[%08x:%08x]", pre_text, pe->entries, pe->rij);
 				/* remove received prefix from neighbor prefix list if in GR */
 				if (graceful_restart)
 					remove_received_prefix_gr(nbr_prefixes, pe);
@@ -427,7 +427,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				struct eigrp_fsm_action_message msg;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (!ne) {
-					L(zlog_debug, "Create route node for %s", pre_text);
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pre_text);
 					ne = eigrp_nexthop_entry_new();
 					ne->ei = ei;
 					ne->adv_router = nbr;
@@ -442,9 +442,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
 					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
 					ne->prefix = pe;
-					ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
+					ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG | EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
 
-					L(zlog_debug, "Add nexthop entry for %s", pre_text);
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", pre_text);
 					eigrp_nexthop_entry_add(pe, ne);
 
 					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
@@ -467,16 +467,16 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				eigrp_fsm_event(&msg);
 			} else {
 				/*Here comes topology information save*/
-				L(zlog_debug, "Create prefix entry for %s", pre_text);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create prefix entry for %s", pre_text);
 				pe = eigrp_prefix_entry_new();
 				pe->serno = eigrp->serno;
 				pe->destination = (struct prefix *)prefix_ipv4_new();
 				prefix_copy(pe->destination, &dest_addr);
 				pe->af = AF_INET;
 				pe->state = EIGRP_FSM_STATE_PASSIVE;
-				pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
+				pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL;
 
-				L(zlog_debug, "Create nexthop entry for %s", pre_text);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry for %s", pre_text);
 				ne = eigrp_nexthop_entry_new();
 				ne->ei = ei;
 				ne->adv_router = nbr;
@@ -493,9 +493,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				ne->prefix = pe;
 				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-				L(zlog_debug, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 				eigrp_prefix_entry_add(eigrp, pe);
-				L(zlog_debug, "Add nexthop entry for %s", pre_text);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", pre_text);
 				eigrp_nexthop_entry_add(pe, ne);
 
 				pe->distance = pe->fdistance = pe->rdistance = ne->distance;
@@ -505,7 +505,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				pe->req_action |= EIGRP_FSM_NEED_UPDATE;
 				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 			}
-			eigrp_IPv4_ExternalTLV_free(etlv);
+			pe->extTLV = etlv;
 			break;
 		default:
 			length = stream_getw(s);
@@ -547,7 +547,7 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 
 	/* Prepare EIGRP INIT UPDATE header */
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug,"Enqueuing Update Init Seq [%u] Ack [%u]",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Seq [%u] Ack [%u]",
 			   nbr->ei->eigrp->sequence_number,
 			   nbr->recv_sequence_number);
 
@@ -573,7 +573,7 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 	nbr->init_sequence_number = nbr->ei->eigrp->sequence_number;
 	ep->sequence_number = nbr->ei->eigrp->sequence_number;
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
 			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
 
 	/*Put packet to retransmission queue*/
@@ -603,7 +603,7 @@ static void eigrp_update_place_on_nbr_queue(struct eigrp_neighbor *nbr,
 	ep->sequence_number = seq_no;
 
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
 			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
 
 	/*Put packet to retransmission queue*/
@@ -656,6 +656,7 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 	struct prefix *dest_addr;
 	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(nbr->ei->ifp->mtu);
 	struct route_node *rn;
+	char pbuf[PREFIX2STR_BUFFER];
 
 	ep = eigrp_packet_new(eigrp_mtu, nbr);
 
@@ -670,22 +671,27 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 	}
 
 	route_table_iter_t it;
-	L(zlog_debug, "Constructing update packet");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Constructing update packet");
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ((rn = route_table_iter_next(&it)) != NULL) {
 		if (NULL == (pe = rn->info)) {
-			L(zlog_debug, "Route node has no prefix. Skip.");
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Route node has no prefix. Skip.");
 			continue;
 		}
 
 		for (ALL_LIST_ELEMENTS(pe->entries, node, nnode, ne)) {
+			if (ne->prefix && ne->prefix->destination) {
+				prefix2str(ne->prefix->destination, pbuf, PREFIX2STR_BUFFER);
+			} else {
+				snprintf(pbuf, PREFIX2STR_BUFFER, "INVALID PREFIX");
+			}
 			if (eigrp_nbr_split_horizon_check(ne, nbr->ei)) {
-				L(zlog_debug, "Split horizon. Skip.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Split horizon. Skip.", pbuf);
 				continue;
 			}
 
 			if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
-				L(zlog_debug, "This packet is full. Send it.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");
 
 				if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
 						&& (nbr->ei->params.auth_keychain != NULL)) {
@@ -700,7 +706,7 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 								length);
 				nbr->ei->eigrp->sequence_number++;
 
-				L(zlog_debug, "Reset for a new packet.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Reset for a new packet.");
 
 				length = EIGRP_HEADER_LEN;
 				ep = eigrp_packet_new(eigrp_mtu, nbr);
@@ -725,8 +731,12 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 					nbr->ei->eigrp, nbr->ei, EIGRP_FILTER_OUT, dest_addr))
 				continue;
 			else {
-				length += eigrp_add_internalTLV_to_stream(ep->s,
-									  pe);
+				if (pe->extTLV) {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+					length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+				} else {
+					length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+				}
 			}
 		}
 	}
@@ -768,28 +778,28 @@ void eigrp_update_send(struct eigrp_interface *ei)
 
 	route_table_iter_t it;
 	struct route_node *rn;
-	L(zlog_debug, "Constructing update packet");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Constructing update packet");
 	route_table_iter_init(&it, ei->eigrp->topology_table);
 	while ((rn = route_table_iter_next(&it)) != NULL) {
 		if (NULL == (pe = rn->info)) {
-			L(zlog_debug, "Route node has no prefix. Skip.");
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Route node has no prefix. Skip.");
 			continue;
 		}
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-		L(zlog_debug, "Checking %s", pbuf);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Checking %s", pbuf);
 		if (!(pe->req_action & EIGRP_FSM_NEED_UPDATE)) {
-			L(zlog_debug, "Needs update. Skip.");
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Needs update. Skip.");
 			continue;
 		}
 
 		for (ALL_LIST_ELEMENTS(pe->entries, node, nnode, ne)) {
 			if (eigrp_nbr_split_horizon_check(ne, ei)) {
-				L(zlog_debug, "Split horizon. Skip.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Split horizon. Skip.");
 				continue;
 			}
 
 			if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
-				L(zlog_debug, "This packet is full. Send it.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");
 
 				if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
 						&& (ei->params.auth_keychain != NULL)) {
@@ -806,7 +816,7 @@ void eigrp_update_send(struct eigrp_interface *ei)
 				eigrp->sequence_number++;
 				eigrp_update_send_to_all_nbrs(ei, ep);
 
-				L(zlog_debug, "Reset for a new packet.");
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Reset for a new packet.");
 
 				length = EIGRP_HEADER_LEN;
 				ep = eigrp_packet_new(eigrp_mtu, NULL);
@@ -824,7 +834,7 @@ void eigrp_update_send(struct eigrp_interface *ei)
 		/* Get destination address from prefix */
 		dest_addr = pe->destination;
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-		L(zlog_debug, "Add %s to the TLV", pbuf);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add %s to the TLV", pbuf);
 
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
 					      dest_addr)) {
@@ -837,7 +847,7 @@ void eigrp_update_send(struct eigrp_interface *ei)
 	}
 
 	if (!has_tlv) {
-		L(zlog_debug, "This packet has no update. Discard.");
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet has no update. Discard.");
 		eigrp_packet_free(ep);
 		return;
 	}
@@ -857,10 +867,10 @@ void eigrp_update_send(struct eigrp_interface *ei)
 	ep->sequence_number = eigrp->sequence_number;
 
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug,"Enqueuing Update length[%u] Seq [%u]", length,
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update length[%u] Seq [%u]", length,
 			   ep->sequence_number);
 
-	L(zlog_debug, "Send packet to all neighbors.");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send packet to all neighbors.");
 	eigrp_update_send_to_all_nbrs(ei, ep);
 	ei->eigrp->sequence_number = eigrp->sequence_number++;
 }
@@ -979,7 +989,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
 					      dest_addr)) {
 			/* do not send filtered route */
-			L(zlog_info,"Filtered prefix %s won't be sent out.",
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Filtered prefix %s won't be sent out.",
 				  inet_ntoa(dest_addr->u.prefix4));
 		} else {
 			/* sending route which wasn't filtered */
@@ -994,7 +1004,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN,
 					      dest_addr)) {
 			/* do not send filtered route */
-			L(zlog_info,"Filtered prefix %s will be removed.",
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Filtered prefix %s will be removed.",
 				  inet_ntoa(dest_addr->u.prefix4));
 
 			/* prepare message for FSM */
@@ -1044,7 +1054,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 	ep->sequence_number = eigrp->sequence_number;
 
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
 			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
 
 	/*Put packet to retransmission queue*/
@@ -1126,13 +1136,13 @@ void eigrp_update_send_GR(struct eigrp_neighbor *nbr, enum GR_type gr_type,
 
 	if (gr_type == EIGRP_GR_FILTER) {
 		/* function was called after applying filtration */
-		L(zlog_info,
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,
 			"Neighbor %s (%s) is resync: route configuration changed",
 			inet_ntoa(nbr->src),
 			ifindex2ifname(ei->ifp->ifindex, VRF_DEFAULT));
 	} else if (gr_type == EIGRP_GR_MANUAL) {
 		/* Graceful restart was called manually */
-		L(zlog_info,"Neighbor %s (%s) is resync: manually cleared",
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Neighbor %s (%s) is resync: manually cleared",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(ei->ifp->ifindex, VRF_DEFAULT));
 

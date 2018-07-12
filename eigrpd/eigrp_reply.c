@@ -69,22 +69,25 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	struct eigrp *eigrp = ei->eigrp;
 	struct eigrp_prefix_entry *pe2;
 
-	// TODO: Work in progress
-	/* Filtering */
-	/* get list from eigrp process */
-	pe2 = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
-		      sizeof(struct eigrp_prefix_entry));
-	memcpy(pe2, pe, sizeof(struct eigrp_prefix_entry));
 
-	if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
-				      pe2->destination)) {
-		L(zlog_info,"REPLY SEND: Setting Metric to max");
-		pe2->reported_metric.delay = EIGRP_MAX_METRIC;
+	if (pe) {
+		// TODO: Work in progress
+		/* Filtering */
+		/* get list from eigrp process */
+		pe2 = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
+				  sizeof(struct eigrp_prefix_entry));
+		memcpy(pe2, pe, sizeof(struct eigrp_prefix_entry));
+
+		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
+						  pe2->destination)) {
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"REPLY SEND: Setting Metric to max");
+			pe2->reported_metric.delay = EIGRP_MAX_METRIC;
+		}
+
+		/*
+		 * End of filtering
+		 */
 	}
-
-	/*
-	 * End of filtering
-	 */
 
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(ei->ifp->mtu), nbr);
 
@@ -99,7 +102,14 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	}
 
 
-	length += eigrp_add_internalTLV_to_stream(ep->s, pe2);
+	if (pe && pe->extTLV) {
+		char pbuf[PREFIX2STR_BUFFER];
+		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+		length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+	} else if (pe) {
+		length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+	}
 
 	if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
 	    && (ei->params.auth_keychain != NULL)) {
@@ -121,8 +131,8 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	if (nbr->retrans_queue->count == 1) {
 		eigrp_send_packet_reliably(nbr);
 	}
-
-	XFREE(MTYPE_EIGRP_PREFIX_ENTRY, pe2);
+	if (pe)
+		XFREE(MTYPE_EIGRP_PREFIX_ENTRY, pe2);
 }
 
 /*EIGRP REPLY read function*/
@@ -132,7 +142,13 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 {
 	struct eigrp_neighbor *nbr;
 	struct TLV_IPv4_Internal_type *tlv;
+	struct TLV_IPv4_External_type *etlv;
+	struct prefix dest_addr;
+	struct eigrp_fsm_action_message msg;
+	struct eigrp_nexthop_entry *ne;
+	struct eigrp_prefix_entry *pe;
 
+	uint16_t length;
 	uint16_t type;
 
 	/* increment statistics. */
@@ -149,67 +165,125 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 
-		if (type != EIGRP_TLV_IPv4_INT)
-			continue;
+		switch (type) {
+		case EIGRP_TLV_IPv4_INT:
+			stream_set_getp(s, s->getp - sizeof(uint16_t));
 
-		struct prefix dest_addr;
+			tlv = eigrp_read_ipv4_tlv(s);
 
-		stream_set_getp(s, s->getp - sizeof(uint16_t));
-
-		tlv = eigrp_read_ipv4_tlv(s);
-
-		dest_addr.family = AF_INET;
-		dest_addr.u.prefix4 = tlv->destination;
-		dest_addr.prefixlen = tlv->prefix_length;
-		struct eigrp_prefix_entry *pe =
-			eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
-							 &dest_addr);
-		/*
-		 * Destination must exists
-		 */
-		if (!pe) {
-			char buf[PREFIX_STRLEN];
-
-			L(zlog_err,
-				"%s: Received prefix %s which we do not know about",
-				__PRETTY_FUNCTION__,
-				prefix2str(&dest_addr, buf, sizeof(buf)));
-			eigrp_IPv4_InternalTLV_free(tlv);
-			continue;
-		}
-
-		struct eigrp_fsm_action_message msg;
-		struct eigrp_nexthop_entry *ne =
-			eigrp_prefix_entry_lookup(pe->entries, nbr);
-
-		if (!ne) {
-			ne = eigrp_nexthop_entry_new();
-			ne->ei = ei;
-			ne->adv_router = nbr;
-			ne->reported_metric = tlv->metric;
-			ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
+			dest_addr.family = AF_INET;
+			dest_addr.u.prefix4 = tlv->destination;
+			dest_addr.prefixlen = tlv->prefix_length;
+			pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
+							&dest_addr);
 			/*
-			 * Filtering
+			 * Destination must exists
 			 */
-			if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-				ne->reported_metric.delay = EIGRP_MAX_METRIC;
+			if (!pe) {
+				char buf[PREFIX_STRLEN];
 
-			ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-			pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-			ne->prefix = pe;
-			ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
+				L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
+						"%s: Received prefix %s which we do not know about",
+						__PRETTY_FUNCTION__,
+						prefix2str(&dest_addr, buf, sizeof(buf)));
+				eigrp_IPv4_InternalTLV_free(tlv);
+				continue;
+			}
+
+			ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+
+			if (!ne) {
+				ne = eigrp_nexthop_entry_new();
+				ne->ei = ei;
+				ne->adv_router = nbr;
+				ne->reported_metric = tlv->metric;
+				ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
+				/*
+				 * Filtering
+				 */
+				if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+					ne->reported_metric.delay = EIGRP_MAX_METRIC;
+
+				ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
+				pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+				ne->prefix = pe;
+				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
+			}
+
+			msg.packet_type = EIGRP_OPC_REPLY;
+			msg.eigrp = eigrp;
+			msg.data_type = EIGRP_INT;
+			msg.adv_router = nbr;
+			msg.metrics = tlv->metric;
+			msg.entry = ne;
+			msg.prefix = pe;
+			eigrp_fsm_event(&msg);
+
+			eigrp_IPv4_InternalTLV_free(tlv);
+			break;
+		case EIGRP_TLV_IPv4_EXT:
+			stream_set_getp(s, s->getp - sizeof(uint16_t));
+
+			etlv = eigrp_read_ipv4_external_tlv(s);
+
+			dest_addr.family = AF_INET;
+			dest_addr.u.prefix4 = etlv->destination;
+			dest_addr.prefixlen = etlv->prefix_length;
+			pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
+							&dest_addr);
+			/*
+			 * Destination must exists
+			 */
+			if (!pe) {
+				char buf[PREFIX_STRLEN];
+
+				L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
+						"%s: Received prefix %s which we do not know about",
+						__PRETTY_FUNCTION__,
+						prefix2str(&dest_addr, buf, sizeof(buf)));
+				eigrp_IPv4_ExternalTLV_free(etlv);
+				continue;
+			}
+
+			ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+
+			if (!ne) {
+				ne = eigrp_nexthop_entry_new();
+				ne->ei = ei;
+				ne->adv_router = nbr;
+				ne->reported_metric = etlv->metric;
+				ne->reported_distance = eigrp_calculate_metrics(eigrp, etlv->metric);
+				/*
+				 * Filtering
+				 */
+				if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+					ne->reported_metric.delay = EIGRP_MAX_METRIC;
+
+				ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
+				pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+				ne->prefix = pe;
+				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
+			}
+
+			msg.packet_type = EIGRP_OPC_REPLY;
+			msg.eigrp = eigrp;
+			msg.data_type = EIGRP_EXT;
+			msg.adv_router = nbr;
+			msg.metrics = etlv->metric;
+			msg.entry = ne;
+			msg.prefix = pe;
+			eigrp_fsm_event(&msg);
+
+			eigrp_IPv4_ExternalTLV_free(etlv);
+			break;
+		default:
+			length = stream_getw(s);
+			// -2 for type, -2 for len
+			for (length -= 4; length; length--) {
+				(void)stream_getc(s);
+			}
+			break;
 		}
-
-		msg.packet_type = EIGRP_OPC_REPLY;
-		msg.eigrp = eigrp;
-		msg.data_type = EIGRP_INT;
-		msg.adv_router = nbr;
-		msg.metrics = tlv->metric;
-		msg.entry = ne;
-		msg.prefix = pe;
-		eigrp_fsm_event(&msg);
-
-		eigrp_IPv4_InternalTLV_free(tlv);
 	}
 	eigrp_hello_send_ack(nbr);
 }

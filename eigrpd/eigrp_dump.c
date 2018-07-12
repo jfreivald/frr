@@ -113,17 +113,17 @@ static int eigrp_neighbor_packet_queue_sum(struct eigrp_interface *ei)
 void eigrp_ip_header_dump(struct ip *iph)
 {
 	/* IP Header dump. */
-	L(zlog_debug,"ip_v %u", iph->ip_v);
-	L(zlog_debug,"ip_hl %u", iph->ip_hl);
-	L(zlog_debug,"ip_tos %u", iph->ip_tos);
-	L(zlog_debug,"ip_len %u", iph->ip_len);
-	L(zlog_debug,"ip_id %u", (uint32_t)iph->ip_id);
-	L(zlog_debug,"ip_off %u", (uint32_t)iph->ip_off);
-	L(zlog_debug,"ip_ttl %u", iph->ip_ttl);
-	L(zlog_debug,"ip_p %u", iph->ip_p);
-	L(zlog_debug,"ip_sum 0x%x", (uint32_t)iph->ip_sum);
-	L(zlog_debug,"ip_src %s", inet_ntoa(iph->ip_src));
-	L(zlog_debug,"ip_dst %s", inet_ntoa(iph->ip_dst));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_v %u", iph->ip_v);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_hl %u", iph->ip_hl);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_tos %u", iph->ip_tos);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_len %u", iph->ip_len);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_id %u", (uint32_t)iph->ip_id);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_off %u", (uint32_t)iph->ip_off);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_ttl %u", iph->ip_ttl);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_p %u", iph->ip_p);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_sum 0x%x", (uint32_t)iph->ip_sum);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_src %s", inet_ntoa(iph->ip_src));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"ip_dst %s", inet_ntoa(iph->ip_dst));
 }
 
 /*
@@ -132,14 +132,14 @@ void eigrp_ip_header_dump(struct ip *iph)
 void eigrp_header_dump(struct eigrp_header *eigrph)
 {
 	/* EIGRP Header dump. */
-	L(zlog_debug,"eigrp_version %u", eigrph->version);
-	L(zlog_debug,"eigrp_opcode %u", eigrph->opcode);
-	L(zlog_debug,"eigrp_checksum 0x%x", ntohs(eigrph->checksum));
-	L(zlog_debug,"eigrp_flags 0x%x", ntohl(eigrph->flags));
-	L(zlog_debug,"eigrp_sequence %u", ntohl(eigrph->sequence));
-	L(zlog_debug,"eigrp_ack %u", ntohl(eigrph->ack));
-	L(zlog_debug,"eigrp_vrid %u", ntohs(eigrph->vrid));
-	L(zlog_debug,"eigrp_AS %u", ntohs(eigrph->ASNumber));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_version %u", eigrph->version);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_opcode %u", eigrph->opcode);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_checksum 0x%x", ntohs(eigrph->checksum));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_flags 0x%x", ntohl(eigrph->flags));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_sequence %u", ntohl(eigrph->sequence));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_ack %u", ntohl(eigrph->ack));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_vrid %u", ntohs(eigrph->vrid));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"eigrp_AS %u", ntohs(eigrph->ASNumber));
 }
 
 const char *eigrp_if_name_string(struct eigrp_interface *ei)

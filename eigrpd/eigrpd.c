@@ -161,7 +161,7 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->networks = eigrp_topology_new();
 
 	if ((eigrp_socket = eigrp_sock_init()) < 0) {
-		L(zlog_err,
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TRACE,
 			"eigrp_new: fatal error: eigrp_sock_init was unable to open "
 			"a socket");
 		exit(1);
@@ -171,7 +171,7 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->maxsndbuflen = getsockopt_so_sendbuf(eigrp->fd);
 
 	if ((eigrp->ibuf = stream_new(EIGRP_PACKET_MAX_LEN + 1)) == NULL) {
-		L(zlog_err,
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TRACE,
 			"eigrp_new: fatal error: stream_new (%u) failed allocating ibuf",
 			EIGRP_PACKET_MAX_LEN + 1);
 		exit(1);
@@ -285,8 +285,8 @@ void eigrp_finish_final(struct eigrp *eigrp)
 	list_delete_and_null(&eigrp->eiflist);
 	list_delete_and_null(&eigrp->oi_write_q);
 
-	eigrp_topology_cleanup(eigrp->topology_table);
-	eigrp_topology_free(eigrp->topology_table);
+	eigrp_topology_cleanup(eigrp);
+	eigrp_topology_free(eigrp);
 
 	eigrp_nbr_delete(eigrp->neighbor_self);
 

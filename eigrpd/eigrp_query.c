@@ -53,6 +53,7 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_fsm.h"
 #include "eigrpd/eigrp_memory.h"
+#include "eigrpd/eigrp_network.h"
 
 uint32_t eigrp_query_send_all(struct eigrp *eigrp)
 {
@@ -62,7 +63,7 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp)
 	uint32_t counter;
 
 	if (eigrp == NULL) {
-		L(zlog_debug,"EIGRP Routing Process not enabled");
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY,"EIGRP Routing Process not enabled");
 		return 0;
 	}
 
@@ -92,7 +93,9 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 {
 	struct eigrp_neighbor *nbr;
 	struct TLV_IPv4_Internal_type *tlv;
+	struct TLV_IPv4_External_type *etlv;
 	struct prefix dest_addr;
+	struct eigrp_prefix_entry *pe;
 
 	uint16_t type;
 	uint16_t length;
@@ -119,33 +122,122 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			dest_addr.family = AF_INET;
 			dest_addr.u.prefix4 = tlv->destination;
 			dest_addr.prefixlen = tlv->prefix_length;
-			struct eigrp_prefix_entry *dest =
-				eigrp_topology_table_lookup_ipv4(
+			pe = eigrp_topology_table_lookup_ipv4(
 					eigrp->topology_table, &dest_addr);
 
 			/* If the destination exists (it should, but one never
-			 * know)*/
-			if (dest != NULL) {
+			 * knows)*/
+			if (pe != NULL) {
 				struct eigrp_fsm_action_message msg;
-				struct eigrp_nexthop_entry *entry =
-					eigrp_prefix_entry_lookup(dest->entries,
-								  nbr);
+				struct eigrp_nexthop_entry *ne;
+				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+				if (!ne) {
+					ne = eigrp_nexthop_entry_new();
+					ne->ei = ei;
+					ne->adv_router = nbr;
+					ne->reported_metric = tlv->metric;
+					ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
+					/*
+					 * Filtering
+					 */
+					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+						ne->reported_metric.delay = EIGRP_MAX_METRIC;
+
+					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
+					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+					ne->prefix = pe;
+					ne->flags = 0;
+
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", inet_ntoa(nbr->src));
+					eigrp_nexthop_entry_add(pe, ne);
+
+					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
+					pe->reported_metric = ne->total_metric;
+					eigrp_topology_update_node_flags(pe);
+
+					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
+					listnode_add(eigrp->topology_changes_internalIPV4, pe);
+
+				}
+
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_INT;
 				msg.adv_router = nbr;
 				msg.metrics = tlv->metric;
-				msg.entry = entry;
-				msg.prefix = dest;
+				msg.entry = ne;
+				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
 			}
 			eigrp_IPv4_InternalTLV_free(tlv);
 			break;
 
 		case EIGRP_TLV_IPv4_EXT:
-		/* DVS: processing of external routes needs packet and fsm work.
-		 *      for now, lets just not creash the box
-		 */
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External IPv4 Route");
+			stream_set_getp(s, s->getp - (sizeof(uint16_t)));
+
+			etlv = eigrp_read_ipv4_external_tlv(s);
+
+			if (etlv->length > sizeof(struct TLV_IPv4_External_type)) {
+				//Read what's left in the buffer...
+				for (length = etlv->length - sizeof(struct TLV_IPv4_External_type); length > 0; length--) {
+					(void)stream_getc(s);
+				}
+			}
+
+			dest_addr.family = AF_INET;
+			dest_addr.u.prefix4 = etlv->destination;
+			dest_addr.prefixlen = etlv->prefix_length;
+			pe = eigrp_topology_table_lookup_ipv4(
+					eigrp->topology_table, &dest_addr);
+
+			/* If the destination exists (it should, but one never
+			 * knows)*/
+			if (pe != NULL) {
+				struct eigrp_fsm_action_message msg;
+				struct eigrp_nexthop_entry *ne;
+				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+				if (!ne) {
+					ne = eigrp_nexthop_entry_new();
+					ne->ei = ei;
+					ne->adv_router = nbr;
+					ne->reported_metric = etlv->metric;
+					ne->reported_distance = eigrp_calculate_metrics(eigrp, etlv->metric);
+					/*
+					 * Filtering
+					 */
+					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
+						ne->reported_metric.delay = EIGRP_MAX_METRIC;
+
+					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
+					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+					ne->prefix = pe;
+					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
+
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", inet_ntoa(nbr->src));
+					eigrp_nexthop_entry_add(pe, ne);
+
+					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
+					pe->reported_metric = ne->total_metric;
+					eigrp_topology_update_node_flags(pe);
+
+					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
+					listnode_add(eigrp->topology_changes_internalIPV4, pe);
+
+				}
+
+				msg.packet_type = EIGRP_OPC_QUERY;
+				msg.eigrp = eigrp;
+				msg.data_type = EIGRP_EXT;
+				msg.adv_router = nbr;
+				msg.metrics = etlv->metric;
+				msg.entry = ne;
+				msg.prefix = pe;
+				eigrp_fsm_event(&msg);
+			}
+			eigrp_IPv4_ExternalTLV_free(etlv);
+
+			break;
 		default:
 			length = stream_getw(s);
 			// -2 for type, -2 for len
@@ -154,6 +246,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 		}
 	}
+	eigrp_send_reply(nbr, pe);
 	eigrp_hello_send_ack(nbr);
 	eigrp_query_send_all(eigrp);
 	eigrp_update_send_all(eigrp, nbr->ei);
@@ -192,7 +285,14 @@ void eigrp_send_query(struct eigrp_interface *ei)
 			new_packet = false;
 		}
 
-		length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+		if (pe->extTLV) {
+			char pbuf[PREFIX2STR_BUFFER];
+			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+			length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+		} else {
+			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+		}
 		has_tlv = true;
 		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
 			if (nbr->state == EIGRP_NEIGHBOR_UP)

@@ -312,7 +312,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			}
-			L(zlog_info,"All reply received");
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 			if (head->reported_distance < msg->prefix->fdistance) {
 				ret_state = EIGRP_FSM_EVENT_LR_FCS;
 				break;
@@ -346,7 +346,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			} else {
-				L(zlog_info,"All reply received");
+				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 				ret_state = EIGRP_FSM_EVENT_LR;
 				break;
 			}
@@ -370,7 +370,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			} else {
-				L(zlog_info,"All reply received");
+				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 				if (head->reported_distance
 				    < msg->prefix->fdistance) {
 					ret_state = EIGRP_FSM_EVENT_LR_FCS;
@@ -397,7 +397,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			} else {
-				L(zlog_info,"All reply received");
+				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
 				ret_state = EIGRP_FSM_EVENT_LR;
 				break;
 			}
@@ -520,6 +520,8 @@ int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *msg)
 				     prefix);
 		}
 		eigrp_topology_update_node_flags(prefix);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
+		eigrp_update_topology_table_prefix(eigrp, msg->entry->prefix);
 		eigrp_update_routing_table(prefix);
 	}
 
@@ -616,8 +618,10 @@ int eigrp_fsm_event_lr_fcs(struct eigrp_fsm_action_message *msg)
 	prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
 	listnode_add(eigrp->topology_changes_internalIPV4, prefix);
 	eigrp_topology_update_node_flags(prefix);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
+	eigrp_update_topology_table_prefix(eigrp, msg->entry->prefix);
 	eigrp_update_routing_table(prefix);
-	eigrp_update_topology_table_prefix(eigrp->topology_table, prefix);
+	eigrp_update_topology_table_prefix(eigrp, prefix);
 
 	return 1;
 }
