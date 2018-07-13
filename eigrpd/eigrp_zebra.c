@@ -360,8 +360,10 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 	struct zapi_nexthop *api_nh;
 	struct eigrp_nexthop_entry *te;
 	struct listnode *node;
-	int count = 0;
+	int i, count = 0;
 	char pbuf[PREFIX2STR_BUFFER];
+	char nh_buf[MULTIPATH_NUM][100] = {};
+	char nh_str_buf[MULTIPATH_NUM*100] = {0};
 
 	if (!zclient->redist[AFI_IP][ZEBRA_ROUTE_EIGRP])
 		return;
@@ -371,6 +373,7 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 	api.type = ZEBRA_ROUTE_EIGRP;
 	api.safi = SAFI_UNICAST;
 	memcpy(&api.prefix, p, sizeof(*p));
+
 
 	SET_FLAG(api.message, ZAPI_MESSAGE_NEXTHOP);
 
@@ -388,15 +391,27 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 			api_nh->type = NEXTHOP_TYPE_IFINDEX;
 		api_nh->ifindex = te->ei->ifp->ifindex;
 
+		snprintf(nh_buf[count], 100, "VRF_ID[%d] ", api_nh->vrf_id);
+		if (api_nh->type == NEXTHOP_TYPE_IPV4_IFINDEX)
+			snprintf(&(nh_buf[count][strnlen(nh_buf[count], 100)]), 100, "GW[%s] ", inet_ntoa(api_nh->gate.ipv4));
+		else
+			snprintf(&(nh_buf[count][strnlen(nh_buf[count], 100)]), 100, "IF[%s] ", te->ei->ifp->name);
+
 		count++;
 	}
+
 	api.nexthop_num = count;
+
+	for (i = 0; i < count; i++) {
+		snprintf(&(nh_str_buf[strnlen(nh_str_buf, sizeof(nh_str_buf))]), MULTIPATH_NUM*100, "[[ NH[%d] %s]]", i, nh_buf[i]);
+	}
 
 	prefix2str(&api.prefix, pbuf, PREFIX2STR_BUFFER);
 	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "Send to Zebra: type[%d], instance[%d], flags[%d], message[%d], safi[%d], prefix[%s], src_prefix[%d], "
-			"nexthop_ifindex[%d], nexthops[%d], distance[%d], metric[%d], tag[%d], mtu[%d], vrf_id[%d], tableid[%d]",
-			api.type, api.instance, api.flags, api.message, api.safi, pbuf, api.src_prefix, api.nexthop_num,
-			api.nexthops[api.nexthop_num].ifindex, api.distance, api.metric, api.tag, api.mtu, api.vrf_id, api.tableid);
+			"distance[%d], metric[%d], tag[%d], mtu[%d], tableid[%d]",
+			api.type, api.instance, api.flags, api.message, api.safi, pbuf, api.src_prefix, api.distance, api.metric,
+			api.tag, api.mtu, api.tableid);
+	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "nexthops[%d] : %s", count, nh_str_buf);
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_REDISTRIBUTE)) {
 		char buf[2][PREFIX2STR_BUFFER];

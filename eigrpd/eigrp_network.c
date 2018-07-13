@@ -201,7 +201,7 @@ int eigrp_if_add_allspfrouters(struct eigrp *top, struct prefix *p,
 			top->fd, inet_ntoa(p->u.prefix4), ifindex,
 			safe_strerror(errno));
 	else
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"interface %s [%u] join EIGRP Multicast group.",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK | LOGGER_EIGRP_INTERFACE,"interface %s [%u] join EIGRP Multicast group.",
 			   inet_ntoa(p->u.prefix4), ifindex);
 
 	return ret;
@@ -278,7 +278,7 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 					struct interface *ifp)
 {
 	struct eigrp_interface *ei;
-	struct listnode *cnode;
+	struct listnode *cnode, *enode;
 	struct connected *co;
 
 	/* if interface prefix is match specified prefix,
@@ -294,7 +294,7 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
  *		Instead we will search through the eigrp->eiflist and see if
  *		our interface is already attached. If it isn't then we'll start it up
  */
-		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, cnode, ei)) {
+		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, enode, ei)) {
 			if (ifp == ei->ifp) {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK, "Interface %s is already attached to our eigrp instance. Skip.", ifp->name);
 				return;

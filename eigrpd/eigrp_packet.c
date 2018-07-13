@@ -706,15 +706,16 @@ int eigrp_read(struct thread *thread)
 			ep = eigrp_fifo_pop(nbr->retrans_queue);
 			eigrp_packet_free(ep);
 
-			if ((nbr->state == EIGRP_NEIGHBOR_PENDING)
-			    && (ntohl(eigrph->ack)
-				== nbr->init_sequence_number)) {
+			if ((nbr->state == EIGRP_NEIGHBOR_PENDING) && (ntohl(eigrph->ack) == nbr->init_sequence_number)) {
 				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
 				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Neighbor(%s) up",
 					  inet_ntoa(nbr->src));
 				nbr->init_sequence_number = 0;
 				nbr->recv_sequence_number =
 					ntohl(eigrph->sequence);
+				if (ei->address->prefixlen != IPV4_MAX_PREFIXLEN) {
+					eigrp_hello_send_ack(nbr);
+				}
 				eigrp_update_send_EOT(nbr);
 			} else
 				eigrp_send_packet_reliably(nbr);
@@ -1322,7 +1323,7 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 	stream_putc(s, pe->reported_metric.mtu[2]);
 	stream_putc(s, pe->reported_metric.mtu[1]);
 	stream_putc(s, pe->reported_metric.mtu[0]);
-	stream_putc(s, pe->reported_metric.hop_count);
+	stream_putc(s, pe->reported_metric.hop_count+1);
 	stream_putc(s, pe->reported_metric.reliability);
 	stream_putc(s, pe->reported_metric.load);
 	stream_putc(s, pe->reported_metric.tag);
@@ -1365,7 +1366,7 @@ uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
 	stream_putc(s, pe->reported_metric.mtu[2]);
 	stream_putc(s, pe->reported_metric.mtu[1]);
 	stream_putc(s, pe->reported_metric.mtu[0]);
-	stream_putc(s, pe->reported_metric.hop_count);
+	stream_putc(s, pe->reported_metric.hop_count+1);
 	stream_putc(s, pe->reported_metric.reliability);
 	stream_putc(s, pe->reported_metric.load);
 	stream_putc(s, pe->reported_metric.tag);

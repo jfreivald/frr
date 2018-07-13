@@ -422,6 +422,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 {
 	assert(msg && msg->entry && msg->prefix);
+
 	enum eigrp_fsm_events event = eigrp_get_fsm_event(msg);
 
 	(*(NSM[msg->prefix->state][event].func))(msg);
@@ -486,6 +487,7 @@ int eigrp_fsm_event_q_fcn(struct eigrp_fsm_action_message *msg)
 	if (eigrp_nbr_count_get()) {
 		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
 		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+		eigrp_send_reply(msg->adv_router, msg->prefix);
 	} else {
 		eigrp_fsm_event_lr(msg); // in the case that there are no more
 					 // neighbors left
@@ -507,8 +509,7 @@ int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *msg)
 		assert(eigrp);
 		if (!eigrp_metrics_is_same(prefix->reported_metric,
 					   ne->total_metric)) {
-			prefix->rdistance = prefix->fdistance =
-				prefix->distance = ne->distance;
+			prefix->rdistance = prefix->distance = ne->distance;
 			prefix->reported_metric = ne->total_metric;
 			if (msg->packet_type == EIGRP_OPC_QUERY)
 				eigrp_send_reply(msg->adv_router, prefix);
@@ -517,7 +518,7 @@ int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *msg)
 				     prefix);
 		}
 		eigrp_topology_update_node_flags(prefix);
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update topology and tables");
 		eigrp_update_topology_table_prefix(eigrp, msg->entry->prefix);
 		eigrp_update_routing_table(prefix);
 	}

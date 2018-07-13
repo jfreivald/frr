@@ -382,5 +382,5 @@ int eigrp_nbr_split_horizon_check(struct eigrp_nexthop_entry *ne,
 	if (ne->distance == EIGRP_MAX_METRIC)
 		return 0;
 
-	return (ne->ei == ei && !prefix_same(ei->address, ne->prefix->destination));
+	return (ne->ei == ei);
 }

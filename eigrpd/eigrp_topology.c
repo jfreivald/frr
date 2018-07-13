@@ -711,14 +711,19 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 
 	if (successors->count) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Adding Route[%s]", buf);
+		prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
+		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
 		eigrp_zebra_route_add(prefix->destination, successors);
 		for (ALL_LIST_ELEMENTS_RO(successors, node, entry))
 			entry->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 
 		list_delete_and_null(&successors);
 	} else {
-		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Removing Route[%s]", buf);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Removing Route[%s]", buf);
+		eigrp_query_send_all(eigrp, eigrp->neighbor_self);
 		eigrp_zebra_route_delete(prefix->destination);
+		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
+		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
 		for (ALL_LIST_ELEMENTS(prefix->entries, node, nnode, entry)) {
 			if (entry == (struct eigrp_nexthop_entry *)-1 ||
 					entry == (struct eigrp_nexthop_entry *)1 ||
@@ -744,9 +749,6 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 	struct route_node *rn;
 	struct eigrp_fsm_action_message msg;
 
-	//struct listnode *node, *nextnode;
-	//struct list *update_prefixes = list_new();
-
 	char abuf[PREFIX2STR_BUFFER], abuf2[PREFIX2STR_BUFFER];
 
 	inet_ntop(AF_INET, &(nbr->src), abuf, PREFIX2STR_BUFFER);
@@ -754,26 +756,18 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_NEIGHBOR, "Neighbor %s Down", abuf);
 
 	for (rn = route_top(eigrp->topology_table); rn; rn = route_next(rn)) {
-		pe = rn->info;
+		if (!rn->info)
+			continue;
 
+		pe = rn->info;
 		prefix2str(&(rn->p), abuf2, PREFIX2STR_BUFFER);
 
-		if (!pe) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Skip summary route[%s]", abuf2);
-			continue;
-		}
-
 		for (ALL_LIST_ELEMENTS(pe->entries, node2, node22, entry)) {
-			if (entry->adv_router != nbr) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Route %s does not belong to neighbor %s.", abuf2, abuf);
+			if (entry->adv_router != nbr)
 				continue;
-			}
 
-			//Setting distance to EIGRP_MAX_METRIC removes the prefix on next topology update.
-			entry->distance = EIGRP_MAX_METRIC;
-
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Build route update for %s", abuf2);
-			msg.metrics.delay = EIGRP_MAX_METRIC;
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Set entry %s for neighbor %s to infinite", abuf2, abuf);
+			msg.metrics = EIGRP_INFINITE_METRIC;
 			msg.packet_type = EIGRP_OPC_UPDATE;
 			msg.eigrp = eigrp;
 			msg.data_type = EIGRP_INT;
@@ -781,15 +775,11 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 			msg.entry = entry;
 			msg.prefix = pe;
 
-			prefix2str(&(rn->p), abuf2, PREFIX2STR_BUFFER);
-
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Send prefix message to FSM: %s", abuf2);
 			eigrp_fsm_event(&msg);
-
 		}
 	}
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Query all neighbors");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Query neighbors except %s", abuf);
 	eigrp_query_send_all(eigrp, nbr);
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Update all neighbors except %s", abuf);
 	eigrp_update_send_all(eigrp, nbr);

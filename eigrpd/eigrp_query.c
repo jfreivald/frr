@@ -83,16 +83,16 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_neighbor *except
 			       nnode2, pe)) {
 		if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
 			pe->req_action &= ~EIGRP_FSM_NEED_QUERY;
-			listnode_delete(eigrp->topology_changes_internalIPV4,
-					pe);
+			if (!pe->req_action)
+				listnode_delete(eigrp->topology_changes_internalIPV4, pe);
 		}
 	}
 	for (ALL_LIST_ELEMENTS(eigrp->topology_changes_externalIPV4, node2,
 			       nnode2, pe)) {
 		if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
 			pe->req_action &= ~EIGRP_FSM_NEED_QUERY;
-			listnode_delete(eigrp->topology_changes_externalIPV4,
-					pe);
+			if (!pe->req_action)
+				listnode_delete(eigrp->topology_changes_externalIPV4, pe);
 		}
 	}
 
@@ -147,27 +147,12 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-				if (ne) {
-					ne->reported_metric = EIGRP_INFINITE_METRIC;
-					ne->reported_distance = EIGRP_MAX_METRIC;
-					/*
-					 * Filtering
-					 */
-					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-						ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-					ne->distance = EIGRP_MAX_METRIC;
-					eigrp_topology_update_node_flags(pe);
-				}
-
-				pe->req_action |= EIGRP_FSM_NEED_QUERY;
-				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_INT;
 				msg.adv_router = nbr;
-				msg.metrics = ne->reported_metric;
+				msg.metrics = EIGRP_INFINITE_METRIC;
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
@@ -201,27 +186,12 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				struct eigrp_nexthop_entry *ne;
 
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-				if (ne) {
-					ne->reported_metric = EIGRP_INFINITE_METRIC;
-					ne->reported_distance = EIGRP_MAX_METRIC;
-					/*
-					 * Filtering
-					 */
-					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-						ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-					ne->distance = EIGRP_MAX_METRIC;
-					eigrp_topology_update_node_flags(pe);
-				}
-
-				pe->req_action |= EIGRP_FSM_NEED_QUERY;
-				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_EXT;
 				msg.adv_router = nbr;
-				msg.metrics = ne->reported_metric;
+				msg.metrics = EIGRP_INFINITE_METRIC;
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
@@ -238,7 +208,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 		}
 	}
 
-	eigrp_query_send_all(eigrp, nbr);
+	eigrp_query_send_all(eigrp, eigrp->neighbor_self);
 	eigrp_update_send_all(eigrp, nbr);
 }
 

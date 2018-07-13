@@ -158,6 +158,11 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Turning EIGRP Interface %s Up CF[%s:%s:%d]", ei->ifp ? ei->ifp->name : "NEW", file, func, line );
 
 	eigrp = ei->eigrp;
+	/* Assign the first 'up' interface as the primary for the eigrp instance */
+	if (!eigrp->neighbor_self->ei) {
+		eigrp->neighbor_self->ei = ei;
+	}
+
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
 
 	eigrp_if_stream_set(ei);
@@ -167,77 +172,77 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
 	thread_add_event(master, eigrp_hello_timer, ei, (1), NULL);
 
-	/*Prepare metrics*/
-	metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
-	metric.delay = eigrp_delay_to_scaled(ei->params.delay);
-	metric.load = ei->params.load;
-	metric.reliability = ei->params.reliability;
-	metric.mtu[0] = 0xDC;
-	metric.mtu[1] = 0x05;
-	metric.mtu[2] = 0x00;
-	metric.hop_count = 0;
-	metric.flags = 0;
-	metric.tag = 0;
+	if (ei->connected->address->prefixlen == IPV4_MAX_PREFIXLEN) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Add route for PtP Interface %s", ei->ifp->name);
 
-	/*Add connected entry to topology table*/
+		/*Prepare metrics*/
+		metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
+		metric.delay = eigrp_delay_to_scaled(ei->params.delay);
+		metric.load = ei->params.load;
+		metric.reliability = ei->params.reliability;
+		metric.mtu[0] = 0xDC;
+		metric.mtu[1] = 0x05;
+		metric.mtu[2] = 0x00;
+		metric.hop_count = 0;
+		metric.flags = 0;
+		metric.tag = 0;
 
-	ne = eigrp_nexthop_entry_new();
-	ne->ei = ei;
-	ne->reported_metric = metric;
-	ne->total_metric = metric;
-	ne->distance = eigrp_calculate_metrics(eigrp, metric);
-	ne->reported_distance = 0;
-	ne->adv_router = eigrp->neighbor_self;
-	ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
+		/*Add connected entry to topology table*/
 
-	dest_addr.family = AF_INET;
-	dest_addr.u.prefix4 = ei->connected->address->u.prefix4;
-	dest_addr.prefixlen = ei->connected->address->prefixlen;
-	apply_mask(&dest_addr);
+		ne = eigrp_nexthop_entry_new();
+		ne->ei = ei;
+		ne->reported_metric = metric;
+		ne->total_metric = metric;
+		ne->distance = eigrp_calculate_metrics(eigrp, metric);
+		ne->reported_distance = 0;
+		ne->adv_router = eigrp->neighbor_self;
+		ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-	prefix2str(&dest_addr, addr_buf, PREFIX2STR_BUFFER);
+		dest_addr.family = AF_INET;
+		dest_addr.u.prefix4 = ei->connected->address->u.prefix4;
+		dest_addr.prefixlen = ei->connected->address->prefixlen;
+		apply_mask(&dest_addr);
 
-	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
+		prefix2str(&dest_addr, addr_buf, PREFIX2STR_BUFFER);
 
-	if (pe == NULL) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "%s not found in topology", addr_buf);
-		pe = eigrp_prefix_entry_new();
-		pe->serno = eigrp->serno;
-		pe->destination = (struct prefix *)prefix_ipv4_new();
-		prefix_copy(pe->destination, &dest_addr);
-		pe->af = AF_INET;
-		pe->nt = EIGRP_TOPOLOGY_TYPE_CONNECTED;
+		pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
+
+		if (pe == NULL) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "%s not found in topology", addr_buf);
+			pe = eigrp_prefix_entry_new();
+			pe->serno = eigrp->serno;
+			pe->destination = (struct prefix *)prefix_ipv4_new();
+			prefix_copy(pe->destination, &dest_addr);
+			pe->af = AF_INET;
+			pe->nt = EIGRP_TOPOLOGY_TYPE_CONNECTED;
+
+			ne->prefix = pe;
+			pe->reported_metric = metric;
+			pe->state = EIGRP_FSM_STATE_PASSIVE;
+			pe->fdistance = eigrp_calculate_metrics(eigrp, metric);
+
+			eigrp_prefix_entry_add(eigrp, pe);
+
+		}
 
 		ne->prefix = pe;
-		pe->reported_metric = metric;
-		pe->state = EIGRP_FSM_STATE_PASSIVE;
-		pe->fdistance = eigrp_calculate_metrics(eigrp, metric);
+
 		pe->req_action |= EIGRP_FSM_NEED_UPDATE;
+		listnode_add(eigrp->topology_changes_internalIPV4, pe);
 
-		eigrp_prefix_entry_add(eigrp, pe);
+		eigrp_nexthop_entry_add(pe, ne);
 
+		msg.packet_type = EIGRP_OPC_UPDATE;
+		msg.eigrp = eigrp;
+		msg.data_type = EIGRP_CONNECTED;
+		msg.adv_router = NULL;
+		msg.entry = ne;
+		msg.prefix = pe;
+
+		eigrp_fsm_event(&msg);
+
+		eigrp_update_send_all(eigrp, eigrp->neighbor_self);
 	}
-
-	ne->prefix = pe;
-
-	listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
-	eigrp_nexthop_entry_add(pe, ne);
-
-	msg.packet_type = EIGRP_OPC_UPDATE;
-	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_CONNECTED;
-	msg.adv_router = NULL;
-	msg.entry = ne;
-	msg.prefix = pe;
-
-	eigrp_fsm_event(&msg);
-
-	eigrp_update_send_all(eigrp, eigrp->neighbor_self);
-
-	pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
-	listnode_delete(eigrp->topology_changes_internalIPV4, pe);
-
 	return 1;
 }
 
@@ -347,17 +352,18 @@ void eigrp_if_free(struct eigrp_interface *ei, int source)
 	if (!eigrp)
 		return;
 
-	if (source == INTERFACE_DOWN_BY_VTY) {
-		THREAD_OFF(ei->t_hello);
-		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
-	}
+	THREAD_OFF(ei->t_hello);
 
-	dest_addr = *ei->connected->address;
-	apply_mask(&dest_addr);
-	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
-			&dest_addr);
-	if (pe)
-		eigrp_prefix_entry_delete(eigrp, pe);
+	//These things don't exist if killed by Zebra.
+	if (source == INTERFACE_DOWN_BY_VTY) {
+		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
+		dest_addr = *ei->connected->address;
+		apply_mask(&dest_addr);
+		pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
+				&dest_addr);
+		if (pe)
+			eigrp_prefix_entry_delete(eigrp, pe);
+	}
 
 	eigrp_if_down(ei);
 

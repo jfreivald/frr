@@ -147,6 +147,7 @@ enum eigrp_fsm_states {
 /*EIGRP FSM events return values*/
 #define EIGRP_FSM_NEED_UPDATE				1
 #define EIGRP_FSM_NEED_QUERY				2
+#define EIGRP_FSM_NEED_REPLY				4
 
 /*EIGRP FSM events*/
 enum eigrp_fsm_events {
@@ -186,10 +187,10 @@ enum eigrp_fsm_events {
  */
 #define NULL_PROTID		0		/*!< unknown protocol */
 #define IGRP_PROTID		1		/*!< IGRP.. whos your daddy! */
-#define EIGRP_PROTID		2		/*!< EIGRP - Just flat out the best */
-#define STATIC_PROTID		3		/*!< Staticly configured source */
+#define EIGRP_PROTID	2		/*!< EIGRP - Just flat out the best */
+#define STATIC_PROTID	3		/*!< Staticly configured source */
 #define RIP_PROTID		4		/*!< Routing Information Protocol */
-#define HELLO_PROTID		5		/*!< Hello? RFC-891 you there? */
+#define HELLO_PROTID	5		/*!< Hello? RFC-891 you there? */
 #define OSPF_PROTID		6		/*!< OSPF - Open Shortest Path First */
 #define ISIS_PROTID		7		/*!< Intermediate System To Intermediate System */
 #define EGP_PROTID		8		/*!< Exterior Gateway Protocol */

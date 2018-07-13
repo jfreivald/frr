@@ -187,8 +187,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				char buf[PREFIX_STRLEN];
 
 				L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
-						"%s: Received prefix %s which we do not know about",
-						__PRETTY_FUNCTION__,
+						"Received REPLY for prefix which we do not have %s",
 						prefix2str(&dest_addr, buf, sizeof(buf)));
 				eigrp_IPv4_InternalTLV_free(tlv);
 				continue;
@@ -242,8 +241,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				char buf[PREFIX_STRLEN];
 
 				L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
-						"%s: Received prefix %s which we do not know about",
-						__PRETTY_FUNCTION__,
+						"Received prefix which we do not have %s",
 						prefix2str(&dest_addr, buf, sizeof(buf)));
 				eigrp_IPv4_ExternalTLV_free(etlv);
 				continue;

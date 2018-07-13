@@ -9,7 +9,23 @@
 #include <errno.h>
 
 static uint32_t logger_modules = 0xFFFFFFFF;
-static uint32_t logger_eigrp_flags = 0xFFFFFFFF;
+static uint32_t logger_eigrp_flags =
+//		LOGGER_EIGRP_HELLO 		|
+		LOGGER_EIGRP_UPDATE 	|
+		LOGGER_EIGRP_QUERY 		|
+		LOGGER_EIGRP_FSM 		|
+//		LOGGER_EIGRP_ZEBRA 		|
+		LOGGER_EIGRP_TOPOLOGY 	|
+		LOGGER_EIGRP_INTERFACE 	|
+//		LOGGER_EIGRP_LISTS 		|
+//		LOGGER_EIGRP_TABLES 	|
+		LOGGER_EIGRP_NEIGHBOR 	|
+		LOGGER_EIGRP_PACKET 	|
+//		LOGGER_EIGRP_NETWORK 	|
+		LOGGER_EIGRP_REPLY 		|
+//		LOGGER_EIGRP_TRACE 		|
+		LOGGER_NO_EIGRP
+;
 static uint32_t logger_zebra_flags = 0xFFFFFFFF;
 static uint32_t logger_lib_flags = 0xFFFFFFFF;
 

@@ -296,7 +296,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 		}
 	}
 
-	eigrp_hello_send_ack(nbr);
+	//INIT gets ack with update_EOT
+	if (!(flags & EIGRP_INIT_FLAG))
+		eigrp_hello_send_ack(nbr);
 
 	/*If there is topology information*/
 	while (s->endp > s->getp) {
@@ -345,7 +347,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 					pe->reported_metric = ne->total_metric;
 					eigrp_nexthop_entry_add(pe,ne);
 
-					pe->req_action = 0;
+					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
 					listnode_add(eigrp->topology_changes_internalIPV4, pe);
 				} else {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s already an entry for %s", inet_ntoa(nbr->src), pre_text);
@@ -387,7 +389,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				pe->reported_metric = ne->total_metric;
 				eigrp_nexthop_entry_add(pe,ne);
 
-				pe->req_action = 0;
+				pe->req_action |= EIGRP_FSM_NEED_UPDATE;
 				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 			}
 
@@ -468,7 +470,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 					pe->reported_metric = ne->total_metric;
 					eigrp_topology_update_node_flags(pe);
 
-					pe->req_action = 0;
+					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
 					listnode_add(eigrp->topology_changes_internalIPV4, pe);
 				}
 			} else {
@@ -508,7 +510,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				pe->reported_metric = ne->total_metric;
 				eigrp_topology_update_node_flags(pe);
 
-				pe->req_action = 0;
+				pe->req_action |= EIGRP_FSM_NEED_UPDATE;
 				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 			}
 
@@ -554,10 +556,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 	if (nbr_prefixes)
 		list_delete_and_null(&nbr_prefixes);
-
-	if (need_to_update) {
-		eigrp_update_send_all(eigrp, nbr);
-	}
+	eigrp_update_send_all(eigrp, nbr);
 }
 
 /*send EIGRP Update packet*/
@@ -687,6 +686,8 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 	eigrp_packet_header_init(EIGRP_OPC_UPDATE, nbr->ei->eigrp, ep->s, EIGRP_EOT_FLAG,
 			nbr->ei->eigrp->sequence_number, nbr->recv_sequence_number);
 
+	ep->dst.s_addr = nbr->src.s_addr;
+
 	// encode Authentication TLV, if needed
 	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
 	    && (nbr->ei->params.auth_keychain != NULL)) {
@@ -808,8 +809,6 @@ void eigrp_update_send(struct eigrp_neighbor *nbr)
 	route_table_iter_init(&it, ei->eigrp->topology_table);
 	while ((rn = route_table_iter_next(&it)) != NULL) {
 		if (NULL == (pe = rn->info)) {
-			prefix2str(&rn->p, pbuf, PREFIX2STR_BUFFER);
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "[%s] has no routing information", pbuf);
 			continue;
 		}
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
@@ -856,7 +855,6 @@ void eigrp_update_send(struct eigrp_neighbor *nbr)
 		/* Get destination address from prefix */
 		dest_addr = pe->destination;
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add %s to the TLV", pbuf);
 
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
 					      dest_addr)) {
@@ -921,16 +919,16 @@ void eigrp_update_send_all(struct eigrp *eigrp,
 			       nnode2, pe)) {
 		if (pe->req_action & EIGRP_FSM_NEED_UPDATE) {
 			pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
-			listnode_delete(eigrp->topology_changes_internalIPV4,
-					pe);
+			if (!pe->req_action)
+				listnode_delete(eigrp->topology_changes_internalIPV4, pe);
 		}
 	}
 	for (ALL_LIST_ELEMENTS(eigrp->topology_changes_externalIPV4, node2,
 			       nnode2, pe)) {
 		if (pe->req_action & EIGRP_FSM_NEED_UPDATE) {
 			pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
-			listnode_delete(eigrp->topology_changes_externalIPV4,
-					pe);
+			if (!pe->req_action)
+				listnode_delete(eigrp->topology_changes_externalIPV4, pe);
 		}
 	}
 }
