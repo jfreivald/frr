@@ -67,33 +67,33 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	uint16_t length = EIGRP_HEADER_LEN;
 	struct eigrp_interface *ei = nbr->ei;
 	struct eigrp *eigrp = ei->eigrp;
-	struct eigrp_prefix_entry *pe2;
+	//struct eigrp_prefix_entry *pe2;
+	char pbuf[PREFIX2STR_BUFFER];
 
 
-	if (pe) {
-		// TODO: Work in progress
-		/* Filtering */
-		/* get list from eigrp process */
-		pe2 = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
-				  sizeof(struct eigrp_prefix_entry));
-		memcpy(pe2, pe, sizeof(struct eigrp_prefix_entry));
-
-		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
-						  pe2->destination)) {
-			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"REPLY SEND: Setting Metric to max");
-			pe2->reported_metric.delay = EIGRP_MAX_METRIC;
-		}
-
-		/*
-		 * End of filtering
-		 */
-	}
+//	if (pe) {
+//		// TODO: Work in progress
+//		/* Filtering */
+//		/* get list from eigrp process */
+//		pe2 = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
+//				  sizeof(struct eigrp_prefix_entry));
+//		memcpy(pe2, pe, sizeof(struct eigrp_prefix_entry));
+//
+//		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
+//						  pe2->destination)) {
+//			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"REPLY SEND: Setting Metric to max");
+//			pe2->reported_metric.delay = EIGRP_MAX_METRIC;
+//		}
+//
+//		/*
+//		 * End of filtering
+//		 */
+//	}
 
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(ei->ifp->mtu), nbr);
 
 	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep->s, 0,
-				 eigrp->sequence_number, 0);
+	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep->s, 0, eigrp->sequence_number, 0);
 
 	// encode Authentication TLV, if needed
 	if (ei->params.auth_type == EIGRP_AUTH_TYPE_MD5
@@ -101,14 +101,18 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 		length += eigrp_add_authTLV_MD5_to_stream(ep->s, ei);
 	}
 
-
-	if (pe && pe->extTLV) {
-		char pbuf[PREFIX2STR_BUFFER];
+	if (pe) {
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
-		length += eigrp_add_externalTLV_to_stream(ep->s, pe);
-	} else if (pe) {
-		length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+		if (pe->extTLV) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+			length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+		} else {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "Appending TLV data for %s", pbuf);
+			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+		}
+	} else {
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "No prefix to reply to.");
+		return;
 	}
 
 	if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
@@ -131,8 +135,6 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	if (nbr->retrans_queue->count == 1) {
 		eigrp_send_packet_reliably(nbr);
 	}
-	if (pe)
-		XFREE(MTYPE_EIGRP_PREFIX_ENTRY, pe2);
 }
 
 /*EIGRP REPLY read function*/
@@ -159,6 +161,8 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
+
+	eigrp_hello_send_ack(nbr);
 
 	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 
@@ -285,5 +289,4 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			break;
 		}
 	}
-	eigrp_hello_send_ack(nbr);
 }

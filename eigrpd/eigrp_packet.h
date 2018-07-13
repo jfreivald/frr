@@ -88,11 +88,11 @@ extern int eigrp_hello_timer(struct thread *);
 extern bool eigrp_update_prefix_apply(struct eigrp *eigrp,
 				      struct eigrp_interface *ei, int in,
 				      struct prefix *prefix);
-extern void eigrp_update_send(struct eigrp_interface *);
+extern void eigrp_update_send(struct eigrp_neighbor *);
 extern void eigrp_update_receive(struct eigrp *, struct ip *,
 				 struct eigrp_header *, struct stream *,
 				 struct eigrp_interface *, int);
-extern void eigrp_update_send_all(struct eigrp *, struct eigrp_interface *);
+extern void eigrp_update_send_all(struct eigrp *, struct eigrp_neighbor *);
 extern void eigrp_update_send_init(struct eigrp_neighbor *);
 extern void eigrp_update_send_EOT(struct eigrp_neighbor *);
 extern int eigrp_update_send_GR_thread(struct thread *);
@@ -107,11 +107,11 @@ extern void eigrp_update_send_process_GR(struct eigrp *, enum GR_type,
  * These externs are found in eigrp_query.c
  */
 
-extern void eigrp_send_query(struct eigrp_interface *);
+extern void eigrp_send_query(struct eigrp_neighbor *);
 extern void eigrp_query_receive(struct eigrp *, struct ip *,
 				struct eigrp_header *, struct stream *,
 				struct eigrp_interface *, int);
-extern uint32_t eigrp_query_send_all(struct eigrp *);
+extern uint32_t eigrp_query_send_all(struct eigrp *, struct eigrp_neighbor *);
 
 /*
  * These externs are found in eigrp_reply.c

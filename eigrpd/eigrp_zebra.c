@@ -394,15 +394,15 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 
 	prefix2str(&api.prefix, pbuf, PREFIX2STR_BUFFER);
 	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "Send to Zebra: type[%d], instance[%d], flags[%d], message[%d], safi[%d], prefix[%s], src_prefix[%d], "
-			"nexthop_num[%d], nexthops[%d], distance[%d], metric[%d], tag[%d], mtu[%d], vrf_id[%d], tableid[%d]",
+			"nexthop_ifindex[%d], nexthops[%d], distance[%d], metric[%d], tag[%d], mtu[%d], vrf_id[%d], tableid[%d]",
 			api.type, api.instance, api.flags, api.message, api.safi, pbuf, api.src_prefix, api.nexthop_num,
-			api.nexthops[api.nexthop_num], api.distance, api.metric, api.tag, api.mtu, api.vrf_id, api.tableid);
+			api.nexthops[api.nexthop_num].ifindex, api.distance, api.metric, api.tag, api.mtu, api.vrf_id, api.tableid);
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_REDISTRIBUTE)) {
-		char buf[2][PREFIX_STRLEN];
+		char buf[2][PREFIX2STR_BUFFER];
 		L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_ROUTES,"Zebra: Route add %s nexthop %s",
-			   prefix2str(p, buf[0], PREFIX_STRLEN),
-			   inet_ntop(AF_INET, 0, buf[1], PREFIX_STRLEN));
+			   prefix2str(p, buf[0], PREFIX2STR_BUFFER),
+			   inet_ntop(AF_INET, &api_nh->gate, buf[1], PREFIX2STR_BUFFER));
 	}
 
 	if ((zclient_route_send(ZEBRA_ROUTE_ADD, zclient, &api)) < 0) {

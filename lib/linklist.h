@@ -71,12 +71,14 @@ struct list {
 
 /*
  * Create a new linked list.
+ * 		_cb provides callbacks (NULL values okay)
+ * 		_cb_cf provides calling function information and debugging when callback functions are installed and debug is enabled
  *
  * Returns:
  *    the created linked list
  */
 #define list_new()		list_new_cb_cf(NULL,NULL,NULL,0,__FILE__,__PRETTY_FUNCTION__,__LINE__)
-#define list_new_cb(cmp,del,ins,dbg)	list_new_cb_cf(cmp,del,ins,dbg,__FILE__,__PRETTY_FUNCTION__,__LINE__)
+#define list_new_cb(cmp,del,dfunc,dflag)	list_new_cb_cf(cmp,del,dfunc,dflag,__FILE__,__PRETTY_FUNCTION__,__LINE__)
 extern struct list *list_new_cb_cf(
 		int (*cmp)(void *val1, void *val2),
 		void (*del)(void *val),
@@ -86,6 +88,7 @@ extern struct list *list_new_cb_cf(
 
 /*
  * Add a new element to the tail of a list.
+ * 		_cf provides calling function information in debug statements.
  *
  * Runtime is O(1).
  *
@@ -104,6 +107,7 @@ extern void listnode_add_cf(struct list *list, void *val, const char *, const ch
  * If list->cmp is set, this function is used to determine the position to
  * insert the new element. If it is not set, this function is equivalent to
  * listnode_add.
+ * 		_cf provides calling function information in debug statements.
  *
  * Runtime is O(N).
  *
@@ -118,6 +122,7 @@ extern void listnode_add_sort_cf(struct list *list, void *val, const char *, con
 
 /*
  * Insert a new element into a list after another element.
+ * 		_cf provides calling function information in debug statements.
  *
  * Runtime is O(1).
  *
@@ -139,6 +144,7 @@ extern struct listnode *listnode_add_after_cf(struct list *list,
 						const char *, const char *, int);
 /*
  * Insert a new element into a list before another element.
+ * 		_cf provides calling function information in debug statements.
  *
  * Runtime is O(1).
  *
@@ -174,6 +180,7 @@ extern void listnode_move_to_tail(struct list *list, struct listnode *node);
 
 /*
  * Delete an element from a list. List node is deleted. Data is not.
+ * 		_cf provides calling function information in debug statements.
  *
  * Runtime is O(N).
  *
@@ -190,6 +197,7 @@ extern void listnode_delete_cf(struct list *list, void *data,
 /*
  * Destroy an element from a list. If there is a delete callback, the
  * data is destroyed with it, otherwise it is freed with free();
+ * 		_cf provides calling function information in debug statements.
  *
  * Runtime is O(N).
  *

@@ -656,6 +656,42 @@ int eigrp_read(struct thread *thread)
 	/* Read rest of the packet and call each sort of packet routine. */
 	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);
 
+	switch (opcode) {
+	case EIGRP_OPC_HELLO:
+		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
+		break;
+	case EIGRP_OPC_PROBE:
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
+		//      eigrp_probe_receive(eigrp, iph, eigrph, ibuf, ei,
+		//      length);
+		break;
+	case EIGRP_OPC_QUERY:
+		eigrp_query_receive(eigrp, iph, eigrph, ibuf, ei, length);
+		break;
+	case EIGRP_OPC_REPLY:
+		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
+		break;
+	case EIGRP_OPC_REQUEST:
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
+		//      eigrp_request_receive(eigrp, iph, eigrph, ibuf, ei,
+		//      length);
+		break;
+	case EIGRP_OPC_SIAQUERY:
+		eigrp_query_receive(eigrp, iph, eigrph, ibuf, ei, length);
+		break;
+	case EIGRP_OPC_SIAREPLY:
+		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
+		break;
+	case EIGRP_OPC_UPDATE:
+		eigrp_update_receive(eigrp, iph, eigrph, ibuf, ei, length);
+		break;
+	default:
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
+			"interface %s: EIGRP packet header type %d unsupported",
+			IF_NAME(ei), opcode);
+		break;
+	}
+
 	/* New testing block of code for handling Acks */
 	if (ntohl(eigrph->ack) != 0) {
 		struct eigrp_packet *ep = NULL;
@@ -693,43 +729,6 @@ int eigrp_read(struct thread *thread)
 				}
 			}
 		}
-	}
-
-
-	switch (opcode) {
-	case EIGRP_OPC_HELLO:
-		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
-		break;
-	case EIGRP_OPC_PROBE:
-		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
-		//      eigrp_probe_receive(eigrp, iph, eigrph, ibuf, ei,
-		//      length);
-		break;
-	case EIGRP_OPC_QUERY:
-		eigrp_query_receive(eigrp, iph, eigrph, ibuf, ei, length);
-		break;
-	case EIGRP_OPC_REPLY:
-		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
-		break;
-	case EIGRP_OPC_REQUEST:
-		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
-		//      eigrp_request_receive(eigrp, iph, eigrph, ibuf, ei,
-		//      length);
-		break;
-	case EIGRP_OPC_SIAQUERY:
-		eigrp_query_receive(eigrp, iph, eigrph, ibuf, ei, length);
-		break;
-	case EIGRP_OPC_SIAREPLY:
-		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
-		break;
-	case EIGRP_OPC_UPDATE:
-		eigrp_update_receive(eigrp, iph, eigrph, ibuf, ei, length);
-		break;
-	default:
-		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
-			"interface %s: EIGRP packet header type %d unsupported",
-			IF_NAME(ei), opcode);
-		break;
 	}
 
 	return 0;

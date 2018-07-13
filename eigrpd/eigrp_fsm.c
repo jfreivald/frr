@@ -172,85 +172,85 @@ struct {
 	},
 };
 
-static const char *packet_type2str(uint8_t packet_type)
-{
-	if (packet_type == EIGRP_OPC_UPDATE)
-		return "UPDATE";
-	if (packet_type == EIGRP_OPC_REQUEST)
-		return "REQUEST";
-	if (packet_type == EIGRP_OPC_QUERY)
-		return "QUERY";
-	if (packet_type == EIGRP_OPC_REPLY)
-		return "REPLY";
-	if (packet_type == EIGRP_OPC_HELLO)
-		return "HELLO";
-	if (packet_type == EIGRP_OPC_IPXSAP)
-		return "IPXSAP";
-	if (packet_type == EIGRP_OPC_ACK)
-		return "ACK";
-	if (packet_type == EIGRP_OPC_SIAQUERY)
-		return "SIA QUERY";
-	if (packet_type == EIGRP_OPC_SIAREPLY)
-		return "SIA REPLY";
+//static const char *packet_type2str(uint8_t packet_type)
+//{
+//	if (packet_type == EIGRP_OPC_UPDATE)
+//		return "UPDATE";
+//	if (packet_type == EIGRP_OPC_REQUEST)
+//		return "REQUEST";
+//	if (packet_type == EIGRP_OPC_QUERY)
+//		return "QUERY";
+//	if (packet_type == EIGRP_OPC_REPLY)
+//		return "REPLY";
+//	if (packet_type == EIGRP_OPC_HELLO)
+//		return "HELLO";
+//	if (packet_type == EIGRP_OPC_IPXSAP)
+//		return "IPXSAP";
+//	if (packet_type == EIGRP_OPC_ACK)
+//		return "ACK";
+//	if (packet_type == EIGRP_OPC_SIAQUERY)
+//		return "SIA QUERY";
+//	if (packet_type == EIGRP_OPC_SIAREPLY)
+//		return "SIA REPLY";
+//
+//	return "Unknown";
+//}
 
-	return "Unknown";
-}
+//static const char *prefix_state2str(enum eigrp_fsm_states state)
+//{
+//	switch (state) {
+//	case EIGRP_FSM_STATE_PASSIVE:
+//		return "Passive";
+//	case EIGRP_FSM_STATE_ACTIVE_0:
+//		return "Active oij0";
+//	case EIGRP_FSM_STATE_ACTIVE_1:
+//		return "Active oij1";
+//	case EIGRP_FSM_STATE_ACTIVE_2:
+//		return "Active oij2";
+//	case EIGRP_FSM_STATE_ACTIVE_3:
+//		return "Active oij3";
+//	}
+//
+//	return "Unknown";
+//}
 
-static const char *prefix_state2str(enum eigrp_fsm_states state)
-{
-	switch (state) {
-	case EIGRP_FSM_STATE_PASSIVE:
-		return "Passive";
-	case EIGRP_FSM_STATE_ACTIVE_0:
-		return "Active oij0";
-	case EIGRP_FSM_STATE_ACTIVE_1:
-		return "Active oij1";
-	case EIGRP_FSM_STATE_ACTIVE_2:
-		return "Active oij2";
-	case EIGRP_FSM_STATE_ACTIVE_3:
-		return "Active oij3";
-	}
+//static const char *fsm_state2str(enum eigrp_fsm_events event)
+//{
+//	switch (event) {
+//	case EIGRP_FSM_KEEP_STATE:
+//		return "Keep State Event";
+//	case EIGRP_FSM_EVENT_NQ_FCN:
+//		return "Non Query Event Feasability not satisfied";
+//	case EIGRP_FSM_EVENT_LR:
+//		return "Last Reply Event";
+//	case EIGRP_FSM_EVENT_Q_FCN:
+//		return "Query Event Feasability not satisified";
+//	case EIGRP_FSM_EVENT_LR_FCS:
+//		return "Last Reply Event Feasability satisified";
+//	case EIGRP_FSM_EVENT_DINC:
+//		return "Distance Increase Event";
+//	case EIGRP_FSM_EVENT_QACT:
+//		return "Query from Successor while in active state";
+//	case EIGRP_FSM_EVENT_LR_FCN:
+//		return "Last Reply Event, Feasibility not satisfied";
+//	};
+//
+//	return "Unknown";
+//}
 
-	return "Unknown";
-}
-
-static const char *fsm_state2str(enum eigrp_fsm_events event)
-{
-	switch (event) {
-	case EIGRP_FSM_KEEP_STATE:
-		return "Keep State Event";
-	case EIGRP_FSM_EVENT_NQ_FCN:
-		return "Non Query Event Feasability not satisfied";
-	case EIGRP_FSM_EVENT_LR:
-		return "Last Reply Event";
-	case EIGRP_FSM_EVENT_Q_FCN:
-		return "Query Event Feasability not satisified";
-	case EIGRP_FSM_EVENT_LR_FCS:
-		return "Last Reply Event Feasability satisified";
-	case EIGRP_FSM_EVENT_DINC:
-		return "Distance Increase Event";
-	case EIGRP_FSM_EVENT_QACT:
-		return "Query from Successor while in active state";
-	case EIGRP_FSM_EVENT_LR_FCN:
-		return "Last Reply Event, Feasibility not satisfied";
-	};
-
-	return "Unknown";
-}
-
-static const char *change2str(enum metric_change change)
-{
-	switch (change) {
-	case METRIC_DECREASE:
-		return "Decrease";
-	case METRIC_SAME:
-		return "Same";
-	case METRIC_INCREASE:
-		return "Increase";
-	}
-
-	return "Unknown";
-}
+//static const char *change2str(enum metric_change change)
+//{
+//	switch (change) {
+//	case METRIC_DECREASE:
+//		return "Decrease";
+//	case METRIC_SAME:
+//		return "Same";
+//	case METRIC_INCREASE:
+//		return "Increase";
+//	}
+//
+//	return "Unknown";
+//}
 /*
  * Main function in which are make decisions which event occurred.
  * msg - argument of type struct eigrp_fsm_action_message contain

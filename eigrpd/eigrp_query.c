@@ -55,11 +55,13 @@
 #include "eigrpd/eigrp_memory.h"
 #include "eigrpd/eigrp_network.h"
 
-uint32_t eigrp_query_send_all(struct eigrp *eigrp)
+uint32_t eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_neighbor *exception)
 {
 	struct eigrp_interface *iface;
-	struct listnode *node, *node2, *nnode2;
+	struct listnode *einode, *nbrnode, *node2, *nnode2;
 	struct eigrp_prefix_entry *pe;
+	struct eigrp_neighbor *nbr;
+
 	uint32_t counter;
 
 	if (eigrp == NULL) {
@@ -68,9 +70,13 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp)
 	}
 
 	counter = 0;
-	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, iface)) {
-		eigrp_send_query(iface);
-		counter++;
+	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
+		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
+			if (nbr != exception) {
+				eigrp_send_query(nbr);
+				counter++;
+			}
+		}
 	}
 
 	for (ALL_LIST_ELEMENTS(eigrp->topology_changes_internalIPV4, node2,
@@ -78,6 +84,14 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp)
 		if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
 			pe->req_action &= ~EIGRP_FSM_NEED_QUERY;
 			listnode_delete(eigrp->topology_changes_internalIPV4,
+					pe);
+		}
+	}
+	for (ALL_LIST_ELEMENTS(eigrp->topology_changes_externalIPV4, node2,
+			       nnode2, pe)) {
+		if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
+			pe->req_action &= ~EIGRP_FSM_NEED_QUERY;
+			listnode_delete(eigrp->topology_changes_externalIPV4,
 					pe);
 		}
 	}
@@ -111,6 +125,8 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 
+	eigrp_hello_send_ack(nbr);
+
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 		switch (type) {
@@ -132,37 +148,26 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (ne) {
-					ne->ei = ei;
-					ne->adv_router = nbr;
-					ne->reported_metric = tlv->metric;
-					ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
+					ne->reported_metric = EIGRP_INFINITE_METRIC;
+					ne->reported_distance = EIGRP_MAX_METRIC;
 					/*
 					 * Filtering
 					 */
 					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
 						ne->reported_metric.delay = EIGRP_MAX_METRIC;
 
-					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-					ne->prefix = pe;
-					ne->flags = 0;
-
+					ne->distance = EIGRP_MAX_METRIC;
 					eigrp_topology_update_node_flags(pe);
-
-					pe->req_action |= EIGRP_FSM_NEED_QUERY;
-					listnode_add(eigrp->topology_changes_internalIPV4, pe);
-				} else {
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Missing entry for %s. Likely to crash.", inet_ntoa(nbr->src));
-					pe->fdistance = pe->distance = pe->rdistance = EIGRP_MAX_METRIC;
-					pe->req_action |= EIGRP_FSM_NEED_QUERY;
-					listnode_add(eigrp->topology_changes_internalIPV4, pe);
 				}
+
+				pe->req_action |= EIGRP_FSM_NEED_QUERY;
+				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_INT;
 				msg.adv_router = nbr;
-				msg.metrics = tlv->metric;
+				msg.metrics = ne->reported_metric;
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
@@ -194,40 +199,29 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			if (pe != NULL) {
 				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
+
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (ne) {
-					ne->ei = ei;
-					ne->adv_router = nbr;
-					ne->reported_metric = etlv->metric;
-					ne->reported_distance = eigrp_calculate_metrics(eigrp, etlv->metric);
+					ne->reported_metric = EIGRP_INFINITE_METRIC;
+					ne->reported_distance = EIGRP_MAX_METRIC;
 					/*
 					 * Filtering
 					 */
 					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
 						ne->reported_metric.delay = EIGRP_MAX_METRIC;
 
-					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-					ne->prefix = pe;
-					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
-
+					ne->distance = EIGRP_MAX_METRIC;
 					eigrp_topology_update_node_flags(pe);
-
-					pe->req_action |= EIGRP_FSM_NEED_QUERY;
-					listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
-				} else {
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Missing entry for %s. Likely to crash.", inet_ntoa(nbr->src));
-					pe->fdistance = pe->distance = pe->rdistance = EIGRP_MAX_METRIC;
-					pe->req_action |= EIGRP_FSM_NEED_QUERY;
-					listnode_add(eigrp->topology_changes_internalIPV4, pe);
 				}
+
+				pe->req_action |= EIGRP_FSM_NEED_QUERY;
+				listnode_add(eigrp->topology_changes_internalIPV4, pe);
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_EXT;
 				msg.adv_router = nbr;
-				msg.metrics = etlv->metric;
+				msg.metrics = ne->reported_metric;
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
@@ -243,17 +237,17 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 		}
 	}
-	eigrp_hello_send_ack(nbr);
-	eigrp_query_send_all(eigrp);
-	eigrp_update_send_all(eigrp, nbr->ei);
+
+	eigrp_query_send_all(eigrp, nbr);
+	eigrp_update_send_all(eigrp, nbr);
 }
 
-void eigrp_send_query(struct eigrp_interface *ei)
+void eigrp_send_query(struct eigrp_neighbor *nbr)
 {
+	struct eigrp_interface *ei = nbr->ei;
 	struct eigrp_packet *ep = NULL;
 	uint16_t length = EIGRP_HEADER_LEN;
-	struct listnode *node, *nnode, *node2, *nnode2;
-	struct eigrp_neighbor *nbr;
+	struct listnode *node, *nnode;
 	struct eigrp_prefix_entry *pe;
 	bool has_tlv = false;
 	bool new_packet = true;
@@ -289,13 +283,14 @@ void eigrp_send_query(struct eigrp_interface *ei)
 		} else {
 			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
 		}
+
 		has_tlv = true;
-		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
-			if (nbr->state == EIGRP_NEIGHBOR_UP)
-				listnode_add(pe->rij, nbr);
-		}
+
+		if (nbr->state == EIGRP_NEIGHBOR_UP)
+			listnode_add(pe->rij, nbr);
 
 		if (length + EIGRP_TLV_MAX_IPV4_BYTE > eigrp_mtu) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query packet full. Send and start again.");
 			if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
 			    && ei->params.auth_keychain != NULL) {
 				eigrp_make_md5_digest(ei, ep->s,
@@ -305,24 +300,14 @@ void eigrp_send_query(struct eigrp_interface *ei)
 			eigrp_packet_checksum(ei, ep->s, length);
 			ep->length = length;
 
-			ep->dst.s_addr = htonl(EIGRP_MULTICAST_ADDRESS);
-
 			ep->sequence_number = ei->eigrp->sequence_number;
 			ei->eigrp->sequence_number++;
 
-			for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
-				struct eigrp_packet *dup;
+			ep->dst = nbr->src;
+			/*Put packet to retransmission queue*/
+			eigrp_fifo_push(nbr->retrans_queue, ep);
 
-				if (nbr->state != EIGRP_NEIGHBOR_UP)
-					continue;
-
-				dup = eigrp_packet_duplicate(ep, nbr);
-				/*Put packet to retransmission queue*/
-				eigrp_fifo_push(nbr->retrans_queue, dup);
-
-				if (nbr->retrans_queue->count == 1)
-					eigrp_send_packet_reliably(nbr);
-			}
+			eigrp_send_packet_reliably(nbr);
 
 			has_tlv = false;
 			length = 0;
@@ -342,30 +327,17 @@ void eigrp_send_query(struct eigrp_interface *ei)
 	    && ei->params.auth_keychain != NULL)
 		eigrp_make_md5_digest(ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
 
-
 	/* EIGRP Checksum */
 	eigrp_packet_checksum(ei, ep->s, length);
 
 	ep->length = length;
-	ep->dst.s_addr = htonl(EIGRP_MULTICAST_ADDRESS);
+	ep->dst = nbr->src;
 
 	/*This ack number we await from neighbor*/
 	ep->sequence_number = ei->eigrp->sequence_number;
 	ei->eigrp->sequence_number++;
 
-	for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
-		struct eigrp_packet *dup;
-
-		if (nbr->state != EIGRP_NEIGHBOR_UP)
-			continue;
-
-		dup = eigrp_packet_duplicate(ep, nbr);
-		/*Put packet to retransmission queue*/
-		eigrp_fifo_push(nbr->retrans_queue, dup);
-
-		if (nbr->retrans_queue->count == 1)
-			eigrp_send_packet_reliably(nbr);
-	}
+	eigrp_send_packet_reliably(nbr);
 
 	eigrp_packet_free(ep);
 }

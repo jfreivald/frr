@@ -144,8 +144,6 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_nexthop_entry *ne;
 	struct eigrp_metrics metric;
-	struct eigrp_interface *ei2;
-	struct listnode *node, *nnode;
 	struct eigrp *eigrp;
 	struct eigrp_fsm_action_message msg;
 	struct prefix dest_addr;
@@ -226,10 +224,6 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
 	eigrp_nexthop_entry_add(pe, ne);
 
-	for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei2)) {
-		eigrp_update_send(ei2);
-	}
-
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;
 	msg.data_type = EIGRP_CONNECTED;
@@ -238,6 +232,8 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	msg.prefix = pe;
 
 	eigrp_fsm_event(&msg);
+
+	eigrp_update_send_all(eigrp, eigrp->neighbor_self);
 
 	pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
 	listnode_delete(eigrp->topology_changes_internalIPV4, pe);

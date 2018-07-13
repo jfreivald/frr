@@ -58,6 +58,7 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_network.h"
 #include "eigrpd/eigrp_fsm.h"
+#include "eigrpd/eigrp_packet.h"
 
 /* Packet Type String. */
 static const struct message eigrp_general_tlv_type_str[] = {
@@ -332,7 +333,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 
 	char pre_text[PREFIX_STRLEN];
 
-	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Hello: EI[%s],EIGRPH[v:%02x|op:%02x|csum:%04x|fl:%08x|seq:%08x|ack:%04x|vrid:%02x|as:%d]",
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Hello: EI[%s],EIGRPH[v:%02x|op:%02x|csum:%04x|fl:%08x|seq:%08x|ack:%04x|vrid:%02x|as:%d]",
 			ei->ifp->name, eigrph->version, eigrph->opcode, ntohs(eigrph->checksum), ntohl(eigrph->flags), 
 			ntohl(eigrph->sequence), ntohl(eigrph->ack), eigrph->vrid, ntohs(eigrph->ASNumber));
 
@@ -423,6 +424,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 				inet_ntoa(nbr->src));
 
 	/* Add host route to neighbor to topology */
+	//TODO: Make it so we do this ONLY on a PtP network, and then make it a 'connected' interface.
 
 	/* Search if destination exists */
 	dest_addr.family = AF_INET;
@@ -432,15 +434,13 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	prefix2str(&dest_addr, pre_text, PREFIX_STRLEN);
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
-	/*Prepare metrics*/
+	/* Prepare metrics for route to neighbor host address */
 	metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
 	metric.delay = eigrp_delay_to_scaled(ei->params.delay);
 	metric.load = ei->params.load;
 	metric.reliability = ei->params.reliability;
-	metric.mtu[0] = 0xDC;
-	metric.mtu[1] = 0x05;
-	metric.mtu[2] = 0x00;
-	metric.hop_count = 0;
+	MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
+	metric.hop_count = 1;
 	metric.flags = 0;
 	metric.tag = 0;
 
@@ -488,8 +488,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		pe->reported_metric = ne->total_metric;
 		eigrp_topology_update_node_flags(pe);
 
-		pe->req_action |= EIGRP_FSM_NEED_UPDATE;
-		listnode_add(eigrp->topology_changes_internalIPV4, pe);
+		pe->req_action = EIGRP_FSM_NEED_UPDATE;
 
 		msg.packet_type = EIGRP_OPC_UPDATE;
 		msg.eigrp = eigrp;

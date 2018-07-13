@@ -121,7 +121,7 @@ struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *ei,
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Adding new neighbor.");
 	if (NULL != (nbr = eigrp_nbr_add(ei, eigrph, iph))) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Adding %s to %s", inet_ntoa(nbr->src), ei->ifp->name);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Adding neighbor %s to %s", inet_ntoa(nbr->src), ei->ifp->name);
 		listnode_add(ei->nbrs, nbr);
 	} else {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to add new neighbor.");
@@ -293,26 +293,24 @@ const char *eigrp_nbr_state_str(struct eigrp_neighbor *nbr)
 void eigrp_nbr_state_update(struct eigrp_neighbor *nbr)
 {
 	switch (nbr->state) {
-	case EIGRP_NEIGHBOR_DOWN: {
+	case EIGRP_NEIGHBOR_DOWN:
 		/*Start Hold Down Timer for neighbor*/
 		//     THREAD_OFF(nbr->t_holddown);
 		//     THREAD_TIMER_ON(master, nbr->t_holddown,
 		//     holddown_timer_expired,
 		//     nbr, nbr->v_holddown);
 		break;
-	}
-	case EIGRP_NEIGHBOR_PENDING: {
+	case EIGRP_NEIGHBOR_PENDING:
 		/*Reset Hold Down Timer for neighbor*/
 		THREAD_OFF(nbr->t_holddown);
 		thread_add_timer(master, holddown_timer_expired, nbr, nbr->v_holddown, &nbr->t_holddown);
 		break;
-	}
-	case EIGRP_NEIGHBOR_UP: {
+
+	case EIGRP_NEIGHBOR_UP:
 		/*Reset Hold Down Timer for neighbor*/
 		THREAD_OFF(nbr->t_holddown);
 		thread_add_timer(master, holddown_timer_expired, nbr, nbr->v_holddown, &nbr->t_holddown);
 		break;
-	}
 	}
 }
 

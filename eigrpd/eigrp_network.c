@@ -418,10 +418,10 @@ uint32_t eigrp_calculate_metrics(struct eigrp *eigrp,
 		temp_metric *= ((eigrp->k_values[4] / metric.reliability)
 				+ eigrp->k_values[3]);
 
-	if (temp_metric <= EIGRP_MAX_METRIC)
+	if (temp_metric <= EIGRP_INFINITE_DISTANCE)
 		return (uint32_t)temp_metric;
 	else
-		return EIGRP_MAX_METRIC;
+		return EIGRP_INFINITE_DISTANCE;
 }
 
 uint32_t eigrp_calculate_total_metrics(struct eigrp *eigrp,
