@@ -227,9 +227,6 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
 		ne->prefix = pe;
 
-		pe->req_action |= EIGRP_FSM_NEED_UPDATE;
-		listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
 		eigrp_nexthop_entry_add(pe, ne);
 
 		msg.packet_type = EIGRP_OPC_UPDATE;
@@ -240,8 +237,6 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 		msg.prefix = pe;
 
 		eigrp_fsm_event(&msg);
-
-		eigrp_update_send_all(eigrp, eigrp->neighbor_self);
 	}
 	return 1;
 }

@@ -55,6 +55,7 @@
 #include "eigrpd/eigrp_network.h"
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_memory.h"
+#include "eigrpd/eigrp_fsm.h"
 
 struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 {
@@ -219,7 +220,7 @@ int holddown_timer_expired(struct thread *thread)
 
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is down: holding time expired", inet_ntoa(nbr->src),
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
-	nbr->state = EIGRP_NEIGHBOR_DOWN;
+	eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
 	eigrp_nbr_delete(nbr);
 
 	return 0;
@@ -233,6 +234,13 @@ uint8_t eigrp_nbr_state_get(struct eigrp_neighbor *nbr)
 void eigrp_nbr_state_set(struct eigrp_neighbor *nbr, uint8_t state)
 {
 
+	route_table_iter_t it;
+	struct route_node *rn;
+	struct listnode *n, *nn;
+	struct eigrp_prefix_entry *pe;
+	struct eigrp_nexthop_entry *ne;
+	struct eigrp_fsm_action_message msg;
+
 	nbr->state = state;
 
 	//L(zlog_debug, "%s:%s", nbr->ei->ifp->name, eigrp_nbr_state_str(nbr));
@@ -243,6 +251,30 @@ void eigrp_nbr_state_set(struct eigrp_neighbor *nbr, uint8_t state)
 		nbr->init_sequence_number = 0;
 		nbr->retrans_counter = 0;
 
+		/* Remove their routes from the tables */
+		if (nbr && nbr->ei && nbr->ei->eigrp) {
+			route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
+			while ( (rn = route_table_iter_next(&it)) ) {
+				if (!rn)
+					continue;
+				if ( (pe = rn->info ) == NULL)
+					continue;
+				for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
+					if (ne->adv_router == nbr) {
+
+						msg.packet_type = EIGRP_OPC_UPDATE;
+						msg.eigrp = nbr->ei->eigrp;
+						msg.data_type = EIGRP_INT;
+						msg.adv_router = nbr;
+						msg.metrics = EIGRP_INFINITE_METRIC;
+						msg.entry = ne;
+						msg.prefix = pe;
+
+						eigrp_fsm_event(&msg);
+					}
+				}
+			}
+		}
 		// Kvalues
 		nbr->K1 = EIGRP_K1_DEFAULT;
 		nbr->K2 = EIGRP_K2_DEFAULT;
@@ -371,7 +403,7 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 	eigrp_hello_send(nbr->ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN_NBR,
 			&(nbr->src));
 	/* set neighbor to DOWN */
-	nbr->state = EIGRP_NEIGHBOR_DOWN;
+	eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
 	/* delete neighbor */
 	eigrp_nbr_delete(nbr);
 }

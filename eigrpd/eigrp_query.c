@@ -110,6 +110,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 	struct TLV_IPv4_External_type *etlv;
 	struct prefix dest_addr;
 	struct eigrp_prefix_entry *pe;
+	struct eigrp_fsm_action_message msg;
 
 	uint16_t type;
 	uint16_t length;
@@ -144,7 +145,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			/* If the destination exists (it should, but one never
 			 * knows)*/
 			if (pe != NULL) {
-				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 
@@ -182,7 +182,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			/* If the destination exists (it should, but one never
 			 * knows)*/
 			if (pe != NULL) {
-				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
 
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
@@ -208,8 +207,15 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 		}
 	}
 
-	eigrp_query_send_all(eigrp, eigrp->neighbor_self);
-	eigrp_update_send_all(eigrp, nbr);
+	msg.packet_type = EIGRP_OPC_UPDATE;
+	msg.eigrp = eigrp;
+	msg.data_type = EIGRP_FSM_ACK;
+	msg.adv_router = nbr;
+	msg.metrics = EIGRP_INFINITE_METRIC;
+	msg.entry = NULL;
+	msg.prefix = NULL;
+
+	eigrp_fsm_event(&msg);
 }
 
 void eigrp_send_query(struct eigrp_neighbor *nbr)

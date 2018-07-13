@@ -505,6 +505,7 @@ typedef enum {
 	EIGRP_CONNECTED,
 	EIGRP_INT,
 	EIGRP_EXT,
+	EIGRP_FSM_ACK
 } msg_data_t;
 
 /* EIGRP Finite State Machine */

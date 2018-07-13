@@ -88,7 +88,8 @@ extern int eigrp_hello_timer(struct thread *);
 extern bool eigrp_update_prefix_apply(struct eigrp *eigrp,
 				      struct eigrp_interface *ei, int in,
 				      struct prefix *prefix);
-extern void eigrp_update_send(struct eigrp_neighbor *);
+#define eigrp_update_send(n)	eigrp_update_send_with_flags(n,0);
+extern void eigrp_update_send_with_flags(struct eigrp_neighbor *, uint32_t);
 extern void eigrp_update_receive(struct eigrp *, struct ip *,
 				 struct eigrp_header *, struct stream *,
 				 struct eigrp_interface *, int);

@@ -310,6 +310,7 @@ void eigrp_prefix_entry_delete(struct eigrp *eigrp, struct eigrp_prefix_entry *p
 	prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Removing prefix entry %s", pbuf);
 	listnode_delete(eigrp->topology_changes_internalIPV4, pe);
+	listnode_delete(eigrp->topology_changes_externalIPV4, pe);
 
 	assert(&pe->entries->del);	//Deleting lists without deleting their data is bad!
 	list_delete_all_node(pe->entries);
@@ -660,17 +661,12 @@ void eigrp_topology_update_node_flags(struct eigrp_prefix_entry *dest)
 			if (((uint64_t)entry->distance <= (uint64_t)dest->distance	* (uint64_t)eigrp->variance)
 					&& entry->distance != EIGRP_MAX_METRIC
 			) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%s is the successor for %s", inet_ntoa(entry->adv_router->src),
-						prefix2str(dest->destination, pbuf, PREFIX2STR_BUFFER));
-				// is successor
 				entry->flags |=
 						EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 				entry->flags &=
 						~EIGRP_NEXTHOP_ENTRY_FSUCCESSOR_FLAG;
 			} else {
-				// is feasible successor only
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%s is a feasible successor for %s", inet_ntoa(entry->adv_router->src),
-						prefix2str(dest->destination, pbuf, PREFIX2STR_BUFFER));
+						prefix2str(dest->destination, pbuf, PREFIX2STR_BUFFER);
 				entry->flags |=
 						EIGRP_NEXTHOP_ENTRY_FSUCCESSOR_FLAG;
 				entry->flags &=
@@ -711,8 +707,6 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 
 	if (successors->count) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Adding Route[%s]", buf);
-		prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
-		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
 		eigrp_zebra_route_add(prefix->destination, successors);
 		for (ALL_LIST_ELEMENTS_RO(successors, node, entry))
 			entry->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
@@ -720,10 +714,7 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 		list_delete_and_null(&successors);
 	} else {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Removing Route[%s]", buf);
-		eigrp_query_send_all(eigrp, eigrp->neighbor_self);
 		eigrp_zebra_route_delete(prefix->destination);
-		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
-		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
 		for (ALL_LIST_ELEMENTS(prefix->entries, node, nnode, entry)) {
 			if (entry == (struct eigrp_nexthop_entry *)-1 ||
 					entry == (struct eigrp_nexthop_entry *)1 ||
@@ -770,7 +761,10 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 			msg.metrics = EIGRP_INFINITE_METRIC;
 			msg.packet_type = EIGRP_OPC_UPDATE;
 			msg.eigrp = eigrp;
-			msg.data_type = EIGRP_INT;
+			if (pe->extTLV)
+				msg.data_type = EIGRP_EXT;
+			else
+				msg.data_type = EIGRP_INT;
 			msg.adv_router = nbr;
 			msg.entry = entry;
 			msg.prefix = pe;
@@ -779,10 +773,6 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 		}
 	}
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Query neighbors except %s", abuf);
-	eigrp_query_send_all(eigrp, nbr);
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Update all neighbors except %s", abuf);
-	eigrp_update_send_all(eigrp, nbr);
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
 

@@ -637,11 +637,13 @@ int eigrp_read(struct thread *thread)
 		return ret;
 	}
 
-	/* calcualte the eigrp packet length, and move the pounter to the
+	/* Calculate the eigrp packet length, and move the pointer to the
 	   start of the eigrp TLVs */
 	opcode = eigrph->opcode;
 
-//	if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV)) {
+
+
+	if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV)) {
 		char src[PREFIX_STRLEN], dst[PREFIX_STRLEN];
 
 		strlcpy(src, inet_ntoa(iph->ip_src), sizeof(src));
@@ -651,7 +653,53 @@ int eigrp_read(struct thread *thread)
 			lookup_msg(eigrp_packet_type_str, opcode, NULL),
 			ntohl(eigrph->sequence), ntohl(eigrph->ack), length,
 			IF_NAME(ei), src, dst);
-//	}
+	}
+
+	nbr = eigrp_nbr_get(ei, eigrph, iph);
+
+	// neighbor must be valid, eigrp_nbr_get creates if none existed
+	assert(nbr);
+
+	if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
+		eigrp_update_send_EOT(nbr);
+	}
+
+	if (ntohl(eigrph->flags) & EIGRP_EOT_FLAG) {
+		eigrp_update_send_with_flags(nbr, 1);
+	}
+
+	/* New testing block of code for handling Acks */
+	if (ntohl(eigrph->ack) != 0) {
+		struct eigrp_packet *ep = NULL;
+
+		ep = eigrp_fifo_next(nbr->retrans_queue);
+		if ((ep) && (ntohl(eigrph->ack) == ep->sequence_number)) {
+			ep = eigrp_fifo_pop(nbr->retrans_queue);
+			eigrp_packet_free(ep);
+
+			if ((nbr->state == EIGRP_NEIGHBOR_PENDING) && (ntohl(eigrph->ack) == nbr->init_sequence_number)) {
+				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
+				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Neighbor(%s) up", inet_ntoa(nbr->src));
+
+				nbr->init_sequence_number = 0;
+				nbr->recv_sequence_number = ntohl(eigrph->sequence);
+				/* Multicast Updates need ack in a pending connection prior to EOT */
+				if (nbr->ei->address->prefixlen < IPV4_MAX_PREFIXLEN)
+					eigrp_hello_send_ack(nbr);
+			} else
+				eigrp_send_packet_reliably(nbr);
+		}
+		ep = eigrp_fifo_next(nbr->multicast_queue);
+		if (ep) {
+			if (ntohl(eigrph->ack) == ep->sequence_number) {
+				ep = eigrp_fifo_pop(nbr->multicast_queue);
+				eigrp_packet_free(ep);
+				if (nbr->multicast_queue->count > 0) {
+					eigrp_send_packet_reliably(nbr);
+				}
+			}
+		}
+	}
 
 	/* Read rest of the packet and call each sort of packet routine. */
 	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);
@@ -661,7 +709,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_PROBE:
-		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"PROBE PACKET WITH NO PROBE HANDLER");
 		//      eigrp_probe_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -672,7 +720,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_REQUEST:
-		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"REQUEST PACKET WITH NO REQUEST HANDLER");
 		//      eigrp_request_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -690,46 +738,6 @@ int eigrp_read(struct thread *thread)
 			"interface %s: EIGRP packet header type %d unsupported",
 			IF_NAME(ei), opcode);
 		break;
-	}
-
-	/* New testing block of code for handling Acks */
-	if (ntohl(eigrph->ack) != 0) {
-		struct eigrp_packet *ep = NULL;
-
-		nbr = eigrp_nbr_get(ei, eigrph, iph);
-
-		// neighbor must be valid, eigrp_nbr_get creates if none existed
-		assert(nbr);
-
-		ep = eigrp_fifo_next(nbr->retrans_queue);
-		if ((ep) && (ntohl(eigrph->ack) == ep->sequence_number)) {
-			ep = eigrp_fifo_pop(nbr->retrans_queue);
-			eigrp_packet_free(ep);
-
-			if ((nbr->state == EIGRP_NEIGHBOR_PENDING) && (ntohl(eigrph->ack) == nbr->init_sequence_number)) {
-				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
-				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Neighbor(%s) up",
-					  inet_ntoa(nbr->src));
-				nbr->init_sequence_number = 0;
-				nbr->recv_sequence_number =
-					ntohl(eigrph->sequence);
-				if (ei->address->prefixlen != IPV4_MAX_PREFIXLEN) {
-					eigrp_hello_send_ack(nbr);
-				}
-				eigrp_update_send_EOT(nbr);
-			} else
-				eigrp_send_packet_reliably(nbr);
-		}
-		ep = eigrp_fifo_next(nbr->multicast_queue);
-		if (ep) {
-			if (ntohl(eigrph->ack) == ep->sequence_number) {
-				ep = eigrp_fifo_pop(nbr->multicast_queue);
-				eigrp_packet_free(ep);
-				if (nbr->multicast_queue->count > 0) {
-					eigrp_send_packet_reliably(nbr);
-				}
-			}
-		}
 	}
 
 	return 0;

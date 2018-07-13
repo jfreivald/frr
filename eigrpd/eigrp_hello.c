@@ -148,7 +148,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 			&& (eigrp->k_values[4] == nbr->K5)) {
 
 		if (eigrp_nbr_state_get(nbr) == EIGRP_NEIGHBOR_DOWN) {
-			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"%s: Neighbor %s (%s) is pending from HELLO: new adjacency", __PRETTY_FUNCTION__,
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Neighbor %s (%s) is pending from HELLO: new adjacency",
 					inet_ntoa(nbr->src),
 					ifindex2ifname(nbr->ei->ifp->ifindex,
 							VRF_DEFAULT));
@@ -156,8 +156,6 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 			/* Expedited hello sent */
 			eigrp_hello_send(nbr->ei, EIGRP_HELLO_NORMAL, NULL);
 
-			//     if(ntohl(nbr->ei->address->u.prefix4.s_addr) >
-			//     ntohl(nbr->src.s_addr))
 			eigrp_update_send_init(nbr);
 
 			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_PENDING);
@@ -445,27 +443,22 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		metric.tag = 0;
 
 		if (!pe) {
-			//Create PE host entry for neighbor
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Create prefix entry for %s", pre_text);
 			pe = eigrp_prefix_entry_new();
 			pe->serno = eigrp->serno;
 			pe->destination = (struct prefix *)prefix_ipv4_new();
 			prefix_copy(pe->destination, &dest_addr);
 			pe->af = AF_INET;
 			pe->state = EIGRP_FSM_STATE_PASSIVE;
-
-			/* If this is a point-to-point interface using the /32 subnet we use the Connected type for the /32 on the other end */
-			if (ei->address->prefixlen == IPV4_MAX_PREFIXLEN)
-				pe->nt = EIGRP_TOPOLOGY_TYPE_CONNECTED;
-			else
-				pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
+			pe->distance = EIGRP_INFINITE_DISTANCE;
+			pe->reported_metric = EIGRP_INFINITE_METRIC;
+			pe->nt = EIGRP_TOPOLOGY_TYPE_CONNECTED;		/* PtP Connection */
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 			eigrp_prefix_entry_add(eigrp, pe);
+
 		} else {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Prefix entry already exists for %s", pre_text);
 		}
-
 		ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 
 		if (!ne) {
@@ -482,18 +475,8 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 				ne->reported_metric.delay = EIGRP_MAX_METRIC;
 
 			ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-			pe->fdistance = pe->distance = pe->rdistance = ne->distance;
 			ne->prefix = pe;
 			ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Add nexthop entry for %s", pre_text);
-			eigrp_nexthop_entry_add(pe, ne);
-
-			pe->distance = pe->fdistance = pe->rdistance = ne->distance;
-			pe->reported_metric = ne->total_metric;
-			eigrp_topology_update_node_flags(pe);
-
-			pe->req_action = EIGRP_FSM_NEED_UPDATE;
 
 			msg.packet_type = EIGRP_OPC_UPDATE;
 			msg.eigrp = eigrp;
