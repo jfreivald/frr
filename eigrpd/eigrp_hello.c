@@ -453,16 +453,21 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		prefix_copy(pe->destination, &dest_addr);
 		pe->af = AF_INET;
 		pe->state = EIGRP_FSM_STATE_PASSIVE;
-		pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
+
+		/* If this is a point-to-point interface using the /32 subnet we use the Connected type for the /32 on the other end */
+		if (ei->address->prefixlen == IPV4_MAX_PREFIXLEN)
+			pe->nt = EIGRP_TOPOLOGY_TYPE_CONNECTED;
+		else
+			pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 		eigrp_prefix_entry_add(eigrp, pe);
-
 	} else {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Prefix entry already exists for %s", pre_text);
 	}
 
 	ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+
 	if (!ne) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Create nexthop entry for %s", pre_text);
 		ne = eigrp_nexthop_entry_new();

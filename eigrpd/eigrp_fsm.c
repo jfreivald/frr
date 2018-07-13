@@ -140,7 +140,7 @@ struct {
 	{
 		// Active 1 state
 		{eigrp_fsm_event_keep_state}, /* Event 0 */
-		{eigrp_fsm_event_lr},	 /* Event 1 */
+		{eigrp_fsm_event_lr},	      /* Event 1 */
 		{eigrp_fsm_event_keep_state}, /* Event 2 */
 		{eigrp_fsm_event_keep_state}, /* Event 3 */
 		{eigrp_fsm_event_dinc},       /* Event 4 */
@@ -283,7 +283,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	case EIGRP_FSM_STATE_PASSIVE: {
 		struct eigrp_nexthop_entry *head = listnode_head(msg->prefix->entries);
 
-		if (head && head->reported_distance < msg->prefix->fdistance) {
+		if (head && head->reported_distance <= msg->prefix->fdistance) {
 			ret_state  = EIGRP_FSM_KEEP_STATE;
 			break;
 		}
@@ -313,7 +313,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				break;
 			}
 			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All replies received");
-			if (head->reported_distance < msg->prefix->fdistance) {
+			if (head->reported_distance <= msg->prefix->fdistance) {
 				ret_state = EIGRP_FSM_EVENT_LR_FCS;
 				break;
 			}
@@ -423,8 +423,6 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 {
 	assert(msg && msg->entry && msg->prefix);
 	enum eigrp_fsm_events event = eigrp_get_fsm_event(msg);
-
-	assert(msg->prefix->entries && msg->prefix->rij);
 
 	(*(NSM[msg->prefix->state][event].func))(msg);
 
