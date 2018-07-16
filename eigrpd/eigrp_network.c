@@ -277,7 +277,7 @@ static int eigrp_network_match_iface(const struct connected *co,
 void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 					struct interface *ifp)
 {
-	struct eigrp_interface *ei;
+	struct eigrp_interface *ei = NULL;
 	struct listnode *cnode, *enode;
 	struct connected *co;
 
@@ -288,9 +288,7 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 		if (CHECK_FLAG(co->flags, ZEBRA_IFA_SECONDARY))
 			continue;
 
-/*		Interface that is brought up after the start of the daemon
- *		appears not to initialize because ifp->info is set. Removing check.
- *		if (p->family == co->address->family && !ifp->info
+/*		if (p->family == co->address->family && !ifp->info
  *		Instead we will search through the eigrp->eiflist and see if
  *		our interface is already attached. If it isn't then we'll start it up
  */
@@ -330,8 +328,8 @@ void eigrp_if_update(struct interface *ifp)
 	struct eigrp *eigrp;
 
 	/*
-	 * In the event there are multiple eigrp autonymnous systems running,
-	 * we need to check eac one and add the interface as approperate
+	 * In the event there are multiple eigrp autonomous systems running,
+	 * we need to check each one and add the interface as appropriate
 	 */
 	for (ALL_LIST_ELEMENTS(eigrp_om->eigrp, node, nnode, eigrp)) {
 		/* EIGRP must be on and Router-ID must be configured. */

@@ -564,16 +564,16 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 	switch (msg->data_type) {
 	case EIGRP_CONNECTED:
 		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_CONNECTED) {
+			if (msg->adv_router == msg->eigrp->neighbor_self) {
+				change = METRIC_DECREASE;
+			}
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-			return change;
 		}
-
-		change = METRIC_DECREASE;
 		break;
 	case EIGRP_INT:
 		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_CONNECTED) {
 			change = METRIC_INCREASE;
-			goto distance_done;
+			break;
 		}
 		new_reported_distance =
 				eigrp_calculate_metrics(msg->eigrp, msg->metrics);
@@ -603,14 +603,12 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 
 		} else {
 			change = METRIC_INCREASE;
-			goto distance_done;
 		}
 		break;
 	default:
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Unimplemented handler");
 		break;
 	}
-	distance_done:
 
 	eigrp_nexthop_entry_add(msg->prefix, msg->entry);
 

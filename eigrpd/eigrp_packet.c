@@ -684,7 +684,7 @@ int eigrp_read(struct thread *thread)
 				nbr->init_sequence_number = 0;
 				nbr->recv_sequence_number = ntohl(eigrph->sequence);
 				/* Multicast Updates need ack in a pending connection prior to EOT */
-				if (nbr->ei->address->prefixlen < IPV4_MAX_PREFIXLEN)
+				if (nbr->ei->address->prefixlen < IPV4_MAX_PREFIXLEN)  //TODO: Change to PtP interface check
 					eigrp_hello_send_ack(nbr);
 			} else
 				eigrp_send_packet_reliably(nbr);

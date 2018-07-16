@@ -623,7 +623,7 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 	}
 
 	route_table_iter_t it;
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Constructing update packet");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Constructing EOT Update packet for %s", inet_ntoa(nbr->src));
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ((rn = route_table_iter_next(&it)) != NULL) {
 		if (NULL == (pe = rn->info)) {
@@ -759,13 +759,8 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Construct UPDATE update packet for %s", nbr->ei->ifp->name);
-	for (ALL_LIST_ELEMENTS_RO(eigrp->topology_changes_internalIPV4, pen, pe)) {
+	for (ALL_LIST_ELEMENTS_RO(route_nodes, pen, pe)) {
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-
-		if (!(pe->req_action & EIGRP_FSM_NEED_UPDATE)) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip %s. No UPDATE required.", pbuf);
-			continue;
-		}
 
 		for (ALL_LIST_ELEMENTS(pe->entries, node, nnode, ne)) {
 			if (eigrp_nbr_split_horizon_check(ne, ei)) {
@@ -811,6 +806,8 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 			}
 		}
 	}
+
+	list_delete_and_null(&route_nodes);
 
 	if (!has_tlv) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet has no update. Discard.");

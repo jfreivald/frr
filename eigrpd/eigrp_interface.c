@@ -62,7 +62,7 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	int i;
 
 	if (ei && ei->nbrs) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Reinitialize an interface %s.", ei->ifp->name);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Reinitialize interface %s.", ei->ifp->name);
 		list_delete_and_null(&(ei->nbrs));
 		listnode_delete(eigrp->eiflist, ei);
 	}
@@ -76,7 +76,7 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	ifp->info = ei;
 	listnode_add(eigrp->eiflist, ei);
 
-	ei->type = EIGRP_IFTYPE_BROADCAST;
+	ei->type = eigrp_default_iftype(ifp);
 
 	/* Initialize neighbor list. */
 	ei->nbrs = list_new();
@@ -160,7 +160,9 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	eigrp = ei->eigrp;
 	/* Assign the first 'up' interface as the primary for the eigrp instance */
 	if (!eigrp->neighbor_self->ei) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "%s used for Neighbor Self CF[%s:%s:%d]", ei->ifp ? ei->ifp->name : "NEW", file, func, line );
 		eigrp->neighbor_self->ei = ei;
+		eigrp->neighbor_self->src = ei->connected->address->u.prefix4;
 	}
 
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
@@ -172,7 +174,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
 	thread_add_event(master, eigrp_hello_timer, ei, (1), NULL);
 
-	if (ei->connected->address->prefixlen == IPV4_MAX_PREFIXLEN) {
+	if (ei->type == EIGRP_IFTYPE_POINTOPOINT) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Add route for PtP Interface %s", ei->ifp->name);
 
 		/*Prepare metrics*/
@@ -180,9 +182,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 		metric.delay = eigrp_delay_to_scaled(ei->params.delay);
 		metric.load = ei->params.load;
 		metric.reliability = ei->params.reliability;
-		metric.mtu[0] = 0xDC;
-		metric.mtu[1] = 0x05;
-		metric.mtu[2] = 0x00;
+		MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
 		metric.hop_count = 0;
 		metric.flags = 0;
 		metric.tag = 0;
@@ -215,24 +215,20 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 			prefix_copy(pe->destination, &dest_addr);
 			pe->af = AF_INET;
 			pe->nt = EIGRP_TOPOLOGY_TYPE_CONNECTED;
-
-			ne->prefix = pe;
-			pe->reported_metric = metric;
+			pe->reported_metric = EIGRP_INFINITE_METRIC;
 			pe->state = EIGRP_FSM_STATE_PASSIVE;
-			pe->fdistance = eigrp_calculate_metrics(eigrp, metric);
+			pe->fdistance = EIGRP_INFINITE_DISTANCE;
 
 			eigrp_prefix_entry_add(eigrp, pe);
-
 		}
 
-		ne->prefix = pe;
-
-		eigrp_nexthop_entry_add(pe, ne);
+//		ne->prefix = pe;
+//		eigrp_nexthop_entry_add(pe, ne);
 
 		msg.packet_type = EIGRP_OPC_UPDATE;
 		msg.eigrp = eigrp;
 		msg.data_type = EIGRP_CONNECTED;
-		msg.adv_router = NULL;
+		msg.adv_router = eigrp->neighbor_self;
 		msg.entry = ne;
 		msg.prefix = pe;
 
