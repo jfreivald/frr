@@ -71,7 +71,7 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 	nbr->ei = ei;
 
 	/* Set default values. */
-	eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
+	eigrp_nbr_state_set_down(nbr);
 
 	return nbr;
 }
@@ -196,7 +196,7 @@ struct eigrp_neighbor *eigrp_nbr_lookup_by_addr_process(struct eigrp *eigrp,
 void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
 {
 	THREAD_OFF(nbr->t_holddown);
-	eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
+	eigrp_nbr_state_set_down(nbr);
 
 	if (nbr->ei)
 		eigrp_topology_neighbor_down(nbr->ei->eigrp, nbr);
@@ -220,7 +220,7 @@ int holddown_timer_expired(struct thread *thread)
 
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is down: holding time expired", inet_ntoa(nbr->src),
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
-	eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
+	eigrp_nbr_state_set_down(nbr);
 	eigrp_nbr_delete(nbr);
 
 	return 0;
@@ -231,7 +231,7 @@ uint8_t eigrp_nbr_state_get(struct eigrp_neighbor *nbr)
 	return (nbr->state);
 }
 
-void eigrp_nbr_state_set(struct eigrp_neighbor *nbr, uint8_t state)
+void eigrp_nbr_state_set_down(struct eigrp_neighbor *nbr)
 {
 
 	route_table_iter_t it;
@@ -241,85 +241,74 @@ void eigrp_nbr_state_set(struct eigrp_neighbor *nbr, uint8_t state)
 	struct eigrp_nexthop_entry *ne;
 	struct eigrp_fsm_action_message msg;
 
-	nbr->state = state;
+	nbr->state = EIGRP_NEIGHBOR_DOWN;
 
-	//L(zlog_debug, "%s:%s", nbr->ei->ifp->name, eigrp_nbr_state_str(nbr));
+	// reset all the seq/ack counters
+	nbr->recv_sequence_number = 0;
+	nbr->init_sequence_number = 0;
+	nbr->retrans_counter = 0;
 
-	if (eigrp_nbr_state_get(nbr) == EIGRP_NEIGHBOR_DOWN) {
-		// reset all the seq/ack counters
-		nbr->recv_sequence_number = 0;
-		nbr->init_sequence_number = 0;
-		nbr->retrans_counter = 0;
+	/* Remove their routes from the tables */
+	if (nbr && nbr->ei && nbr->ei->eigrp) {
+		route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
+		while ( (rn = route_table_iter_next(&it)) ) {
+			if (!rn)
+				continue;
+			if ( (pe = rn->info ) == NULL)
+				continue;
+			for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
+				if (ne->adv_router == nbr) {
 
-		/* Remove their routes from the tables */
-		if (nbr && nbr->ei && nbr->ei->eigrp) {
-			route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
-			while ( (rn = route_table_iter_next(&it)) ) {
-				if (!rn)
-					continue;
-				if ( (pe = rn->info ) == NULL)
-					continue;
-				for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
-					if (ne->adv_router == nbr) {
+					msg.packet_type = EIGRP_OPC_UPDATE;
+					msg.eigrp = nbr->ei->eigrp;
+					msg.data_type = EIGRP_INT;
+					msg.adv_router = nbr;
+					msg.metrics = EIGRP_INFINITE_METRIC;
+					msg.entry = ne;
+					msg.prefix = pe;
 
-						msg.packet_type = EIGRP_OPC_UPDATE;
-						msg.eigrp = nbr->ei->eigrp;
-						msg.data_type = EIGRP_INT;
-						msg.adv_router = nbr;
-						msg.metrics = EIGRP_INFINITE_METRIC;
-						msg.entry = ne;
-						msg.prefix = pe;
-
-						eigrp_fsm_event(&msg);
-					}
+					eigrp_fsm_event(&msg);
 				}
 			}
 		}
-		// Kvalues
-		nbr->K1 = EIGRP_K1_DEFAULT;
-		nbr->K2 = EIGRP_K2_DEFAULT;
-		nbr->K3 = EIGRP_K3_DEFAULT;
-		nbr->K4 = EIGRP_K4_DEFAULT;
-		nbr->K5 = EIGRP_K5_DEFAULT;
-		nbr->K6 = EIGRP_K6_DEFAULT;
-
-		// hold time..
-		nbr->v_holddown = EIGRP_HOLD_INTERVAL_DEFAULT;
-		THREAD_OFF(nbr->t_holddown);
-
-		/* out with the old */
-		if (nbr->multicast_queue)
-			eigrp_fifo_free(nbr->multicast_queue);
-		if (nbr->retrans_queue)
-			eigrp_fifo_free(nbr->retrans_queue);
-
-		/* in with the new */
-		nbr->retrans_queue = eigrp_fifo_new();
-		nbr->multicast_queue = eigrp_fifo_new();
-
-		nbr->crypt_seqnum = 0;
 	}
+	// Kvalues
+	nbr->K1 = EIGRP_K1_DEFAULT;
+	nbr->K2 = EIGRP_K2_DEFAULT;
+	nbr->K3 = EIGRP_K3_DEFAULT;
+	nbr->K4 = EIGRP_K4_DEFAULT;
+	nbr->K5 = EIGRP_K5_DEFAULT;
+	nbr->K6 = EIGRP_K6_DEFAULT;
+
+	// hold time..
+	nbr->v_holddown = EIGRP_HOLD_INTERVAL_DEFAULT;
+	THREAD_OFF(nbr->t_holddown);
+
+	/* out with the old */
+	if (nbr->multicast_queue)
+		eigrp_fifo_free(nbr->multicast_queue);
+	if (nbr->retrans_queue)
+		eigrp_fifo_free(nbr->retrans_queue);
+
+	/* in with the new */
+	nbr->retrans_queue = eigrp_fifo_new();
+	nbr->multicast_queue = eigrp_fifo_new();
+
+	nbr->crypt_seqnum = 0;
 }
 
-const char *eigrp_nbr_state_str(struct eigrp_neighbor *nbr)
-{
-	const char *state;
+const char *eigrp_nbr_state_str(struct eigrp_neighbor *nbr) {
 	switch (nbr->state) {
 	case EIGRP_NEIGHBOR_DOWN:
-		state = "Down";
-		break;
-	case EIGRP_NEIGHBOR_PENDING:
-		state = "Pending";
+		return "DOWN";
 		break;
 	case EIGRP_NEIGHBOR_UP:
-		state = "Up";
+		return "UP";
 		break;
 	default:
-		state = "Unknown";
 		break;
 	}
-
-	return (state);
+	return "PENDING";
 }
 
 void eigrp_nbr_state_update(struct eigrp_neighbor *nbr)
@@ -332,13 +321,7 @@ void eigrp_nbr_state_update(struct eigrp_neighbor *nbr)
 		//     holddown_timer_expired,
 		//     nbr, nbr->v_holddown);
 		break;
-	case EIGRP_NEIGHBOR_PENDING:
-		/*Reset Hold Down Timer for neighbor*/
-		THREAD_OFF(nbr->t_holddown);
-		thread_add_timer(master, holddown_timer_expired, nbr, nbr->v_holddown, &nbr->t_holddown);
-		break;
-
-	case EIGRP_NEIGHBOR_UP:
+	default:
 		/*Reset Hold Down Timer for neighbor*/
 		THREAD_OFF(nbr->t_holddown);
 		thread_add_timer(master, holddown_timer_expired, nbr, nbr->v_holddown, &nbr->t_holddown);
@@ -403,7 +386,7 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 	eigrp_hello_send(nbr->ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN_NBR,
 			&(nbr->src));
 	/* set neighbor to DOWN */
-	eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
+	eigrp_nbr_state_set_down(nbr);
 	/* delete neighbor */
 	eigrp_nbr_delete(nbr);
 }

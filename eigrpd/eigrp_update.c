@@ -636,10 +636,16 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 			} else {
 				snprintf(pbuf, PREFIX2STR_BUFFER, "INVALID PREFIX");
 			}
-			if (eigrp_nbr_split_horizon_check(ne, nbr->ei)) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Skip Split Horizon.", pbuf);
+//			if (eigrp_nbr_split_horizon_check(ne, nbr->ei)) {
+//				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Skip Split Horizon.", pbuf);
+//				continue;
+//			}
+
+			if (pe->destination->u.prefix4.s_addr == nbr->src.s_addr) {
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Skip Neighbor's own address.", pbuf);
 				continue;
 			}
+
 
 			if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");

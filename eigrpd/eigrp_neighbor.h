@@ -43,7 +43,7 @@ extern int holddown_timer_expired(struct thread *);
 extern int eigrp_neighborship_check(struct eigrp_neighbor *,
 				    struct TLV_Parameter_Type *);
 extern void eigrp_nbr_state_update(struct eigrp_neighbor *);
-extern void eigrp_nbr_state_set(struct eigrp_neighbor *, uint8_t state);
+extern void eigrp_nbr_state_set_down(struct eigrp_neighbor *);
 extern uint8_t eigrp_nbr_state_get(struct eigrp_neighbor *);
 extern int eigrp_nbr_count_get(void);
 extern const char *eigrp_nbr_state_str(struct eigrp_neighbor *);

@@ -34,10 +34,15 @@
 
 #define FALSE 0
 
-#define EIGRP_NEIGHBOR_DOWN           0
-#define EIGRP_NEIGHBOR_PENDING        1
-#define EIGRP_NEIGHBOR_UP             2
-#define EIGRP_NEIGHBOR_STATE_MAX      3
+#define EIGRP_NEIGHBOR_DOWN				0x00
+#define EIGRP_NEIGHBOR_HELLO			0x01
+#define EIGRP_NEIGHBOR_INIT_RXD			0x02
+#define EIGRP_NEIGHBOR_INIT_TXD			0x04
+#define EIGRP_NEIGHBOR_EOT_RXD			0x08
+#define EIGRP_NEIGHBOR_EOT_TXD			0x10
+#define EIGRP_NEIGHBOR_UPDATE_RXD		0x20
+#define EIGRP_NEIGHBOR_UDPATE_TXD		0x40
+#define EIGRP_NEIGHBOR_UP				0x80
 
 /*Packet requiring ack will be retransmitted again after this time*/
 #define EIGRP_PACKET_RETRANS_TIME        2 /* in seconds */

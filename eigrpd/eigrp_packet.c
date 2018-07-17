@@ -482,6 +482,7 @@ int eigrp_read(struct thread *thread)
 	struct eigrp_neighbor *nbr;
 	struct route_node *rn;
 	route_table_iter_t rtit;
+	struct eigrp_packet *ep = NULL;
 
 	uint16_t opcode = 0;
 	uint16_t length = 0;
@@ -543,7 +544,7 @@ int eigrp_read(struct thread *thread)
 	 * any neighbors, so checking for a NULL on nbrs should tell us whether
 	 * or not this needs to happen. Plus there are asserts later that die
 	 * if nbrs is NULL, so a good check anyway! */
-	if(ei->nbrs == NULL) {
+	if(!ei || ei->nbrs == NULL) {
 		char pstr[25];
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE,"Initialize Interface[%s]",ifp->name);
 
@@ -622,7 +623,7 @@ int eigrp_read(struct thread *thread)
 	 */
 	else if (ei->ifp != ifp) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet from [%s] received on wrong link %s",
+			L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet from [%s] received on wrong link [%s]",
 				  inet_ntoa(iph->ip_src), ifp->name);
 		return 0;
 	}
@@ -660,34 +661,78 @@ int eigrp_read(struct thread *thread)
 	// neighbor must be valid, eigrp_nbr_get creates if none existed
 	assert(nbr);
 
-	if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
-		eigrp_update_send_EOT(nbr);
+
+	//Assure proper neighbor startup sequence
+	uint32_t nbr_state = eigrp_nbr_state_get(nbr);
+	ep = eigrp_fifo_next(nbr->retrans_queue);
+
+	if (nbr_state != EIGRP_NEIGHBOR_UP) {
+		//Initialize connection
+		if (!(nbr_state & EIGRP_NEIGHBOR_HELLO) && eigrph->opcode != EIGRP_OPC_HELLO) {
+			//Reject packets from neighbors that are down.
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Waiting for HELLO from %s and non-HELLO packet received", inet_ntoa(nbr->src));
+			return -1;
+		} else if (!(nbr_state & EIGRP_NEIGHBOR_HELLO) && eigrph->opcode == EIGRP_OPC_HELLO) {
+			//First Hello - Expedited Hello and Init */
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "HELLO from %s. Send INIT.", inet_ntoa(nbr->src));
+			nbr->state |= EIGRP_NEIGHBOR_HELLO | EIGRP_NEIGHBOR_INIT_TXD;
+			eigrp_hello_send(nbr->ei, EIGRP_HELLO_NORMAL, NULL);
+			eigrp_update_send_init(nbr);
+			return 0;
+		} else if ((nbr_state & EIGRP_NEIGHBOR_HELLO) &&
+				!(nbr_state & EIGRP_NEIGHBOR_INIT_RXD) &&
+				(eigrph->opcode != EIGRP_OPC_UPDATE || !(ntohl(eigrph->flags) & EIGRP_INIT_FLAG))
+		) {
+			if (eigrph->opcode != EIGRP_OPC_HELLO) {
+				//Waiting for init and this is not an init.  Discard.
+				L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Waiting for %s INIT and non-init packet received", inet_ntoa(nbr->src));
+				return -1;
+			} else {
+				L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Waiting for %s INIT and HELLO received", inet_ntoa(nbr->src));
+			}
+		} else if ((nbr_state & EIGRP_NEIGHBOR_HELLO) &&
+				!(nbr_state & EIGRP_NEIGHBOR_INIT_RXD) &&
+				eigrph->opcode == EIGRP_OPC_UPDATE &&
+				(ntohl(eigrph->flags) & EIGRP_INIT_FLAG)) {
+			//Waiting for init. This is init.
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "%s INIT. Send EOT.", inet_ntoa(nbr->src));
+			nbr->state |= EIGRP_NEIGHBOR_EOT_TXD | EIGRP_NEIGHBOR_INIT_RXD;
+			//Our EOT will contain an ACK for their INIT.
+			eigrp_update_send_EOT(nbr);
+			return 0;
+		} else if (((nbr_state & EIGRP_NEIGHBOR_HELLO) && 				//This is an EOT
+				(nbr_state & EIGRP_NEIGHBOR_INIT_RXD) &&
+				!(nbr_state & EIGRP_NEIGHBOR_EOT_RXD) &&
+				eigrph->opcode == EIGRP_OPC_UPDATE &&
+				(ntohl(eigrph->flags) & EIGRP_EOT_FLAG))
+				||														//...or
+				(ep && (ntohl(eigrph->ack) == ep->sequence_number))		//Contains a valid ACK
+
+		) {
+			//Waiting for EOT and this is EOT.
+			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Bring %s UP and send full UPDATE", inet_ntoa(nbr->src));
+			if(!(nbr_state & EIGRP_NEIGHBOR_EOT_TXD)) {
+				eigrp_update_send_EOT(nbr);		//Send EOT if we haven't already
+			}
+
+			nbr->init_sequence_number = 0;
+			nbr->recv_sequence_number = ntohl(eigrph->sequence);
+
+			eigrp_hello_send_ack(nbr);
+			nbr->state = EIGRP_NEIGHBOR_UP;
+			eigrp_update_send_with_flags(nbr, 1);
+		} else {
+			L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Invalid neighbor state [%s:%02x]", inet_ntoa(nbr->src), nbr_state);
+		}
 	}
 
-	if (ntohl(eigrph->flags) & EIGRP_EOT_FLAG) {
-		eigrp_update_send_with_flags(nbr, 1);
-	}
-
-	/* New testing block of code for handling Acks */
+	/* Manage retransmit queues */
 	if (ntohl(eigrph->ack) != 0) {
-		struct eigrp_packet *ep = NULL;
-
-		ep = eigrp_fifo_next(nbr->retrans_queue);
 		if ((ep) && (ntohl(eigrph->ack) == ep->sequence_number)) {
+			//We got the ack from the last packet sent. Discard it and send the next packet.
 			ep = eigrp_fifo_pop(nbr->retrans_queue);
 			eigrp_packet_free(ep);
-
-			if ((nbr->state == EIGRP_NEIGHBOR_PENDING) && (ntohl(eigrph->ack) == nbr->init_sequence_number)) {
-				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
-				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Neighbor(%s) up", inet_ntoa(nbr->src));
-
-				nbr->init_sequence_number = 0;
-				nbr->recv_sequence_number = ntohl(eigrph->sequence);
-				/* Multicast Updates need ack in a pending connection prior to EOT */
-				if (nbr->ei->address->prefixlen < IPV4_MAX_PREFIXLEN)  //TODO: Change to PtP interface check
-					eigrp_hello_send_ack(nbr);
-			} else
-				eigrp_send_packet_reliably(nbr);
+			eigrp_send_packet_reliably(nbr);
 		}
 		ep = eigrp_fifo_next(nbr->multicast_queue);
 		if (ep) {
@@ -700,6 +745,8 @@ int eigrp_read(struct thread *thread)
 			}
 		}
 	}
+
+	L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Process packet from %s", inet_ntoa(nbr->src));
 
 	/* Read rest of the packet and call each sort of packet routine. */
 	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);

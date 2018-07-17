@@ -152,13 +152,6 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 					inet_ntoa(nbr->src),
 					ifindex2ifname(nbr->ei->ifp->ifindex,
 							VRF_DEFAULT));
-
-			/* Expedited hello sent */
-			eigrp_hello_send(nbr->ei, EIGRP_HELLO_NORMAL, NULL);
-
-			eigrp_update_send_init(nbr);
-
-			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_PENDING);
 		}
 	} else {
 		if (eigrp_nbr_state_get(nbr) != EIGRP_NEIGHBOR_DOWN) {
@@ -178,7 +171,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 						inet_ntoa(nbr->src),
 						ifindex2ifname(nbr->ei->ifp->ifindex,
 								VRF_DEFAULT));
-				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
+				eigrp_nbr_state_set_down(nbr);
 			}
 		}
 	}
