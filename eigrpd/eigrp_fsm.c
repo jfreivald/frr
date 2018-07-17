@@ -497,22 +497,23 @@ int eigrp_fsm_event_q_fcn(struct eigrp_fsm_action_message *msg)
 	ne = listnode_head(successors);
 	prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
 	if (ne) {
-		prefix->rdistance = prefix->distance = prefix->fdistance = ne->distance;
+		prefix->rdistance = prefix->distance = ne->distance;
+		if (prefix->distance < EIGRP_INFINITE_DISTANCE)
+			prefix->fdistance = prefix->distance;
+		else
+			prefix->fdistance = EIGRP_INFINITE_DISTANCE - 1;
 		prefix->reported_metric = ne->total_metric;
 	} else {
-		prefix->rdistance = prefix->distance = prefix->fdistance = EIGRP_INFINITE_DISTANCE;
+		prefix->rdistance = prefix->distance = EIGRP_INFINITE_DISTANCE;
+		prefix->fdistance = EIGRP_INFINITE_DISTANCE - 1;
 		prefix->reported_metric = EIGRP_INFINITE_METRIC;
-	}
-
-	eigrp_send_reply(msg->adv_router, msg->prefix);
-
-	if (eigrp_nbr_count_get()) {
-		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
-		send_flags |= EIGRP_FSM_NEED_QUERY;
-		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
-	} else {
-		eigrp_fsm_event_lr(msg); // in the case that there are no more
-		// neighbors left
+		if (eigrp_nbr_count_get()) {
+			prefix->req_action |= EIGRP_FSM_NEED_QUERY;
+			send_flags |= EIGRP_FSM_NEED_QUERY;
+			listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+		} else {
+			eigrp_fsm_event_lr(msg); // in the case that there are no more
+		}
 	}
 
 	list_delete_and_null(&successors);
@@ -562,6 +563,7 @@ int eigrp_fsm_event_lr(struct eigrp_fsm_action_message *msg)
 	struct eigrp *eigrp = msg->eigrp;
 	struct eigrp_prefix_entry *prefix = msg->prefix;
 	struct eigrp_nexthop_entry *ne = listnode_head(prefix->entries);
+	struct eigrp_neighbor *active_nbr;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 	if (ne) {
@@ -572,25 +574,35 @@ int eigrp_fsm_event_lr(struct eigrp_fsm_action_message *msg)
 		prefix->reported_metric = EIGRP_INFINITE_METRIC;
 	}
 
-	if (prefix->state == EIGRP_FSM_STATE_ACTIVE_3) {
-		struct list *successors = eigrp_topology_get_successor(prefix);
+	/*Grab the successor (the one who sent the route into ACTIVE state) before
+	 * we update everything. Then send them the information after all of our
+	 * tables are updated.
+	 */
 
-		assert(successors); // It's like Napolean and Waterloo
-
-		ne = listnode_head(successors);
-		if (ne)
-			eigrp_send_reply(ne->adv_router, prefix);
-		list_delete_and_null(&successors);
+	ne = listnode_head(msg->prefix->entries);
+	if (ne && (msg->packet_type == EIGRP_OPC_QUERY || EIGRP_OPC_REPLY)) {
+		active_nbr = ne->adv_router;
 	}
 
 	prefix->state = EIGRP_FSM_STATE_PASSIVE;
+
+	//Prepare the FSM for updating this prefix
 	prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
 	send_flags |= EIGRP_FSM_NEED_UPDATE;
 	listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+
+	//Update the successor flags on this prefix and its route nodes
 	eigrp_topology_update_node_flags(prefix);
+
+	//Update the topology and route tables (since we are now in PASSIVE state.
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
 	eigrp_update_topology_table_prefix(eigrp, prefix);
 	eigrp_update_routing_table(prefix);
+
+	//And send our reply to the last known successor.
+	if (ne && (msg->packet_type == EIGRP_OPC_QUERY || EIGRP_OPC_REPLY)) {
+		eigrp_send_reply(active_nbr, prefix);
+	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return 1;
@@ -601,7 +613,7 @@ int eigrp_fsm_event_dinc(struct eigrp_fsm_action_message *msg)
 	struct list *successors = eigrp_topology_get_successor(msg->prefix);
 	struct eigrp_nexthop_entry *ne;
 
-	assert(successors); // Trump and his big hands
+	assert(successors);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 	msg->prefix->state = msg->prefix->state == EIGRP_FSM_STATE_ACTIVE_1
@@ -620,7 +632,9 @@ int eigrp_fsm_event_dinc(struct eigrp_fsm_action_message *msg)
 				msg);
 
 	list_delete_and_null(&successors);
+
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
+
 	return 1;
 }
 
@@ -637,22 +651,20 @@ int eigrp_fsm_event_lr_fcs(struct eigrp_fsm_action_message *msg)
 			? prefix->distance
 					: prefix->fdistance;
 	if (prefix->state == EIGRP_FSM_STATE_ACTIVE_2) {
-		struct list *successors = eigrp_topology_get_successor(prefix);
-
-		assert(successors); // Having a spoon and all you need is a knife
-
-		ne = listnode_head(successors);
-		if (ne)
-			eigrp_send_reply(ne->adv_router, prefix);
-
-		list_delete_and_null(&successors);
+		eigrp_send_reply(msg->adv_router, prefix);
 	}
 
 	prefix->state = EIGRP_FSM_STATE_PASSIVE;
+
+	//Prepare the FSM for updating this prefix
 	prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
 	send_flags |= EIGRP_FSM_NEED_UPDATE;
 	listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+
+	//Update the successor flags on this prefix and its route nodes
 	eigrp_topology_update_node_flags(prefix);
+
+	//Update the topology and route tables (since we are now in PASSIVE state.
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
 	eigrp_update_topology_table_prefix(eigrp, prefix);
 	eigrp_update_routing_table(prefix);

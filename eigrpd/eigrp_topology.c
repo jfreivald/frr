@@ -274,6 +274,8 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node, struct eigrp_nexth
 		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Failure adding nexthop entry to prefix %s. This should not happen.", buf);
 	}
 
+	if (max_distance == EIGRP_INFINITE_DISTANCE)
+		max_distance = EIGRP_INFINITE_DISTANCE - 1;
 	node->fdistance = max_distance;
 	node->distance = node->rdistance = entry->distance < min_distance ? entry->distance : min_distance;
 
@@ -444,7 +446,12 @@ struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *table_node)
 	struct listnode *node1, *node2;
 	char buf[PREFIX2STR_BUFFER];
 
-	eigrp_topology_update_node_flags(table_node);
+	/* Updating the flags changes the topology, so we can't do that here.
+	 * It can only be done in the FSM because we have to be certain that this prefix is
+	 * in the passive state.
+	 */
+
+	//eigrp_topology_update_node_flags(table_node);
 
 	if (table_node->destination) {
 		prefix2str(table_node->destination,buf,sizeof(buf));
@@ -557,7 +564,6 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	enum metric_change change = METRIC_SAME;
 	uint32_t new_reported_distance;
-	char buf[PREFIX2STR_BUFFER];
 
 	assert(msg->entry);
 
@@ -612,12 +618,13 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 
 	eigrp_nexthop_entry_add(msg->prefix, msg->entry);
 
-	prefix2str(msg->entry->prefix->destination, buf, PREFIX2STR_BUFFER);
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Update the topology table for %s", buf);
-	eigrp_update_topology_table_prefix(msg->eigrp, msg->entry->prefix);
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Update the routing table for %s", buf);
-	eigrp_update_routing_table(msg->entry->prefix);
+	//Removing the updates from here. They should only happen in the passive state, and therefore only in the FSM directly.
+//	prefix2str(msg->entry->prefix->destination, buf, PREFIX2STR_BUFFER);
+//
+//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Update the topology table for %s", buf);
+//	eigrp_update_topology_table_prefix(msg->eigrp, msg->entry->prefix);
+//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Update the routing table for %s", buf);
+//	eigrp_update_routing_table(msg->entry->prefix);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return change;

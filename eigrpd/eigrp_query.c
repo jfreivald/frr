@@ -127,8 +127,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 
-	eigrp_hello_send_ack(nbr);
-
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 		switch (type) {
@@ -339,7 +337,14 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 	ep->sequence_number = ei->eigrp->sequence_number;
 	ei->eigrp->sequence_number++;
 
-	eigrp_send_packet_reliably(nbr);
+	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
+			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
 
-	eigrp_packet_free(ep);
+	/*Put packet to retransmission queue*/
+	eigrp_fifo_push(nbr->retrans_queue, ep);
+
+	if (nbr->retrans_queue->count == 1) {
+		eigrp_send_packet_reliably(nbr);
+	}
 }

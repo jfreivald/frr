@@ -718,7 +718,12 @@ int eigrp_read(struct thread *thread)
 			nbr->init_sequence_number = 0;
 			nbr->recv_sequence_number = ntohl(eigrph->sequence);
 
-			eigrp_hello_send_ack(nbr);
+			if (iph->ip_dst.s_addr == htonl(EIGRP_MULTICAST_ADDRESS)) {
+				/* We might get an update with Multicast, which requires a
+				 * Separate ack before we send our update.
+				 */
+				eigrp_hello_send_ack(nbr);
+			}
 			nbr->state = EIGRP_NEIGHBOR_UP;
 			eigrp_update_send_with_flags(nbr, 1);
 		} else {
@@ -745,8 +750,6 @@ int eigrp_read(struct thread *thread)
 			}
 		}
 	}
-
-	L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Process packet from %s", inet_ntoa(nbr->src));
 
 	/* Read rest of the packet and call each sort of packet routine. */
 	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);

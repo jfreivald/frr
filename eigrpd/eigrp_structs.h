@@ -58,6 +58,7 @@ struct eigrp_master {
 };
 
 #define EIGRP_INFINITE_DISTANCE		(0xFFFFFFFF)
+#define EIGRP_MAX_FEASIBLE_DISTANCE (0xFFFFFFFE)
 
 struct eigrp_metrics {
 	uint32_t delay;

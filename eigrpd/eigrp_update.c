@@ -646,7 +646,6 @@ void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
 				continue;
 			}
 
-
 			if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");
 
@@ -816,7 +815,7 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 	list_delete_and_null(&route_nodes);
 
 	if (!has_tlv) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet has no update. Discard.");
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet has no route information. Discard.");
 		eigrp_packet_free(ep);
 		return;
 	}
