@@ -111,6 +111,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 	struct prefix dest_addr;
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_fsm_action_message msg;
+	char pbuf[PREFIX2STR_BUFFER];
 
 	uint16_t type;
 	uint16_t length;
@@ -145,8 +146,21 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			/* If the destination exists (it should, but one never
 			 * knows)*/
 			if (pe != NULL) {
+				prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+
+				if (!ne) {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
+					ne = eigrp_nexthop_entry_new();
+					ne->ei = ei;
+					ne->adv_router = nbr;
+					ne->reported_metric = EIGRP_INFINITE_METRIC;
+					ne->reported_distance = EIGRP_INFINITE_DISTANCE;
+					ne->distance = EIGRP_INFINITE_DISTANCE;
+					ne->prefix = pe;
+					ne->flags = 0;
+				}
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
@@ -185,6 +199,18 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				struct eigrp_nexthop_entry *ne;
 
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+
+				if (!ne) {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
+					ne = eigrp_nexthop_entry_new();
+					ne->ei = ei;
+					ne->adv_router = nbr;
+					ne->reported_metric = EIGRP_INFINITE_METRIC;
+					ne->reported_distance = EIGRP_INFINITE_DISTANCE;
+					ne->distance = EIGRP_INFINITE_DISTANCE;
+					ne->prefix = pe;
+					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
+				}
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
