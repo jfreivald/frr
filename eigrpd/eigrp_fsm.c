@@ -252,13 +252,17 @@ struct {
 
 static int send_flags = EIGRP_FSM_NEED_UPDATE;
 
-static void eigrp_fsm_update_topology(struct eigrp_fsm_action_message *msg) {
+static enum eigrp_fsm_events eigrp_fsm_update_topology(struct eigrp_fsm_action_message *msg) {
 	/***** NOTE: ONLY CALL THIS FUNCTION FROM A PASSIVE STATE *****/
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 
 	struct eigrp_nexthop_entry *previous_head = listnode_head(msg->prefix->entries);
 	struct eigrp_nexthop_entry *new_head;
+	enum eigrp_fsm_events ret_state = EIGRP_FSM_KEEP_STATE;
+
+	if ((msg->packet_type == EIGRP_OPC_UPDATE) || (msg->packet_type == EIGRP_OPC_REPLY))
+		eigrp_nexthop_entry_add(msg->prefix, msg->entry);
 
 	eigrp_prefix_update_metrics(msg->prefix);
 
@@ -271,15 +275,24 @@ static void eigrp_fsm_update_topology(struct eigrp_fsm_action_message *msg) {
 
 	//Add to UPDATE or QUERY lists
 	new_head = listnode_head(msg->prefix->entries);
-	if ((new_head == NULL) && (previous_head != NULL) ) {
+	if (((new_head == NULL) && (previous_head != NULL)) ||
+			(new_head && (new_head->distance > msg->prefix->fdistance))
+			) {
 		msg->prefix->req_action |= EIGRP_FSM_NEED_QUERY;
 		send_flags |= EIGRP_FSM_NEED_QUERY;
 		listnode_add(msg->eigrp->topology_changes_internalIPV4, msg->prefix);
+		if (msg->packet_type == EIGRP_OPC_QUERY) {
+			ret_state = EIGRP_FSM_EVENT_Q_FCN;
+		} else {
+			ret_state = EIGRP_FSM_EVENT_NQ_FCN;
+		}
 	} else if (new_head != previous_head) {
 		msg->prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
 		send_flags |= EIGRP_FSM_NEED_UPDATE;
 		listnode_add(msg->eigrp->topology_changes_internalIPV4, msg->prefix);
 	}
+
+	return ret_state;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 }
@@ -319,31 +332,9 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 
 	switch (actual_state) {
 	case EIGRP_FSM_STATE_PASSIVE: {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s is PASSIVE", pbuf);
-
-		if (msg->packet_type == EIGRP_OPC_UPDATE) {
-			eigrp_nexthop_entry_add(msg->prefix, msg->entry);
-			eigrp_topology_update_node_flags(msg->prefix);
-		}
-
-		struct eigrp_nexthop_entry *new_successor = listnode_head(msg->prefix->entries);
-		if (new_successor && new_successor->distance <= msg->prefix->fdistance) {
-			ret_state = EIGRP_FSM_KEEP_STATE;
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s is PASSIVE", pbuf);
+			ret_state = eigrp_fsm_update_topology(msg);
 			break;
-		}
-		/* If best entry doesn't satisfy feasibility condition it means
-		 * move to active state
-		 * dependently if it was query from successor
-		 */
-		if (msg->packet_type == EIGRP_OPC_QUERY) {
-			ret_state = EIGRP_FSM_EVENT_Q_FCN;
-			break;
-		} else {
-			ret_state = EIGRP_FSM_EVENT_NQ_FCN;
-			break;
-		}
-
-		break;
 	}
 	case EIGRP_FSM_STATE_ACTIVE_0: {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 0", pbuf);
@@ -523,20 +514,19 @@ int eigrp_fsm_event_nq_fcn(struct eigrp_fsm_action_message *msg)
 
 int eigrp_fsm_event_q_fcn(struct eigrp_fsm_action_message *msg)
 {
-	struct eigrp *eigrp = msg->eigrp;
-	struct eigrp_prefix_entry *prefix = msg->prefix;
+
 	char pbuf[PREFIX2STR_BUFFER];
 	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
-	prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
+	msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 3", pbuf);
 
 	if (eigrp_nbr_count_get()) {
-		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
+		msg->prefix->req_action |= EIGRP_FSM_NEED_QUERY;
 		send_flags |= EIGRP_FSM_NEED_QUERY;
-		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+		listnode_add(msg->eigrp->topology_changes_internalIPV4, msg->prefix);
 	} else {
 		eigrp_fsm_event_lr(msg); // in the case that there are no more
 	}
@@ -550,10 +540,12 @@ int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *msg)
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 
 	if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE) {
-		if (msg->packet_type == EIGRP_OPC_QUERY) //Query was satisfied by FS.
+		if (msg->packet_type == EIGRP_OPC_QUERY)			//Query was satisfied by FS.
 			eigrp_send_reply(msg->adv_router, msg->prefix);
-
-		eigrp_fsm_update_topology(msg);
+	} else {
+		if (msg->packet_type == EIGRP_OPC_REPLY) {
+			eigrp_nexthop_entry_add(msg->prefix, msg->entry);
+		}
 	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");

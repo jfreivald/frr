@@ -401,7 +401,6 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			msg.prefix = pe;
 
 			eigrp_fsm_event(&msg);
-			route_count++;
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM Complete [%s:%s]", inet_ntoa(nbr->src), pre_text);
 
 			break;
@@ -436,20 +435,6 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 	eigrp_fsm_event(&msg);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM ACK Complete [%s]", inet_ntoa(nbr->src));
-
-	if (route_count) {
-		struct listnode *ein, *nbrn;
-		struct eigrp_interface *eick;
-		struct eigrp_neighbor *einbr;
-
-		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, eick)) {
-			for (ALL_LIST_ELEMENTS_RO(eick->nbrs, nbrn, einbr)) {
-				if (einbr != nbr) {
-					eigrp_update_send_with_flags(einbr, 1);
-				}
-			}
-		}
-	}
 
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
@@ -526,8 +511,9 @@ static void eigrp_update_place_on_nbr_queue(struct eigrp_neighbor *nbr,
 	/*Put packet to retransmission queue*/
 	eigrp_fifo_push(nbr->retrans_queue, ep);
 
-	if (nbr->retrans_queue->count == 1)
+	if (nbr->retrans_queue->count == 1) {
 		eigrp_send_packet_reliably(nbr);
+	}
 }
 
 //static void eigrp_update_send_to_all_nbrs(struct eigrp_interface *ei,
@@ -801,7 +787,9 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 			   ep->sequence_number);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send update to %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
-	eigrp_send_packet_reliably(nbr);
+	if (nbr->retrans_queue->count == 1) {
+		eigrp_send_packet_reliably(nbr);
+	}
 }
 
 void eigrp_update_send_all(struct eigrp *eigrp,

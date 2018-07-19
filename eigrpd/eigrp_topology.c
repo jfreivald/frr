@@ -580,16 +580,6 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 		break;
 	}
 
-//	eigrp_nexthop_entry_add(msg->prefix, msg->entry);
-
-	//Removing the updates from here. They should only happen in the passive state, and therefore only in the FSM directly.
-//	prefix2str(msg->entry->prefix->destination, buf, PREFIX2STR_BUFFER);
-//
-//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Update the topology table for %s", buf);
-//	eigrp_update_topology_table_prefix(msg->eigrp, msg->entry->prefix);
-//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Update the routing table for %s", buf);
-//	eigrp_update_routing_table(msg->entry->prefix);
-
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return change;
 }
@@ -660,7 +650,8 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	struct eigrp *eigrp = eigrp_lookup();
 	struct listnode *node, *nnode;
-	struct eigrp_nexthop_entry *entry, *successor;
+	struct eigrp_nexthop_entry *entry;
+	struct list *successors;
 
 	char buf[PREFIX2STR_BUFFER];
 
@@ -675,20 +666,22 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 		return;
 	}
 
-	successor = listnode_head(prefix->entries);
+	successors = eigrp_topology_get_successor(prefix);
 
-	if (successor) {
+	if (successors) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Adding Route[%s]", buf);
-		eigrp_zebra_route_add(prefix->destination, successor);
-		successor->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
+		eigrp_zebra_route_add(prefix->destination, successors);
+		for (ALL_LIST_ELEMENTS(successors, node, nnode, entry)) {
+			entry->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
+		}
 	} else {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Removing Route[%s]", buf);
 		eigrp_zebra_route_delete(prefix->destination);
 	}
 
-	//Clear the INTABLE flags for everyone except the successor. Works even with no successor.
+	//Clear the INTABLE flags for everyone except the successors.
 	for (ALL_LIST_ELEMENTS(prefix->entries, node, nnode, entry)) {
-		if (entry != successor) {
+		if (!(listnode_lookup(successors, entry)) ) {
 			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 		}
 	}
@@ -707,7 +700,7 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_NEIGHBOR, "Neighbor %s Down", abuf);
 
-	eigrp_nbr_destroy(nbr);
+	eigrp_nbr_down(nbr);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
@@ -738,10 +731,6 @@ void eigrp_update_topology_table_prefix(struct eigrp *eigrp, struct eigrp_prefix
 
 	eigrp_update_routing_table(prefix);
 
-//	if (prefix->distance == EIGRP_INFINITE_DISTANCE && prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED) {
-//		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Prefix INFINITE_DISTANCE. Remove prefix.");
-//		eigrp_prefix_entry_delete(eigrp, prefix);
-//	}
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
 

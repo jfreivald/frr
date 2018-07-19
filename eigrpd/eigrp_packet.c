@@ -672,14 +672,16 @@ int eigrp_read(struct thread *thread)
 			nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;		//We've received an ACK, so we have two-way comms.
 			ep = eigrp_fifo_pop(nbr->retrans_queue);
 			eigrp_packet_free(ep);
-			eigrp_send_packet_reliably(nbr);
+			if (nbr->retrans_queue->count > 0) {
+				eigrp_send_packet_reliably(nbr);
+			}
 		}
 		ep = eigrp_fifo_next(nbr->multicast_queue);
 		if (ep) {
 			if (ntohl(eigrph->ack) == ep->sequence_number) {
 				ep = eigrp_fifo_pop(nbr->multicast_queue);
 				eigrp_packet_free(ep);
-				if (nbr->multicast_queue->count > 0) {
+				if (nbr->retrans_queue->count > 0) {
 					eigrp_send_packet_reliably(nbr);
 				}
 			}
@@ -699,29 +701,20 @@ int eigrp_read(struct thread *thread)
 				(ntohl(eigrph->flags) & EIGRP_EOT_FLAG) ||
 				(eigrph->ack != 0) ) ) {
 			nbr->state = EIGRP_NEIGHBOR_UP;
-			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Bring %s UP and send full UPDATE", inet_ntoa(nbr->src));
+			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s UP", inet_ntoa(nbr->src));
 			nbr->init_sequence_number = 0;
 			nbr->recv_sequence_number = ntohl(eigrph->sequence);
-			eigrp_update_send_init(nbr);
-			eigrp_update_send_EOT(nbr);
-			eigrp_update_send_with_flags(nbr, 1);
-		}
 
-		if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
-			if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG)) {
+			if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
 				L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Initial packet was INIT from %s.", inet_ntoa(nbr->src));
 				nbr->state |= EIGRP_NEIGHBOR_INIT_RXD;
+				eigrp_update_send_init(nbr);
+			} else {
+				if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG))
+					eigrp_hello_send_ack(nbr);
 			}
-			eigrp_hello_send_ack(nbr);
-		}
-
-		if ((nbr->state < EIGRP_NEIGHBOR_INIT_RXD) &&
-				!((ntohl(eigrph->flags) & EIGRP_INIT_FLAG) || (ntohl(eigrph->flags) & EIGRP_EOT_FLAG)) &&
-				!(nbr->state & EIGRP_NEIGHBOR_ACK_RXD) ) {
-			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Send INIT to %s.", inet_ntoa(nbr->src));
-			eigrp_hello_send(nbr->ei, EIGRP_HELLO_NORMAL, NULL);
-			eigrp_update_send_init(nbr);
-			nbr->state |= EIGRP_NEIGHBOR_INIT_TXD;
+			eigrp_update_send_EOT(nbr);
+			eigrp_update_send_with_flags(nbr, 1);
 		}
 	}
 

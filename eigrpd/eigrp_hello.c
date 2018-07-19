@@ -175,7 +175,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 									inet_ntoa(nbr->src),
 									ifindex2ifname(nbr->ei->ifp->ifindex,
 											VRF_DEFAULT));
-				eigrp_nbr_destroy(nbr);
+				eigrp_nbr_down(nbr);
 			}
 		}
 	}
@@ -257,7 +257,7 @@ static void eigrp_peer_termination_decode(struct eigrp_neighbor *nbr,
 		/* set neighbor to DOWN */
 		nbr->state = EIGRP_NEIGHBOR_DOWN;
 		/* delete neighbor */
-		eigrp_nbr_destroy(nbr);
+		eigrp_nbr_down(nbr);
 	}
 }
 

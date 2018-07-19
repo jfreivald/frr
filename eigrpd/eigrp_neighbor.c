@@ -273,7 +273,7 @@ int holddown_timer_expired(struct thread *thread)
 
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is down: holding time expired", inet_ntoa(nbr->src),
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
-	eigrp_nbr_destroy(nbr);
+	eigrp_nbr_down(nbr);
 
 	return 0;
 }
@@ -294,7 +294,7 @@ static void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
 	XFREE(MTYPE_EIGRP_NEIGHBOR, nbr);
 }
 
-void eigrp_nbr_destroy(struct eigrp_neighbor *nbr)
+void eigrp_nbr_down(struct eigrp_neighbor *nbr)
 {
 
 	route_table_iter_t it;
@@ -331,6 +331,9 @@ void eigrp_nbr_destroy(struct eigrp_neighbor *nbr)
 		eigrp_fifo_free(nbr->multicast_queue);
 	if (nbr->retrans_queue)
 		eigrp_fifo_free(nbr->retrans_queue);
+
+	nbr->retrans_queue = eigrp_fifo_new();
+	nbr->multicast_queue = eigrp_fifo_new();
 
 	nbr->crypt_seqnum = 0;
 
@@ -373,6 +376,7 @@ void eigrp_nbr_destroy(struct eigrp_neighbor *nbr)
 
 				eigrp_fsm_event(&msg);
 
+				eigrp_update_topology_table_prefix(nbr->ei->eigrp, pe);
 			}
 		}
 	}
@@ -381,26 +385,12 @@ void eigrp_nbr_destroy(struct eigrp_neighbor *nbr)
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;
 	msg.data_type = EIGRP_FSM_ACK;
-	msg.adv_router = eigrp->neighbor_self;
+	msg.adv_router = nbr;
 	msg.metrics = EIGRP_INFINITE_METRIC;
 	msg.entry = ne;
 	msg.prefix = pe;
 
 	eigrp_fsm_event(&msg);
-
-//	dest_addr.family = AF_INET;
-//	dest_addr.u.prefix4 = nbr->src;
-//	dest_addr.prefixlen = 32;
-//
-//	//And if the prefix is empty, delete it.
-//	if ((pe = eigrp_topology_table_lookup_ipv4(nbr->ei->eigrp->topology_table, &dest_addr)) != NULL) {
-//		if (!pe->entries->count)
-//			eigrp_prefix_entry_delete(nbr->ei->eigrp, pe);
-//	}
-
-	nbr->ei = NULL;
-
-	eigrp_nbr_delete(nbr);
 
 }
 
@@ -493,7 +483,7 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 	eigrp_hello_send(nbr->ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN_NBR,
 			&(nbr->src));
 	/* set neighbor to DOWN */
-	eigrp_nbr_destroy(nbr);
+	eigrp_nbr_down(nbr);
 	/* delete neighbor */
 	eigrp_nbr_delete(nbr);
 }

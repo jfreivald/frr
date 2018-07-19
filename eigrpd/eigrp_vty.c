@@ -1247,7 +1247,7 @@ DEFUN (clear_ip_eigrp_neighbors,
 						       VRF_DEFAULT));
 
 				/* set neighbor to DOWN */
-				eigrp_nbr_destroy(nbr);
+				eigrp_nbr_down(nbr);
 			}
 		}
 	}
@@ -1308,7 +1308,7 @@ DEFUN (clear_ip_eigrp_neighbors_int,
 			/* set neighbor to DOWN */
 			nbr->state = EIGRP_NEIGHBOR_DOWN;
 			/* delete neighbor */
-			eigrp_nbr_destroy(nbr);
+			eigrp_nbr_down(nbr);
 		}
 	}
 

@@ -244,7 +244,7 @@ int eigrp_if_down(struct eigrp_interface *ei)
 	/*Set infinite metrics to routes learned by this interface and start
 	 * query process*/
 	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
-		eigrp_nbr_destroy(nbr);
+		eigrp_nbr_down(nbr);
 	}
 
 	return 1;

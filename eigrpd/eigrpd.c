@@ -338,7 +338,7 @@ void eigrp_finish_final(struct eigrp *eigrp)
 
 	for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei)) {
 		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr))
-			eigrp_nbr_destroy(nbr);
+			eigrp_nbr_down(nbr);
 		eigrp_if_free(ei, INTERFACE_DOWN_BY_FINAL);
 	}
 
@@ -349,7 +349,7 @@ void eigrp_finish_final(struct eigrp *eigrp)
 	list_delete_and_null(&eigrp->eiflist);
 	list_delete_and_null(&eigrp->oi_write_q);
 
-	eigrp_nbr_destroy(eigrp->neighbor_self);
+	eigrp_nbr_down(eigrp->neighbor_self);
 
 	eigrp_topology_cleanup(eigrp);
 	eigrp_topology_free(eigrp);

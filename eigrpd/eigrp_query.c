@@ -138,13 +138,13 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			dest_addr.family = AF_INET;
 			dest_addr.u.prefix4 = tlv->destination;
 			dest_addr.prefixlen = tlv->prefix_length;
+			prefix2str(&dest_addr, pbuf, PREFIX2STR_BUFFER);
 			pe = eigrp_topology_table_lookup_ipv4(
 					eigrp->topology_table, &dest_addr);
 
 			/* If the destination exists (it should, but one never
 			 * knows)*/
 			if (pe != NULL) {
-				prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 
@@ -188,6 +188,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			dest_addr.family = AF_INET;
 			dest_addr.u.prefix4 = etlv->destination;
 			dest_addr.prefixlen = etlv->prefix_length;
+			prefix2str(&dest_addr, pbuf, PREFIX2STR_BUFFER);
 			pe = eigrp_topology_table_lookup_ipv4(
 					eigrp->topology_table, &dest_addr);
 
@@ -310,7 +311,9 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 			/*Put packet to retransmission queue*/
 			eigrp_fifo_push(nbr->retrans_queue, ep);
 
-			eigrp_send_packet_reliably(nbr);
+			if (nbr->retrans_queue->count == 1) {
+				eigrp_send_packet_reliably(nbr);
+			}
 
 			has_tlv = false;
 			length = 0;
