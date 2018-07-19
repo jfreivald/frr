@@ -46,6 +46,7 @@
 #include "eigrpd/eigrp_zebra.h"
 #include "eigrpd/eigrp_vty.h"
 #include "eigrpd/eigrp_network.h"
+#include "eigrpd/eigrp_topology.h"
 
 static int eigrp_network_match_iface(const struct connected *,
 				     const struct prefix *);
@@ -398,9 +399,18 @@ uint32_t eigrp_calculate_metrics(struct eigrp *eigrp,
 	if (metric.delay == EIGRP_MAX_METRIC)
 		return EIGRP_MAX_METRIC;
 
-	// EIGRP Metric =
-	// {K1*BW+[(K2*BW)/(256-load)]+(K3*delay)}*{K5/(reliability+K4)}
 
+	/* From https://www.cisco.com/c/en/us/support/docs/ip/enhanced-interior-gateway-routing-protocol-eigrp/16406-eigrp-toc.html#anc7:
+	 * metric = ([K1 * bandwidth + (K2 * bandwidth) / (256 - load) + K3 * delay] * [K5 / (reliability + K4)]) * 256
+	 */
+//	temp_metric = (
+//			((eigrp->k_values[1] * metric.bandwidth) + (eigrp->k_values[0] * metric.bandwidth) / (256 - metric.load) + (eigrp->k_values[2] * metric.delay))
+//			*
+//			(eigrp->k_values[4] / (metric.reliability + eigrp->k_values[3]))
+//			) * 256;
+
+// 	EIGRP Metric =
+// 	{K1*BW+[(K2*BW)/(256-load)]+(K3*delay)}*{K5/(reliability+K4)}
 	if (eigrp->k_values[0])
 		temp_metric += (eigrp->k_values[0] * metric.bandwidth);
 	if (eigrp->k_values[1])
@@ -416,6 +426,8 @@ uint32_t eigrp_calculate_metrics(struct eigrp *eigrp,
 		temp_metric *= ((eigrp->k_values[4] / metric.reliability)
 				+ eigrp->k_values[3]);
 
+	assert(temp_metric == metric.bandwidth + metric.delay);
+
 	if (temp_metric <= EIGRP_INFINITE_DISTANCE)
 		return (uint32_t)temp_metric;
 	else
@@ -429,7 +441,7 @@ uint32_t eigrp_calculate_total_metrics(struct eigrp *eigrp,
 
 	entry->total_metric = entry->reported_metric;
 	uint64_t temp_delay =
-		(uint64_t)entry->total_metric.delay
+		(uint64_t)entry->total_metric.delay + entry->reported_metric.delay
 		+ (uint64_t)eigrp_delay_to_scaled(ei->params.delay);
 	entry->total_metric.delay = temp_delay > EIGRP_MAX_METRIC
 					    ? EIGRP_MAX_METRIC
@@ -440,7 +452,62 @@ uint32_t eigrp_calculate_total_metrics(struct eigrp *eigrp,
 						? bw
 						: entry->total_metric.bandwidth;
 
-	return eigrp_calculate_metrics(eigrp, entry->total_metric);
+	temp_delay = eigrp_calculate_metrics(eigrp, entry->total_metric);
+
+	return temp_delay;
+}
+
+void eigrp_prefix_nexthop_calculate_metrics(struct eigrp_prefix_entry* pe,
+		struct eigrp_nexthop_entry* ne, struct eigrp_interface *ei, struct eigrp_neighbor* nbr,
+		struct eigrp_metrics metric) {
+	ne->ei = ei;
+	ne->adv_router = nbr;
+	ne->reported_metric = metric;
+	ne->reported_metric.hop_count++;
+	ne->distance = eigrp_calculate_metrics(ei->eigrp, metric);
+	ne->reported_distance = eigrp_calculate_total_metrics(ei->eigrp, ne);
+
+	/*
+	 * Filtering
+	 */
+	if (eigrp_update_prefix_apply(ei->eigrp, ei, EIGRP_FILTER_IN, pe->destination)) {
+		ne->reported_metric = EIGRP_INFINITE_METRIC;
+		ne->distance = EIGRP_INFINITE_DISTANCE;
+	}
+}
+
+void eigrp_prefix_update_metrics(struct eigrp_prefix_entry *pe) {
+	struct list *successors = eigrp_topology_get_successor(pe);
+	struct eigrp_nexthop_entry *ne;
+
+	char pbuf[PREFIX2STR_BUFFER];
+
+	prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+
+	assert(successors);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_TRACE, "ENTER");
+	ne = listnode_head(successors);
+
+	if (ne) {
+		pe->rdistance = pe->distance = ne->distance;
+		if (pe->distance < EIGRP_INFINITE_DISTANCE)
+			pe->fdistance = pe->rdistance;
+		else
+			pe->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
+		pe->reported_metric = ne->total_metric;
+		if (pe->extTLV) {
+			pe->extTLV->metric = ne->total_metric;
+		}
+	} else {
+		pe->rdistance = pe->distance = EIGRP_INFINITE_DISTANCE;
+		pe->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
+		pe->reported_metric = EIGRP_INFINITE_METRIC;
+	}
+
+	list_delete_and_null(&successors);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_TRACE, "ENTER");
 }
 
 uint8_t eigrp_metrics_is_same(struct eigrp_metrics metric1,

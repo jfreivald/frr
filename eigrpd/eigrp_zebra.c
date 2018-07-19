@@ -354,13 +354,10 @@ static struct interface *zebra_interface_if_lookup(struct stream *s)
 	return if_lookup_by_name(ifname_tmp, VRF_DEFAULT);
 }
 
-void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
+void eigrp_zebra_route_add(struct prefix *p, struct eigrp_nexthop_entry *te)
 {
 	struct zapi_route api;
 	struct zapi_nexthop *api_nh;
-	struct eigrp_nexthop_entry *te;
-	struct listnode *node;
-	int i, count = 0;
 	char pbuf[PREFIX2STR_BUFFER];
 	char nh_buf[MULTIPATH_NUM][100] = {};
 	char nh_str_buf[MULTIPATH_NUM*100] = {0};
@@ -374,46 +371,39 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 	api.safi = SAFI_UNICAST;
 	memcpy(&api.prefix, p, sizeof(*p));
 
+	prefix2str(p, pbuf, PREFIX2STR_BUFFER);
 
 	SET_FLAG(api.message, ZAPI_MESSAGE_NEXTHOP);
 
-	/* Nexthop, ifindex, distance and metric information. */
-	for (ALL_LIST_ELEMENTS_RO(successors, node, te)) {
-		L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "Processing Successor %d", count);
-		if (count >= MULTIPATH_NUM)
-			break;
-		api_nh = &api.nexthops[count];
-		api_nh->vrf_id = VRF_DEFAULT;
-		if (te->adv_router && te->adv_router != te->ei->eigrp->neighbor_self && te->adv_router->src.s_addr) {
-			api_nh->gate.ipv4 = te->adv_router->src;
-			api_nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
-		} else {
-			api_nh->type = NEXTHOP_TYPE_IFINDEX;
-		}
-
-		api_nh->ifindex = te->ei->ifp->ifindex;
-
-		snprintf(nh_buf[count], 100, "VRF_ID[%d] ", api_nh->vrf_id);
-		if (api_nh->type == NEXTHOP_TYPE_IPV4_IFINDEX)
-			snprintf(&(nh_buf[count][strnlen(nh_buf[count], 100)]), 100, "GW[%s] ", inet_ntoa(api_nh->gate.ipv4));
-		else
-			snprintf(&(nh_buf[count][strnlen(nh_buf[count], 100)]), 100, "IF[%s] ", te->ei->ifp->name);
-
-		count++;
+	api_nh = &api.nexthops[0];
+	api_nh->vrf_id = VRF_DEFAULT;
+	if (te->adv_router && te->adv_router != te->ei->eigrp->neighbor_self && te->adv_router->src.s_addr) {
+		api_nh->gate.ipv4 = te->adv_router->src;
+		api_nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
+	} else {
+		api_nh->gate.ipv4 = te->ei->address->u.prefix4;
+		api_nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
 	}
 
-	api.nexthop_num = count;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "ADD ROUTE: %s -> %s", pbuf, inet_ntoa(api_nh->gate.ipv4));
 
-	for (i = 0; i < count; i++) {
-		snprintf(&(nh_str_buf[strnlen(nh_str_buf, sizeof(nh_str_buf))]), MULTIPATH_NUM*100, "[[ NH[%d] %s]]", i, nh_buf[i]);
-	}
+	api_nh->ifindex = te->ei->ifp->ifindex;
 
-	prefix2str(&api.prefix, pbuf, PREFIX2STR_BUFFER);
+	snprintf(nh_buf[0], 100, "VRF_ID[%d] ", api_nh->vrf_id);
+	if (api_nh->type == NEXTHOP_TYPE_IPV4_IFINDEX)
+		snprintf(&(nh_buf[0][strnlen(nh_buf[0], 100)]), 100, "GW[%s] ", inet_ntoa(api_nh->gate.ipv4));
+	else
+		snprintf(&(nh_buf[0][strnlen(nh_buf[0], 100)]), 100, "IF[%s] ", te->ei->ifp->name);
+
+	api.nexthop_num = 1;
+
+	snprintf(&(nh_str_buf[strnlen(nh_str_buf, sizeof(nh_str_buf))]), MULTIPATH_NUM*100, "[[ NH[%d] %s]]", 0, nh_buf[0]);
+
 	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "Send to Zebra: type[%d], instance[%d], flags[%d], message[%d], safi[%d], prefix[%s], src_prefix[%d], "
 			"distance[%d], metric[%d], tag[%d], mtu[%d], tableid[%d]",
 			api.type, api.instance, api.flags, api.message, api.safi, pbuf, api.src_prefix, api.distance, api.metric,
 			api.tag, api.mtu, api.tableid);
-	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "nexthops[%d] : %s", count, nh_str_buf);
+	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "nexthops[%d] : %s", 0, nh_str_buf);
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_REDISTRIBUTE)) {
 		char buf[2][PREFIX2STR_BUFFER];

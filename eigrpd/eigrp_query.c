@@ -253,10 +253,14 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 	bool new_packet = true;
 	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(ei->ifp->mtu);
 
+	char pbuf[PREFIX2STR_BUFFER];
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Building Query for %s", inet_ntoa(nbr->src));
 	for (ALL_LIST_ELEMENTS(ei->eigrp->topology_changes_internalIPV4, node,
 			       nnode, pe)) {
 		if (!(pe->req_action & EIGRP_FSM_NEED_QUERY))
 			continue;
+
+		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 
 		if (new_packet) {
 			ep = eigrp_packet_new(eigrp_mtu, NULL);
@@ -276,11 +280,10 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 		}
 
 		if (pe->extTLV) {
-			char pbuf[PREFIX2STR_BUFFER];
-			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route [%s].", pbuf);
 			length += eigrp_add_externalTLV_to_stream(ep->s, pe);
 		} else {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route [%s].", pbuf);
 			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
 		}
 

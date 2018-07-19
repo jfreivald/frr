@@ -195,6 +195,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 
 			ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 
+			/* TODO: This is wrong. This needs to get the metrics calculated from the TLV */
 			if (!ne) {
 				ne = eigrp_nexthop_entry_new();
 				ne->ei = ei;
@@ -275,6 +276,17 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 			break;
 		}
-	}
 
+		struct listnode *ein, *nbrn;
+		struct eigrp_interface *eick;
+		struct eigrp_neighbor *einbr;
+
+		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, eick)) {
+			for (ALL_LIST_ELEMENTS_RO(eick->nbrs, nbrn, einbr)) {
+				if (einbr != nbr) {
+					eigrp_update_send_with_flags(einbr, 1);
+				}
+			}
+		}
+	}
 }

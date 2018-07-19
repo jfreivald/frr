@@ -71,7 +71,25 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 	nbr->ei = ei;
 
 	/* Set default values. */
-	eigrp_nbr_state_set_down(nbr);
+	nbr->recv_sequence_number = 0;
+	nbr->init_sequence_number = 0;
+	nbr->retrans_counter = 0;
+
+	// K values
+	nbr->K1 = EIGRP_K1_DEFAULT;
+	nbr->K2 = EIGRP_K2_DEFAULT;
+	nbr->K3 = EIGRP_K3_DEFAULT;
+	nbr->K4 = EIGRP_K4_DEFAULT;
+	nbr->K5 = EIGRP_K5_DEFAULT;
+	nbr->K6 = EIGRP_K6_DEFAULT;
+
+	// hold time.
+	nbr->v_holddown = EIGRP_HOLD_INTERVAL_DEFAULT;
+
+	nbr->retrans_queue = eigrp_fifo_new();
+	nbr->multicast_queue = eigrp_fifo_new();
+
+	nbr->crypt_seqnum = 0;
 
 	return nbr;
 }
@@ -88,16 +106,70 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 		struct ip *iph)
 {
 	struct eigrp_neighbor *nbr;
+	struct eigrp_prefix_entry *pe;
+	struct eigrp_nexthop_entry *ne;
+	struct eigrp_metrics metric;
+	struct eigrp_fsm_action_message msg;
+	struct prefix dest_addr;
+
+	char addr_buf[PREFIX2STR_BUFFER];
 
 	if ( NULL == (nbr = eigrp_nbr_new(ei))) {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Neighbor not allocated. Unable to process new neighbor.");
 		return NULL;
 	}
+
+	assert(ei);
+	assert(ei->eigrp);
+
 	nbr->src = iph->ip_src;
 
-	//  if (IS_DEBUG_EIGRP_EVENT)
-	//    L(zlog_debug,"NSM[%s:%s]: start", IF_NAME (nbr->oi),
-	//               inet_ntoa (nbr->router_id));
+	//Create route for neighbor
+
+	/*Prepare metrics*/
+	metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
+	metric.delay = eigrp_delay_to_scaled(ei->params.delay);
+	metric.load = ei->params.load;
+	metric.reliability = ei->params.reliability;
+	MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
+	metric.hop_count = 0;
+	metric.flags = 0;
+	metric.tag = 0;
+
+	dest_addr.family = AF_INET;
+	dest_addr.u.prefix4 = nbr->src;
+	dest_addr.prefixlen = IPV4_MAX_PREFIXLEN;
+
+	apply_mask(&dest_addr);
+	prefix2str(&dest_addr, addr_buf, PREFIX2STR_BUFFER);
+
+	pe = eigrp_topology_table_lookup_ipv4(ei->eigrp->topology_table, &dest_addr);
+
+	if (pe == NULL) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create topology entry for %s", addr_buf);
+		pe = eigrp_prefix_entry_new();
+		eigrp_prefix_entry_initialize(pe, dest_addr, ei->eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+				EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+				EIGRP_MAX_FEASIBLE_DISTANCE);
+
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Add prefix entry for %s into %s", addr_buf, ei->eigrp->name);
+		eigrp_prefix_entry_add(ei->eigrp, pe);
+
+	}
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
+	ne = eigrp_nexthop_entry_new();
+	eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, ei->eigrp->neighbor_self, metric);
+
+	msg.packet_type = EIGRP_OPC_UPDATE;
+	msg.eigrp = ei->eigrp;
+	msg.data_type = EIGRP_INT;
+	msg.adv_router = nbr;
+	msg.metrics = metric;
+	msg.entry = ne;
+	msg.prefix = pe;
+
+	eigrp_fsm_event(&msg);
 
 	return nbr;
 }
@@ -109,15 +181,15 @@ struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *ei,
 	struct eigrp_neighbor *nbr;
 	struct listnode *node, *nnode;
 
+	if (!ei->nbrs) {
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "New Neighbor on uninitialized interface. Bringing interface %s up.");
+		eigrp_if_up(ei);
+	}
+
 	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
 		if (iph->ip_src.s_addr == nbr->src.s_addr) {
 			return nbr;
 		}
-	}
-
-	if (!ei->nbrs) {
-		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "New Neighbor on uninitialized interface. Bringing interface %s up.");
-		eigrp_if_up(ei);
 	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Adding new neighbor.");
@@ -192,25 +264,6 @@ struct eigrp_neighbor *eigrp_nbr_lookup_by_addr_process(struct eigrp *eigrp,
 }
 
 
-/* Delete specified EIGRP neighbor from interface. */
-void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
-{
-	THREAD_OFF(nbr->t_holddown);
-	eigrp_nbr_state_set_down(nbr);
-
-	if (nbr->ei)
-		eigrp_topology_neighbor_down(nbr->ei->eigrp, nbr);
-
-	/* Cancel all events. */ /* Thread lookup cost would be negligible. */
-	thread_cancel_event(master, nbr);
-	eigrp_fifo_free(nbr->multicast_queue);
-	eigrp_fifo_free(nbr->retrans_queue);
-
-	if (nbr->ei)
-		listnode_delete(nbr->ei->nbrs, nbr);
-	XFREE(MTYPE_EIGRP_NEIGHBOR, nbr);
-}
-
 int holddown_timer_expired(struct thread *thread)
 {
 	struct eigrp_neighbor *nbr;
@@ -220,8 +273,7 @@ int holddown_timer_expired(struct thread *thread)
 
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is down: holding time expired", inet_ntoa(nbr->src),
 			ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
-	eigrp_nbr_state_set_down(nbr);
-	eigrp_nbr_delete(nbr);
+	eigrp_nbr_destroy(nbr);
 
 	return 0;
 }
@@ -231,70 +283,125 @@ uint8_t eigrp_nbr_state_get(struct eigrp_neighbor *nbr)
 	return (nbr->state);
 }
 
-void eigrp_nbr_state_set_down(struct eigrp_neighbor *nbr)
+/* Delete specified EIGRP neighbor from interface. */
+static void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
+{
+	THREAD_OFF(nbr->t_holddown);
+	if (nbr->ei && nbr->ei->nbrs) {
+		//Somebody called this on a live neighbor. Tear it down.
+		eigrp_topology_neighbor_down(nbr->ei->eigrp, nbr);
+	}
+	XFREE(MTYPE_EIGRP_NEIGHBOR, nbr);
+}
+
+void eigrp_nbr_destroy(struct eigrp_neighbor *nbr)
 {
 
 	route_table_iter_t it;
 	struct route_node *rn;
 	struct listnode *n, *nn;
+	struct listnode *rijn, *rijnn;
+	struct eigrp_neighbor *rijnbr;
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_nexthop_entry *ne;
 	struct eigrp_fsm_action_message msg;
+//	struct prefix dest_addr;
+	struct eigrp_interface *ei = nbr->ei;
+	struct eigrp *eigrp = ei->eigrp;
+
+	struct listnode *ein;
+	struct eigrp_interface *tei;
+
+	if (!nbr)
+		return;
+
+	THREAD_OFF(nbr->t_holddown);
+
+	/* Cancel all events. */ /* Thread lookup cost would be negligible. */
+	thread_cancel_event(master, nbr);
 
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
 
-	// reset all the seq/ack counters
-	nbr->recv_sequence_number = 0;
-	nbr->init_sequence_number = 0;
-	nbr->retrans_counter = 0;
-
-	/* Remove their routes from the tables */
-	if (nbr && nbr->ei && nbr->ei->eigrp) {
-		route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
-		while ( (rn = route_table_iter_next(&it)) ) {
-			if (!rn)
-				continue;
-			if ( (pe = rn->info ) == NULL)
-				continue;
-			for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
-				if (ne->adv_router == nbr) {
-
-					msg.packet_type = EIGRP_OPC_UPDATE;
-					msg.eigrp = nbr->ei->eigrp;
-					msg.data_type = EIGRP_INT;
-					msg.adv_router = nbr;
-					msg.metrics = EIGRP_INFINITE_METRIC;
-					msg.entry = ne;
-					msg.prefix = pe;
-
-					eigrp_fsm_event(&msg);
-				}
-			}
-		}
+	//Remove nbr from all interfaces
+	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
+		listnode_delete(tei->nbrs, nbr);
 	}
-	// Kvalues
-	nbr->K1 = EIGRP_K1_DEFAULT;
-	nbr->K2 = EIGRP_K2_DEFAULT;
-	nbr->K3 = EIGRP_K3_DEFAULT;
-	nbr->K4 = EIGRP_K4_DEFAULT;
-	nbr->K5 = EIGRP_K5_DEFAULT;
-	nbr->K6 = EIGRP_K6_DEFAULT;
 
-	// hold time..
-	nbr->v_holddown = EIGRP_HOLD_INTERVAL_DEFAULT;
-	THREAD_OFF(nbr->t_holddown);
-
-	/* out with the old */
 	if (nbr->multicast_queue)
 		eigrp_fifo_free(nbr->multicast_queue);
 	if (nbr->retrans_queue)
 		eigrp_fifo_free(nbr->retrans_queue);
 
-	/* in with the new */
-	nbr->retrans_queue = eigrp_fifo_new();
-	nbr->multicast_queue = eigrp_fifo_new();
-
 	nbr->crypt_seqnum = 0;
+
+	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
+	while ( (rn = route_table_iter_next(&it)) ) {
+		if (!rn)
+			continue;
+		if ( (pe = rn->info ) == NULL)
+			continue;
+		//Remove this neighbor from any replies that are pending.
+		for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
+			if (ne->adv_router == nbr) {
+				for (ALL_LIST_ELEMENTS(pe->rij, rijn, rijnn, rijnbr)) {
+					if (rijnbr == nbr) {
+						msg.packet_type = EIGRP_OPC_REPLY;
+						msg.eigrp = eigrp;
+						if (pe->extTLV)
+							msg.data_type = EIGRP_EXT;
+						else
+							msg.data_type = EIGRP_INT;
+						msg.adv_router = nbr;
+						msg.metrics = EIGRP_INFINITE_METRIC;
+						msg.entry = ne;
+						msg.prefix = pe;
+
+						eigrp_fsm_event(&msg);
+					}
+				}
+
+				msg.packet_type = EIGRP_OPC_UPDATE;
+				msg.eigrp = eigrp;
+				if (pe->extTLV)
+					msg.data_type = EIGRP_EXT;
+				else
+					msg.data_type = EIGRP_INT;
+				msg.adv_router = nbr;
+				msg.metrics = EIGRP_INFINITE_METRIC;
+				msg.entry = ne;
+				msg.prefix = pe;
+
+				eigrp_fsm_event(&msg);
+
+			}
+		}
+	}
+
+	//And then remove the node entry from the prefix.
+	msg.packet_type = EIGRP_OPC_UPDATE;
+	msg.eigrp = eigrp;
+	msg.data_type = EIGRP_FSM_ACK;
+	msg.adv_router = eigrp->neighbor_self;
+	msg.metrics = EIGRP_INFINITE_METRIC;
+	msg.entry = ne;
+	msg.prefix = pe;
+
+	eigrp_fsm_event(&msg);
+
+//	dest_addr.family = AF_INET;
+//	dest_addr.u.prefix4 = nbr->src;
+//	dest_addr.prefixlen = 32;
+//
+//	//And if the prefix is empty, delete it.
+//	if ((pe = eigrp_topology_table_lookup_ipv4(nbr->ei->eigrp->topology_table, &dest_addr)) != NULL) {
+//		if (!pe->entries->count)
+//			eigrp_prefix_entry_delete(nbr->ei->eigrp, pe);
+//	}
+
+	nbr->ei = NULL;
+
+	eigrp_nbr_delete(nbr);
+
 }
 
 const char *eigrp_nbr_state_str(struct eigrp_neighbor *nbr) {
@@ -386,7 +493,7 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 	eigrp_hello_send(nbr->ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN_NBR,
 			&(nbr->src));
 	/* set neighbor to DOWN */
-	eigrp_nbr_state_set_down(nbr);
+	eigrp_nbr_destroy(nbr);
 	/* delete neighbor */
 	eigrp_nbr_delete(nbr);
 }
@@ -394,8 +501,8 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 int eigrp_nbr_split_horizon_check(struct eigrp_nexthop_entry *ne,
 		struct eigrp_interface *ei)
 {
-	if (ne->distance == EIGRP_MAX_METRIC)
+	if (ne->distance == EIGRP_INFINITE_DISTANCE)
 		return 0;
 
-	return (ne->ei == ei);
+	return ((ne->ei == ei) && (ne->prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED));
 }

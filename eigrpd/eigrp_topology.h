@@ -46,6 +46,9 @@ extern void eigrp_prefix_entry_delete(struct eigrp *,
 				      struct eigrp_prefix_entry *pe);
 extern void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *,
 				       struct eigrp_nexthop_entry *);
+void eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *, struct prefix,
+		struct eigrp *, uint8_t, uint8_t, uint8_t,
+		struct eigrp_metrics, uint32_t, uint32_t);
 extern void eigrp_topology_delete_all(struct eigrp *);
 extern unsigned int eigrp_topology_table_isempty(struct list *);
 
