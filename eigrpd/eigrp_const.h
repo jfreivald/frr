@@ -236,6 +236,13 @@ enum eigrp_fsm_events {
 #define EIGRP_OPC_SIAREPLY      11      /*!< REPLY - may contain old routing information */
 
 /**
+ * EIGRP Update Packet Behavior
+ */
+#define EIGRP_UPDATE_CHANGED	0
+#define EIGRP_UDPATE_ALL_ROUTES	1
+
+
+/**
  * EIGRP TLV Range definitions
  *      PDM             TLV Range
  *      General         0x0000

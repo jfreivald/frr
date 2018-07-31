@@ -469,6 +469,26 @@ out:
 	return 0;
 }
 
+static void eigrp_neighbor_up_packet(struct eigrp_neighbor* nbr,
+		struct eigrp_header* eigrph) {
+	nbr->state = EIGRP_NEIGHBOR_UP;
+	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s UP",
+			inet_ntoa(nbr->src));
+	nbr->init_sequence_number = 0;
+	nbr->recv_sequence_number = ntohl(eigrph->sequence);
+	if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
+				"Initial packet was INIT from %s.", inet_ntoa(nbr->src));
+		nbr->state |= EIGRP_NEIGHBOR_INIT_RXD;
+		eigrp_update_send_init(nbr);
+	} else {
+		if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG))
+			eigrp_hello_send_ack(nbr);
+	}
+	eigrp_update_send_EOT(nbr);
+	eigrp_update_send_with_flags(nbr, EIGRP_UDPATE_ALL_ROUTES);
+}
+
 /* Starting point of packet process function. */
 int eigrp_read(struct thread *thread)
 {
@@ -696,25 +716,16 @@ int eigrp_read(struct thread *thread)
 		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "PACKET IN FROM NON-UP NEIGHBOR [%s]: O[%d] F[%02x] S[%02x]]",
 					inet_ntoa(nbr->src), eigrph->opcode, eigrph->flags, nbr->state);
 
-		if ( (nbr->state != EIGRP_NEIGHBOR_UP) &&
-				( (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) ||
+		if ( (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) ||
 				(ntohl(eigrph->flags) & EIGRP_EOT_FLAG) ||
-				(eigrph->ack != 0) ) ) {
-			nbr->state = EIGRP_NEIGHBOR_UP;
-			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s UP", inet_ntoa(nbr->src));
-			nbr->init_sequence_number = 0;
-			nbr->recv_sequence_number = ntohl(eigrph->sequence);
-
-			if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
-				L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "Initial packet was INIT from %s.", inet_ntoa(nbr->src));
-				nbr->state |= EIGRP_NEIGHBOR_INIT_RXD;
-				eigrp_update_send_init(nbr);
-			} else {
-				if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG))
-					eigrp_hello_send_ack(nbr);
-			}
-			eigrp_update_send_EOT(nbr);
-			eigrp_update_send_with_flags(nbr, 1);
+				(eigrph->ack != 0) ) {
+			eigrp_neighbor_up_packet(nbr, eigrph);
+		}
+	} else {	//Nbr is supposedly up...
+		if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG)) {		// But is sending us an INIT.
+			/* So we will reset the neighbor, tearing down all of the routes in the process */
+			eigrp_nbr_down(nbr);
+			eigrp_neighbor_up_packet(nbr, eigrph);
 		}
 	}
 

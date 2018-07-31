@@ -284,7 +284,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, eick)) {
 			for (ALL_LIST_ELEMENTS_RO(eick->nbrs, nbrn, einbr)) {
 				if (einbr != nbr) {
-					eigrp_update_send_with_flags(einbr, 1);
+					eigrp_update_send_with_flags(einbr, EIGRP_UDPATE_ALL_ROUTES);
 				}
 			}
 		}

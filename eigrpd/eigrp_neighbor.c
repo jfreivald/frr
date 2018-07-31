@@ -293,8 +293,7 @@ static void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
 	}
 	XFREE(MTYPE_EIGRP_NEIGHBOR, nbr);
 }
-
-void eigrp_nbr_down(struct eigrp_neighbor *nbr)
+void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char *func, const int line)
 {
 
 	route_table_iter_t it;
@@ -391,6 +390,8 @@ void eigrp_nbr_down(struct eigrp_neighbor *nbr)
 	msg.prefix = pe;
 
 	eigrp_fsm_event(&msg);
+
+	L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
 }
 

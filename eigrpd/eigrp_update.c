@@ -779,17 +779,17 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 		return;
 	}
 
-	eigrp_update_place_on_nbr_queue(nbr, ep, nbr->ei->eigrp->sequence_number,
-													length);
-
-	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
+	if (IS_DEBUG_EIGRP_PACKET(0, SEND))
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update length[%u] Seq [%u]", length,
 			   ep->sequence_number);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send update to %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
-	if (nbr->retrans_queue->count == 1) {
-		eigrp_send_packet_reliably(nbr);
-	}
+	eigrp_update_place_on_nbr_queue(nbr, ep, nbr->ei->eigrp->sequence_number,
+													length);
+
+//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send update to %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
+//	if (nbr->retrans_queue->count == 1) {
+//		eigrp_send_packet_reliably(nbr);
+//	}
 }
 
 void eigrp_update_send_all(struct eigrp *eigrp,
@@ -803,7 +803,7 @@ void eigrp_update_send_all(struct eigrp *eigrp,
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
 		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
 			if (nbr->state == EIGRP_NEIGHBOR_UP && nbr != exception) {
-				eigrp_update_send_with_flags(nbr, 1);
+				eigrp_update_send_with_flags(nbr, EIGRP_UDPATE_ALL_ROUTES);
 			}
 		}
 	}
