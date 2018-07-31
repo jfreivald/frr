@@ -42,7 +42,7 @@ extern struct eigrp_packet *eigrp_packet_duplicate(struct eigrp_packet *,
 extern void eigrp_packet_free(struct eigrp_packet *);
 extern void eigrp_packet_delete(struct eigrp_interface *);
 extern void eigrp_packet_header_init(int, struct eigrp *, struct stream *,
-				     uint32_t, uint32_t, uint32_t);
+				     uint32_t);
 extern void eigrp_packet_checksum(struct eigrp_interface *, struct stream *,
 				  uint16_t);
 
@@ -53,6 +53,8 @@ extern void eigrp_fifo_push(struct eigrp_fifo *, struct eigrp_packet *);
 extern void eigrp_fifo_free(struct eigrp_fifo *);
 extern void eigrp_fifo_reset(struct eigrp_fifo *);
 
+extern void eigrp_place_on_nbr_queue(struct eigrp_neighbor *nbr,
+					    struct eigrp_packet *ep, int length);
 extern void eigrp_send_packet_reliably(struct eigrp_neighbor *);
 
 extern struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *);

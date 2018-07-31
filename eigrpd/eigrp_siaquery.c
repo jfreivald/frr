@@ -73,7 +73,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
+	eigrp_hello_send_ack(nbr);
 
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
@@ -106,11 +106,11 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 				msg.entry = entry;
 				msg.prefix = dest;
 				eigrp_fsm_event(&msg);
+				eigrp_send_siareply(nbr,dest);
 			}
 			eigrp_IPv4_InternalTLV_free(tlv);
 		}
 	}
-	eigrp_hello_send_ack(nbr);
 }
 
 void eigrp_send_siaquery(struct eigrp_neighbor *nbr,
@@ -122,8 +122,7 @@ void eigrp_send_siaquery(struct eigrp_neighbor *nbr,
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(nbr->ei->ifp->mtu), nbr);
 
 	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_SIAQUERY, nbr->ei->eigrp, ep->s, 0,
-				 nbr->ei->eigrp->sequence_number, 0);
+	eigrp_packet_header_init(EIGRP_OPC_SIAQUERY, nbr->ei->eigrp, ep->s, 0);
 
 	// encode Authentication TLV, if needed
 	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)

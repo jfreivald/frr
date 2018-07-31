@@ -689,7 +689,7 @@ static uint16_t eigrp_hello_parameter_encode(struct eigrp_interface *ei,
  *
  */
 static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
-		in_addr_t addr, uint32_t ack,
+		in_addr_t addr,
 		uint8_t flags,
 		struct in_addr *nbr_addr)
 {
@@ -700,9 +700,8 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(ei->ifp->mtu), NULL);
 
 	if (ep) {
-		// encode common header feilds
-		eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep->s, 0,
-				0, ack);
+		// encode common header fields
+		eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep->s, 0);
 
 		// encode Authentication TLV
 		if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
@@ -777,16 +776,16 @@ void eigrp_hello_send_ack(struct eigrp_neighbor *nbr)
 {
 	struct eigrp_packet *ep;
 
-	/* if packet succesfully created, add it to the interface queue */
-	ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr,
-			nbr->recv_sequence_number, EIGRP_HELLO_NORMAL,
-			NULL);
+	/* if packet successfully created, add it to the interface queue */
+	ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_NORMAL, NULL);
 
 	if (ep) {
 		if (IS_DEBUG_EIGRP_PACKET(0, SEND))
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Queueing [Hello] Ack Seq [%u] nbr [%s]",
 					nbr->recv_sequence_number,
 					inet_ntoa(nbr->src));
+
+		ep->nbr = nbr;
 
 		/* Add packet to the top of the interface output queue*/
 		eigrp_fifo_push(nbr->ei->obuf, ep);
@@ -830,9 +829,9 @@ void eigrp_hello_send(struct eigrp_interface *ei, uint8_t flags,
 	if (IS_DEBUG_EIGRP_PACKET(0, SEND))
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Queueing [Hello] Interface(%s)", IF_NAME(ei));
 
-	/* if packet was succesfully created, then add it to the interface queue
+	/* if packet was successfully created, then add it to the interface queue
 	 */
-	ep = eigrp_hello_encode(ei, htonl(EIGRP_MULTICAST_ADDRESS), 0, flags,
+	ep = eigrp_hello_encode(ei, htonl(EIGRP_MULTICAST_ADDRESS), flags,
 			nbr_addr);
 
 	if (ep) {

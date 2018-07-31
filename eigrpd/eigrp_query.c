@@ -267,9 +267,7 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 			ep = eigrp_packet_new(eigrp_mtu, NULL);
 
 			/* Prepare EIGRP INIT UPDATE header */
-			eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp,
-						 ep->s, 0,
-						 ei->eigrp->sequence_number, 0);
+			eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp, ep->s, 0);
 
 			// encode Authentication TLV, if needed
 			if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
@@ -295,25 +293,8 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 
 		if (length + EIGRP_TLV_MAX_IPV4_BYTE > eigrp_mtu) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query packet full. Send and start again.");
-			if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-			    && ei->params.auth_keychain != NULL) {
-				eigrp_make_md5_digest(ei, ep->s,
-						      EIGRP_AUTH_UPDATE_FLAG);
-			}
 
-			eigrp_packet_checksum(ei, ep->s, length);
-			ep->length = length;
-
-			ep->sequence_number = ei->eigrp->sequence_number;
-			ei->eigrp->sequence_number++;
-
-			ep->dst = nbr->src;
-			/*Put packet to retransmission queue*/
-			eigrp_fifo_push(nbr->retrans_queue, ep);
-
-			if (nbr->retrans_queue->count == 1) {
-				eigrp_send_packet_reliably(nbr);
-			}
+			eigrp_place_on_nbr_queue(nbr, ep, length);
 
 			has_tlv = false;
 			length = 0;
@@ -329,28 +310,5 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 		return;
 	}
 
-	if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-	    && ei->params.auth_keychain != NULL)
-		eigrp_make_md5_digest(ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
-
-	/* EIGRP Checksum */
-	eigrp_packet_checksum(ei, ep->s, length);
-
-	ep->length = length;
-	ep->dst = nbr->src;
-
-	/*This ack number we await from neighbor*/
-	ep->sequence_number = ei->eigrp->sequence_number;
-	ei->eigrp->sequence_number++;
-
-	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Len [%u] Seq [%u] Dest [%s]",
-			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
-
-	/*Put packet to retransmission queue*/
-	eigrp_fifo_push(nbr->retrans_queue, ep);
-
-	if (nbr->retrans_queue->count == 1) {
-		eigrp_send_packet_reliably(nbr);
-	}
+	eigrp_place_on_nbr_queue(nbr, ep, length);
 }

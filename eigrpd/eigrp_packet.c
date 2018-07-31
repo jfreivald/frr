@@ -321,7 +321,6 @@ int eigrp_write(struct thread *thread)
 	struct ip iph;
 	struct msghdr msg;
 	struct iovec iov[2];
-	uint32_t seqno, ack;
 
 	int ret;
 	int flags = 0;
@@ -347,12 +346,12 @@ int eigrp_write(struct thread *thread)
 	/* Get one packet from queue. */
 	ep = eigrp_fifo_next(ei->obuf);
 	if (!ep) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"%s: Interface %s no packet on queue?",
-			 __PRETTY_FUNCTION__, ei->ifp->name);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Interface %s no packet on queue?",
+			 ei->ifp->name);
 		goto out;
 	}
 	if (ep->length < EIGRP_HEADER_LEN) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"%s: Packet just has a header?", __PRETTY_FUNCTION__);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Packet just has a header?");
 		eigrp_header_dump((struct eigrp_header *)ep->s->data);
 		eigrp_packet_delete(ei);
 		goto out;
@@ -373,11 +372,13 @@ int eigrp_write(struct thread *thread)
 	 * this outgoing packet.
 	 */
 	eigrph = (struct eigrp_header *)STREAM_DATA(ep->s);
-	seqno = ntohl(eigrph->sequence);
-	ack = ntohl(eigrph->ack);
-	if (ep->nbr && (ack != ep->nbr->recv_sequence_number)) {
+
+	if (ep->nbr && !(IN_MULTICAST(htonl(ep->dst.s_addr)))) {
 		eigrph->ack = htonl(ep->nbr->recv_sequence_number);
-		ack = ep->nbr->recv_sequence_number;
+		eigrph->checksum = 0;
+		eigrp_packet_checksum(ei, ep->s, ep->length);
+	} else {
+		eigrph->ack = 0;
 		eigrph->checksum = 0;
 		eigrp_packet_checksum(ei, ep->s, ep->length);
 	}
@@ -439,7 +440,7 @@ int eigrp_write(struct thread *thread)
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 			"Sending [%s][%d/%d] to [%s] via [%s] ret [%d].",
 			lookup_msg(eigrp_packet_type_str, eigrph->opcode, NULL),
-			seqno, ack, inet_ntoa(ep->dst), IF_NAME(ei), ret);
+			ntohl(eigrph->sequence), ntohl(eigrph->ack), inet_ntoa(ep->dst), IF_NAME(ei), ret);
 	}
 
 	if (ret < 0)
@@ -503,6 +504,7 @@ int eigrp_read(struct thread *thread)
 	struct route_node *rn;
 	route_table_iter_t rtit;
 	struct eigrp_packet *ep = NULL;
+	uint32_t ack = 0;
 
 	uint16_t opcode = 0;
 	uint16_t length = 0;
@@ -662,8 +664,6 @@ int eigrp_read(struct thread *thread)
 	   start of the eigrp TLVs */
 	opcode = eigrph->opcode;
 
-
-
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV)) {
 		char src[PREFIX_STRLEN], dst[PREFIX_STRLEN];
 
@@ -682,12 +682,14 @@ int eigrp_read(struct thread *thread)
 	assert(nbr);
 
 	/* Manage retransmit queues */
-	//Assure proper neighbor startup sequence
-
-	ep = eigrp_fifo_next(nbr->retrans_queue);
-
+	ack = ntohl(eigrph->ack);
 	if (eigrph->ack != 0) {
-		if ((ep) && (ntohl(eigrph->ack) == ep->sequence_number)) {
+		do {
+			ep = eigrp_fifo_next(nbr->retrans_queue);
+			if (ep && ep->sequence_number == 0)
+				eigrp_fifo_pop(nbr->retrans_queue);
+		} while (ep && ep->sequence_number == 0);
+		if ((ep) && ack == ep->sequence_number) {
 			//We got the ack from the last packet sent. Discard it and send the next packet.
 			nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;		//We've received an ACK, so we have two-way comms.
 			ep = eigrp_fifo_pop(nbr->retrans_queue);
@@ -695,6 +697,9 @@ int eigrp_read(struct thread *thread)
 			if (nbr->retrans_queue->count > 0) {
 				eigrp_send_packet_reliably(nbr);
 			}
+		} else if ((ep) && ack != ep->sequence_number) {
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "INVALID ACK [%s]: O[%d] ACK[%02x] SEQ[%02x]]",
+								inet_ntoa(nbr->src), eigrph->opcode, ack, ep->sequence_number);
 		}
 		ep = eigrp_fifo_next(nbr->multicast_queue);
 		if (ep) {
@@ -708,6 +713,10 @@ int eigrp_read(struct thread *thread)
 		}
 	}
 
+	/* Update receive sequence number */
+	nbr->recv_sequence_number = ntohl(eigrph->sequence);
+
+	//Startup sequence
 	if (eigrph->opcode == EIGRP_OPC_HELLO) {
 		nbr->state |= EIGRP_NEIGHBOR_HELLO;
 	}
@@ -902,6 +911,35 @@ struct eigrp_packet *eigrp_packet_new(size_t size, struct eigrp_neighbor *nbr)
 	return new;
 }
 
+void eigrp_place_on_nbr_queue(struct eigrp_neighbor *nbr,
+					    struct eigrp_packet *ep, int length)
+{
+	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
+	    && (nbr->ei->params.auth_keychain != NULL)) {
+		length += eigrp_add_authTLV_MD5_to_stream(ep->s, nbr->ei);
+		eigrp_make_md5_digest(nbr->ei, ep->s,
+				      EIGRP_AUTH_UPDATE_INIT_FLAG);
+	}
+
+	/* EIGRP Checksum */
+	eigrp_packet_checksum(nbr->ei, ep->s, length);
+
+	ep->length = length;
+	ep->nbr = nbr;
+	ep->dst.s_addr = nbr->src.s_addr;
+
+	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Enqueuing Packet Len [%u] Seq [%u] Dest [%s]",
+			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
+
+	/*Put packet to retransmission queue*/
+	eigrp_fifo_push(nbr->retrans_queue, ep);
+
+	if (nbr->retrans_queue->count == 1) {
+		eigrp_send_packet_reliably(nbr);
+	}
+}
+
 void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr)
 {
 	struct eigrp_packet *ep;
@@ -918,9 +956,6 @@ void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr)
 		thread_add_timer(master, eigrp_unack_packet_retrans, nbr,
 				 EIGRP_PACKET_RETRANS_TIME,
 				 &ep->t_retrans_timer);
-
-		/*Increment sequence number counter*/
-		nbr->ei->eigrp->sequence_number++;
 
 		/* Hook thread to write packet. */
 		if (nbr->ei->on_write_q == 0) {
@@ -946,7 +981,7 @@ void eigrp_packet_checksum(struct eigrp_interface *ei, struct stream *s,
 
 /* Make EIGRP header. */
 void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
-			      uint32_t flags, uint32_t sequence, uint32_t ack)
+			      uint32_t flags)
 {
 	struct eigrp_header *eigrph;
 
@@ -959,15 +994,22 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 
 	eigrph->vrid = htons(eigrp->vrid);
 	eigrph->ASNumber = htons(eigrp->AS);
-	eigrph->ack = htonl(ack);
-	eigrph->sequence = htonl(sequence);
+	if (type == EIGRP_OPC_HELLO) {
+		eigrph->sequence = 0;
+	} else {
+		if (eigrp->sequence_number == 0) {
+			(eigrp->sequence_number)++;
+		} else {
+			eigrph->sequence = htonl((eigrp->sequence_number)++);
+		}
+	}
 	//  if(flags == EIGRP_INIT_FLAG)
 	//    eigrph->sequence = htonl(3);
 	eigrph->flags = htonl(flags);
 
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, PACKET_DETAIL))
-		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet Header Init Seq [%u] Ack [%u]",
-			   htonl(eigrph->sequence), htonl(eigrph->ack));
+		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet Header Init Seq [%u]",
+			   htonl(eigrph->sequence));
 
 	stream_forward_endp(s, EIGRP_HEADER_LEN);
 }

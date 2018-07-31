@@ -56,7 +56,6 @@
 #include "eigrpd/eigrp_memory.h"
 
 static int eigrp_nexthop_entry_cmp(void *, void *);
-static void eigrp_nexthop_entry_del(void *);
 static struct list * prefix_entries_list_new(void);
 static void eigrp_nexthop_entry_debug(list_debug_stage_t, struct list *, struct listnode*, void *, const char *, const char *, int);
 
@@ -87,6 +86,8 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
 			sizeof(struct eigrp_prefix_entry));
 	new->entries = prefix_entries_list_new();
 	new->rij = list_new();
+	new->active_queries = list_new();
+	new->reply_entries = list_new();
 	new->distance = new->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
 	new->rdistance = EIGRP_INFINITE_DISTANCE;
 	new->destination = NULL;
@@ -100,7 +101,7 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
  */
 
 static struct list * prefix_entries_list_new(void){
-	struct list *newlist = list_new_cb(eigrp_nexthop_entry_cmp, eigrp_nexthop_entry_del, eigrp_nexthop_entry_debug, 0);
+	struct list *newlist = list_new_cb(eigrp_nexthop_entry_cmp, eigrp_nexthop_entry_free, eigrp_nexthop_entry_debug, 0);
 
 	return newlist;
 }
@@ -169,9 +170,9 @@ static int eigrp_nexthop_entry_cmp(void *p1, void *p2)
 }
 
 /*
- * Topology entry delete
+ * Free Nexthop entry memory
  */
-static void eigrp_nexthop_entry_del(void *p1) {
+void eigrp_nexthop_entry_free(void *p1) {
 	XFREE(MTYPE_EIGRP_NEXTHOP_ENTRY, p1);
 }
 
@@ -685,6 +686,9 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 		}
 	}
+
+	if (successors)
+		list_delete_and_null(&successors);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }

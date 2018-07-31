@@ -67,33 +67,12 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	uint16_t length = EIGRP_HEADER_LEN;
 	struct eigrp_interface *ei = nbr->ei;
 	struct eigrp *eigrp = ei->eigrp;
-	//struct eigrp_prefix_entry *pe2;
 	char pbuf[PREFIX2STR_BUFFER];
-
-
-//	if (pe) {
-//		// TODO: Work in progress
-//		/* Filtering */
-//		/* get list from eigrp process */
-//		pe2 = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
-//				  sizeof(struct eigrp_prefix_entry));
-//		memcpy(pe2, pe, sizeof(struct eigrp_prefix_entry));
-//
-//		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
-//						  pe2->destination)) {
-//			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"REPLY SEND: Setting Metric to max");
-//			pe2->reported_metric.delay = EIGRP_MAX_METRIC;
-//		}
-//
-//		/*
-//		 * End of filtering
-//		 */
-//	}
 
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(ei->ifp->mtu), nbr);
 
 	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep->s, 0, eigrp->sequence_number, 0);
+	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep->s, 0);
 
 	// encode Authentication TLV, if needed
 	if (ei->params.auth_type == EIGRP_AUTH_TYPE_MD5
@@ -115,26 +94,7 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 		return;
 	}
 
-	if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-	    && (ei->params.auth_keychain != NULL)) {
-		eigrp_make_md5_digest(ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
-	}
-
-	/* EIGRP Checksum */
-	eigrp_packet_checksum(ei, ep->s, length);
-
-	ep->length = length;
-	ep->dst.s_addr = nbr->src.s_addr;
-
-	/*This ack number we await from neighbor*/
-	ep->sequence_number = eigrp->sequence_number;
-
-	/*Put packet to retransmission queue*/
-	eigrp_fifo_push(nbr->retrans_queue, ep);
-
-	if (nbr->retrans_queue->count == 1) {
-		eigrp_send_packet_reliably(nbr);
-	}
+	eigrp_place_on_nbr_queue(nbr, ep, length);
 }
 
 /*EIGRP REPLY read function*/
@@ -163,8 +123,6 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 	assert(nbr);
 
 	eigrp_hello_send_ack(nbr);
-
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 
 	while (s->endp > s->getp) {
 		type = stream_getw(s);

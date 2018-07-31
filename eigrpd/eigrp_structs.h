@@ -464,7 +464,7 @@ enum GR_type { EIGRP_GR_MANUAL, EIGRP_GR_FILTER };
 
 /* EIGRP Topology table node structure */
 struct eigrp_prefix_entry {
-	struct list *entries, *rij;
+	struct list *entries, *rij, *active_queries, *reply_entries;
 	uint32_t fdistance;		      // FD
 	uint32_t rdistance;		      // RD
 	uint32_t distance;		      // D
