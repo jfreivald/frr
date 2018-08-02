@@ -72,7 +72,7 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_neighbor *except
 	counter = 0;
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
 		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
-			if (nbr != exception) {
+			if (nbr != exception && nbr->state == EIGRP_NEIGHBOR_UP) {
 				eigrp_send_query(nbr);
 				counter++;
 			}
@@ -124,8 +124,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
-
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
@@ -255,6 +253,12 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(ei->ifp->mtu);
 
 	char pbuf[PREFIX2STR_BUFFER];
+
+	if (nbr->state != EIGRP_NEIGHBOR_UP) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Skip Query for Neighbor %s State[%02x]", inet_ntoa(nbr->src), nbr->state);
+		return;
+	}
+
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Building Query for %s", inet_ntoa(nbr->src));
 	for (ALL_LIST_ELEMENTS(ei->eigrp->topology_changes_internalIPV4, node,
 			       nnode, pe)) {
@@ -268,13 +272,6 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 
 			/* Prepare EIGRP INIT UPDATE header */
 			eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp, ep->s, 0);
-
-			// encode Authentication TLV, if needed
-			if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-			    && (ei->params.auth_keychain != NULL)) {
-				length += eigrp_add_authTLV_MD5_to_stream(ep->s,
-									  ei);
-			}
 			new_packet = false;
 		}
 
@@ -288,8 +285,11 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 
 		has_tlv = true;
 
-		if (nbr->state == EIGRP_NEIGHBOR_UP)
+		if (nbr->state == EIGRP_NEIGHBOR_UP) {
+			/* Remove the neighbor first, to prevent waiting for duplicate replies, which may never come */
+			listnode_delete(pe->rij, nbr);
 			listnode_add(pe->rij, nbr);
+		}
 
 		if (length + EIGRP_TLV_MAX_IPV4_BYTE > eigrp_mtu) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query packet full. Send and start again.");

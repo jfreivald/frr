@@ -151,20 +151,8 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				continue;
 			}
 
-			ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-
-			/* TODO: This is wrong. This needs to get the metrics calculated from the TLV */
-			if (!ne) {
-				ne = eigrp_nexthop_entry_new();
-				ne->ei = ei;
-				ne->adv_router = nbr;
-				ne->reported_metric = EIGRP_INFINITE_METRIC;
-				ne->reported_distance = EIGRP_INFINITE_DISTANCE;
-				ne->distance = EIGRP_INFINITE_DISTANCE;
-				pe->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
-				ne->prefix = pe;
-				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-			}
+			ne = eigrp_nexthop_entry_new();
+			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, tlv->metric);
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;
@@ -200,19 +188,8 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				continue;
 			}
 
-			ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-
-			if (!ne) {
-				ne = eigrp_nexthop_entry_new();
-				ne->ei = ei;
-				ne->adv_router = nbr;
-				ne->reported_metric = EIGRP_INFINITE_METRIC;
-				ne->reported_distance = EIGRP_INFINITE_DISTANCE;
-				ne->distance = EIGRP_INFINITE_DISTANCE;
-				pe->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
-				ne->prefix = pe;
-				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-			}
+			ne = eigrp_nexthop_entry_new();
+			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, etlv->metric);
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;
@@ -235,16 +212,16 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			break;
 		}
 
-		struct listnode *ein, *nbrn;
-		struct eigrp_interface *eick;
-		struct eigrp_neighbor *einbr;
-
-		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, eick)) {
-			for (ALL_LIST_ELEMENTS_RO(eick->nbrs, nbrn, einbr)) {
-				if (einbr != nbr) {
-					eigrp_update_send_with_flags(einbr, EIGRP_UDPATE_ALL_ROUTES);
-				}
-			}
-		}
+//		struct listnode *ein, *nbrn;
+//		struct eigrp_interface *eick;
+//		struct eigrp_neighbor *einbr;
+//
+//		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, eick)) {
+//			for (ALL_LIST_ELEMENTS_RO(eick->nbrs, nbrn, einbr)) {
+//				if (einbr != nbr) {
+//					eigrp_update_send_with_flags(einbr, EIGRP_UDPATE_ALL_ROUTES);
+//				}
+//			}
+//		}
 	}
 }

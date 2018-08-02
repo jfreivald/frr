@@ -87,7 +87,7 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
 	new->entries = prefix_entries_list_new();
 	new->rij = list_new();
 	new->active_queries = list_new();
-	new->reply_entries = list_new();
+	new->reply_entries = prefix_entries_list_new();
 	new->distance = new->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
 	new->rdistance = EIGRP_INFINITE_DISTANCE;
 	new->destination = NULL;
@@ -252,7 +252,7 @@ void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node, struct eigrp_nexth
 	struct eigrp_nexthop_entry *ne;
 
 	for (ALL_LIST_ELEMENTS(node->entries, n, nn, ne)) {
-		if (ne->adv_router == entry->adv_router) {
+		if (ne->adv_router->src.s_addr == entry->adv_router->src.s_addr) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,
 					"%s already has an entry on %s. Remove to sort.", inet_ntoa(entry->adv_router->src), buf);
 			listnode_delete(node->entries, ne);
@@ -528,7 +528,6 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	enum metric_change change = METRIC_SAME;
-	uint32_t new_reported_distance;
 
 	assert(msg->entry);
 
@@ -546,31 +545,28 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 			change = METRIC_INCREASE;
 			break;
 		}
-		new_reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
 
+		msg->entry->reported_metric = msg->metrics;
+		msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
+		msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
 
-		if (msg->entry->reported_distance < new_reported_distance) {
+		if (msg->prefix->rdistance < msg->entry->reported_distance) {
 			change = METRIC_INCREASE;
 		} else
 			change = METRIC_DECREASE;
 
-		msg->entry->reported_metric = msg->metrics;
-		msg->entry->reported_distance = new_reported_distance;
-		msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
 		break;
 	case EIGRP_EXT:
 		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL) {
-			new_reported_distance =
-					eigrp_calculate_metrics(msg->eigrp, msg->metrics);
 
-			if (msg->entry->reported_distance < new_reported_distance) {
+			msg->entry->reported_metric = msg->metrics;
+			msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
+			msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
+
+			if (msg->prefix->rdistance < msg->entry->reported_distance) {
 				change = METRIC_INCREASE;
 			} else
 				change = METRIC_DECREASE;
-
-			msg->entry->reported_metric = msg->metrics;
-			msg->entry->reported_distance = new_reported_distance;
-			msg->entry->distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
 
 		} else {
 			change = METRIC_INCREASE;
@@ -669,7 +665,7 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 
 	successors = eigrp_topology_get_successor(prefix);
 
-	if (successors) {
+	if (listnode_head(successors)) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Adding Route[%s]", buf);
 		eigrp_zebra_route_add(prefix->destination, successors);
 		for (ALL_LIST_ELEMENTS(successors, node, nnode, entry)) {

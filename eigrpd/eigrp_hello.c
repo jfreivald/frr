@@ -163,7 +163,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 						inet_ntoa(nbr->src),
 						ifindex2ifname(nbr->ei->ifp->ifindex,
 								VRF_DEFAULT));
-				nbr->state = EIGRP_NEIGHBOR_HELLO;
+				eigrp_nbr_down(nbr);
 				return NULL;
 			} else {
 				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,
@@ -254,8 +254,6 @@ static void eigrp_peer_termination_decode(struct eigrp_neighbor *nbr,
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Neighbor %s (%s) is down: Peer Termination received",
 				inet_ntoa(nbr->src),
 				ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
-		/* set neighbor to DOWN */
-		nbr->state = EIGRP_NEIGHBOR_DOWN;
 		/* delete neighbor */
 		eigrp_nbr_down(nbr);
 	}
@@ -739,7 +737,7 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 		// Set packet length
 		ep->length = length;
 
-		// set soruce address for the hello packet
+		// set destination address for the hello packet
 		ep->dst.s_addr = addr;
 
 		if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)

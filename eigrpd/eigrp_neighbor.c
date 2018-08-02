@@ -124,53 +124,53 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 
 	nbr->src = iph->ip_src;
 
-	//Create route for neighbor
+	//Create route for P-t-P neighbors
+	if (nbr->ei->type == EIGRP_IFTYPE_POINTOPOINT) {
+		/*Prepare metrics*/
+		metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
+		metric.delay = eigrp_delay_to_scaled(ei->params.delay);
+		metric.load = ei->params.load;
+		metric.reliability = ei->params.reliability;
+		MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
+		metric.hop_count = 0;
+		metric.flags = 0;
+		metric.tag = 0;
 
-	/*Prepare metrics*/
-	metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
-	metric.delay = eigrp_delay_to_scaled(ei->params.delay);
-	metric.load = ei->params.load;
-	metric.reliability = ei->params.reliability;
-	MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
-	metric.hop_count = 0;
-	metric.flags = 0;
-	metric.tag = 0;
+		dest_addr.family = AF_INET;
+		dest_addr.u.prefix4 = nbr->src;
+		dest_addr.prefixlen = IPV4_MAX_PREFIXLEN;
 
-	dest_addr.family = AF_INET;
-	dest_addr.u.prefix4 = nbr->src;
-	dest_addr.prefixlen = IPV4_MAX_PREFIXLEN;
+		apply_mask(&dest_addr);
+		prefix2str(&dest_addr, addr_buf, PREFIX2STR_BUFFER);
 
-	apply_mask(&dest_addr);
-	prefix2str(&dest_addr, addr_buf, PREFIX2STR_BUFFER);
+		pe = eigrp_topology_table_lookup_ipv4(ei->eigrp->topology_table, &dest_addr);
 
-	pe = eigrp_topology_table_lookup_ipv4(ei->eigrp->topology_table, &dest_addr);
+		if (pe == NULL) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create topology entry for %s", addr_buf);
+			pe = eigrp_prefix_entry_new();
+			eigrp_prefix_entry_initialize(pe, dest_addr, ei->eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+					EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+					EIGRP_MAX_FEASIBLE_DISTANCE);
 
-	if (pe == NULL) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create topology entry for %s", addr_buf);
-		pe = eigrp_prefix_entry_new();
-		eigrp_prefix_entry_initialize(pe, dest_addr, ei->eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-				EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-				EIGRP_MAX_FEASIBLE_DISTANCE);
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Add prefix entry for %s into %s", addr_buf, ei->eigrp->name);
+			eigrp_prefix_entry_add(ei->eigrp, pe);
 
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Add prefix entry for %s into %s", addr_buf, ei->eigrp->name);
-		eigrp_prefix_entry_add(ei->eigrp, pe);
+		}
 
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
+		ne = eigrp_nexthop_entry_new();
+		eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, ei->eigrp->neighbor_self, metric);
+
+		msg.packet_type = EIGRP_OPC_UPDATE;
+		msg.eigrp = ei->eigrp;
+		msg.data_type = EIGRP_INT;
+		msg.adv_router = nbr;
+		msg.metrics = metric;
+		msg.entry = ne;
+		msg.prefix = pe;
+
+		eigrp_fsm_event(&msg);
 	}
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
-	ne = eigrp_nexthop_entry_new();
-	eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, ei->eigrp->neighbor_self, metric);
-
-	msg.packet_type = EIGRP_OPC_UPDATE;
-	msg.eigrp = ei->eigrp;
-	msg.data_type = EIGRP_INT;
-	msg.adv_router = nbr;
-	msg.metrics = metric;
-	msg.entry = ne;
-	msg.prefix = pe;
-
-	eigrp_fsm_event(&msg);
-
 	return nbr;
 }
 
@@ -188,6 +188,7 @@ struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *ei,
 
 	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
 		if (iph->ip_src.s_addr == nbr->src.s_addr) {
+			assert(nbr->retrans_queue && nbr->multicast_queue && nbr->ei);
 			return nbr;
 		}
 	}
@@ -311,56 +312,52 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 	struct listnode *ein;
 	struct eigrp_interface *tei;
 
+	char pbuf[PREFIX2STR_BUFFER];
+
 	if (!nbr)
 		return;
 
-	THREAD_OFF(nbr->t_holddown);
-
-	/* Cancel all events. */ /* Thread lookup cost would be negligible. */
-	thread_cancel_event(master, nbr);
-
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
 
-	//Remove nbr from all interfaces
-	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
-		listnode_delete(tei->nbrs, nbr);
-	}
-
-	if (nbr->multicast_queue)
-		eigrp_fifo_free(nbr->multicast_queue);
-	if (nbr->retrans_queue)
-		eigrp_fifo_free(nbr->retrans_queue);
-
-	nbr->retrans_queue = eigrp_fifo_new();
-	nbr->multicast_queue = eigrp_fifo_new();
-
-	nbr->crypt_seqnum = 0;
+	L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ( (rn = route_table_iter_next(&it)) ) {
 		if (!rn)
 			continue;
-		if ( (pe = rn->info ) == NULL)
+		prefix2str(&(rn->p), pbuf, PREFIX2STR_BUFFER);
+		if ( (pe = rn->info ) == NULL) {
+			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Skipping empty route node [%s]", pbuf);
 			continue;
-		//Remove this neighbor from any replies that are pending.
-		for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
-			if (ne->adv_router == nbr) {
-				for (ALL_LIST_ELEMENTS(pe->rij, rijn, rijnn, rijnbr)) {
-					if (rijnbr == nbr) {
-						msg.packet_type = EIGRP_OPC_REPLY;
-						msg.eigrp = eigrp;
-						if (pe->extTLV)
-							msg.data_type = EIGRP_EXT;
-						else
-							msg.data_type = EIGRP_INT;
-						msg.adv_router = nbr;
-						msg.metrics = EIGRP_INFINITE_METRIC;
-						msg.entry = ne;
-						msg.prefix = pe;
+		}
+		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+		// Remove all nexthop entries for this neighbor
 
-						eigrp_fsm_event(&msg);
-					}
+		L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Checking prefix [%s]", pbuf);
+		for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
+
+			//Also remove this neighbor from any replies that are pending.
+			for (ALL_LIST_ELEMENTS(pe->rij, rijn, rijnn, rijnbr)) {
+				if (rijnbr->src.s_addr == nbr->src.s_addr) {
+					L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has reply waiting from %s ", pbuf, inet_ntoa(nbr->src));
+
+					msg.packet_type = EIGRP_OPC_REPLY;
+					msg.eigrp = eigrp;
+					if (pe->extTLV)
+						msg.data_type = EIGRP_EXT;
+					else
+						msg.data_type = EIGRP_INT;
+					msg.adv_router = nbr;
+					msg.metrics = EIGRP_INFINITE_METRIC;
+					msg.entry = ne;
+					msg.prefix = pe;
+
+					eigrp_fsm_event(&msg);
 				}
+			}
+
+			if (ne->adv_router->src.s_addr == nbr->src.s_addr) {
+				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has route node for %s ", pbuf, inet_ntoa(nbr->src));
 
 				msg.packet_type = EIGRP_OPC_UPDATE;
 				msg.eigrp = eigrp;
@@ -375,7 +372,16 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
 				eigrp_fsm_event(&msg);
 
-				eigrp_update_topology_table_prefix(nbr->ei->eigrp, pe);
+				//eigrp_update_topology_table_prefix(nbr->ei->eigrp, pe);
+			}
+		}
+		/* Remove any reply entries for this neighbor so they don't make it into the route table */
+		struct eigrp_neighbor *qnbr;
+
+		for (ALL_LIST_ELEMENTS(pe->active_queries, n, nn, qnbr)) {
+			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has pending query for %s", pbuf, inet_ntoa(nbr->src));
+			if (qnbr && nbr->src.s_addr == qnbr->src.s_addr) {
+				listnode_delete(msg.prefix->active_queries, qnbr);
 			}
 		}
 	}
@@ -391,7 +397,37 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
 	eigrp_fsm_event(&msg);
 
+ 	THREAD_OFF(nbr->t_holddown);
+
+	/* Cancel all events. */ /* Thread lookup cost would be negligible. */
+	thread_cancel_event(master, nbr);
+
+	//Remove nbr from all interfaces
+	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
+		listnode_delete(tei->nbrs, nbr);
+	}
+
+	if (nbr->multicast_queue) {
+		eigrp_fifo_free(nbr->multicast_queue);
+		nbr->multicast_queue = NULL;
+	}
+
+	if (nbr->retrans_queue) {
+		eigrp_fifo_free(nbr->retrans_queue);
+		nbr->retrans_queue = NULL;
+	}
+//
+//	nbr->retrans_queue = eigrp_fifo_new();
+//	nbr->multicast_queue = eigrp_fifo_new();
+
+	nbr->crypt_seqnum = 0;
+
+	listnode_delete(nbr->ei->nbrs, nbr);
+	nbr->ei = NULL;
+
 	L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
+
+	eigrp_nbr_delete(nbr);
 
 }
 

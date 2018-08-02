@@ -72,8 +72,6 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
-
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 		if (type == EIGRP_TLV_IPv4_INT) {

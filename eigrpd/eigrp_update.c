@@ -212,7 +212,6 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 	if ((nbr->recv_sequence_number) == (ntohl(eigrph->sequence)))
 		same = 1;
 
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,
 			"Processing Update size[%u] int(%s) nbr(%s) seq [%u] flags [%0x]",
@@ -448,6 +447,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM ACK Complete [%s]", inet_ntoa(nbr->src));
 
+	//Cascade the update to all other neighbors. This should not be required, but I'm desperate to get this somewhat functions.
+	eigrp_update_send_all(eigrp, nbr);
+
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
 
@@ -456,6 +458,7 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 {
 	struct eigrp_packet *ep;
 	uint16_t length = EIGRP_HEADER_LEN;
+
 
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(nbr->ei->ifp->mtu), nbr);
 
@@ -615,14 +618,12 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 {
 	struct eigrp_interface *ei = nbr->ei;
 	struct eigrp_packet *ep;
-	struct listnode *node, *nnode;
 	struct listnode *pen;
 	struct eigrp_prefix_entry *pe;
 	uint8_t has_tlv;
 	struct eigrp *eigrp = nbr->ei->eigrp;
 	struct prefix *dest_addr;
 	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(ei->ifp->mtu);
-	struct eigrp_nexthop_entry *ne;
 
 	struct list *route_nodes;
 
@@ -678,46 +679,49 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 	for (ALL_LIST_ELEMENTS_RO(route_nodes, pen, pe)) {
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 
-		for (ALL_LIST_ELEMENTS(pe->entries, node, nnode, ne)) {
-			if (eigrp_nbr_split_horizon_check(ne, ei)) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Split Horizon %s.", pbuf);
-				continue;
+		if (pe->state != EIGRP_FSM_STATE_PASSIVE) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Active Route %s.", pbuf);
+			continue;
+		}
+
+		if (listnode_head(pe->entries) && eigrp_nbr_split_horizon_check(listnode_head(pe->entries), ei)) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Split Horizon %s.", pbuf);
+			continue;
+		}
+
+		if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");
+
+			eigrp_place_on_nbr_queue(nbr, ep, length);
+
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Reset for a new packet.");
+
+			length = EIGRP_HEADER_LEN;
+			ep = eigrp_packet_new(eigrp_mtu, NULL);
+			eigrp_packet_header_init(EIGRP_OPC_UPDATE, eigrp, ep->s, 0);
+			if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
+					&& (ei->params.auth_keychain != NULL)) {
+				length += eigrp_add_authTLV_MD5_to_stream(ep->s,
+						ei);
 			}
+			has_tlv = 0;
+		}
 
-			if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");
+		/* Get destination address from prefix */
+		dest_addr = pe->destination;
+		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 
-				eigrp_place_on_nbr_queue(nbr, ep, length);
-
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Reset for a new packet.");
-
-				length = EIGRP_HEADER_LEN;
-				ep = eigrp_packet_new(eigrp_mtu, NULL);
-				eigrp_packet_header_init(EIGRP_OPC_UPDATE, eigrp, ep->s, 0);
-				if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-						&& (ei->params.auth_keychain != NULL)) {
-					length += eigrp_add_authTLV_MD5_to_stream(ep->s,
-							ei);
-				}
-				has_tlv = 0;
-			}
-
-			/* Get destination address from prefix */
-			dest_addr = pe->destination;
-			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-
-			if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT, dest_addr)) {
-				continue;
+		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT, dest_addr)) {
+			continue;
+		} else {
+			if (pe->extTLV) {
+				length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route added [%d:%s]", length, pbuf);
 			} else {
-				if (pe->extTLV) {
-					length += eigrp_add_externalTLV_to_stream(ep->s, pe);
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route added [%d:%s]", length, pbuf);
-				} else {
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route added [%d:%s]", length, pbuf);
-					length += eigrp_add_internalTLV_to_stream(ep->s, pe);
-				}
-				has_tlv = 1;
+				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route added [%d:%s]", length, pbuf);
+				length += eigrp_add_internalTLV_to_stream(ep->s, pe);
 			}
+			has_tlv = 1;
 		}
 	}
 

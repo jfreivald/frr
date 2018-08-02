@@ -383,6 +383,9 @@ int eigrp_write(struct thread *thread)
 		eigrp_packet_checksum(ei, ep->s, ep->length);
 	}
 
+	if (eigrph->opcode == EIGRP_OPC_HELLO && eigrph->ack == 0 && !(IN_MULTICAST(htonl(ep->dst.s_addr))))
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"UNICAST HELLO");
+
 	sa_dst.sin_family = AF_INET;
 #ifdef HAVE_STRUCT_SOCKADDR_IN_SIN_LEN
 	sa_dst.sin_len = sizeof(sa_dst);
@@ -472,20 +475,18 @@ out:
 
 static void eigrp_neighbor_up_packet(struct eigrp_neighbor* nbr,
 		struct eigrp_header* eigrph) {
+	nbr->init_sequence_number = 0;
+	if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
+				"Reply to INIT from %s with INIT.", inet_ntoa(nbr->src));
+		nbr->state |= EIGRP_NEIGHBOR_INIT_RXD;
+		eigrp_update_send_init(nbr);
+	}
+
 	nbr->state = EIGRP_NEIGHBOR_UP;
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s UP",
 			inet_ntoa(nbr->src));
-	nbr->init_sequence_number = 0;
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
-	if (ntohl(eigrph->flags) & EIGRP_INIT_FLAG) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
-				"Initial packet was INIT from %s.", inet_ntoa(nbr->src));
-		nbr->state |= EIGRP_NEIGHBOR_INIT_RXD;
-		eigrp_update_send_init(nbr);
-	} else {
-		if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG))
-			eigrp_hello_send_ack(nbr);
-	}
+
 	eigrp_update_send_EOT(nbr);
 	eigrp_update_send_with_flags(nbr, EIGRP_UDPATE_ALL_ROUTES);
 }
@@ -684,16 +685,21 @@ int eigrp_read(struct thread *thread)
 	/* Manage retransmit queues */
 	ack = ntohl(eigrph->ack);
 	if (eigrph->ack != 0) {
+		//Check unicast queue
 		do {
 			ep = eigrp_fifo_next(nbr->retrans_queue);
-			if (ep && ep->sequence_number == 0)
+			if (ep && ep->sequence_number == 0) {
 				eigrp_fifo_pop(nbr->retrans_queue);
+				eigrp_packet_free(ep);
+			}
 		} while (ep && ep->sequence_number == 0);
+
 		if ((ep) && ack == ep->sequence_number) {
 			//We got the ack from the last packet sent. Discard it and send the next packet.
 			nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;		//We've received an ACK, so we have two-way comms.
 			ep = eigrp_fifo_pop(nbr->retrans_queue);
 			eigrp_packet_free(ep);
+			ep = NULL;
 			if (nbr->retrans_queue->count > 0) {
 				eigrp_send_packet_reliably(nbr);
 			}
@@ -701,20 +707,30 @@ int eigrp_read(struct thread *thread)
 			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "INVALID ACK [%s]: O[%d] ACK[%02x] SEQ[%02x]]",
 								inet_ntoa(nbr->src), eigrph->opcode, ack, ep->sequence_number);
 		}
-		ep = eigrp_fifo_next(nbr->multicast_queue);
-		if (ep) {
-			if (ntohl(eigrph->ack) == ep->sequence_number) {
-				ep = eigrp_fifo_pop(nbr->multicast_queue);
+
+		//Check multicast queue
+		do {
+			ep = eigrp_fifo_next(nbr->multicast_queue);
+			if (ep && ep->sequence_number == 0) {
+				eigrp_fifo_pop(nbr->retrans_queue);
 				eigrp_packet_free(ep);
-				if (nbr->retrans_queue->count > 0) {
-					eigrp_send_packet_reliably(nbr);
-				}
+			}
+		} while (ep && ep->sequence_number == 0);
+
+		if (ep && ack == ep->sequence_number) {
+			nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;		//We've received an ACK, so we have two-way comms.
+			ep = eigrp_fifo_pop(nbr->multicast_queue);
+			eigrp_packet_free(ep);
+			ep = NULL;
+			if (nbr->retrans_queue->count > 0) {
+				eigrp_send_packet_reliably(nbr);
 			}
 		}
 	}
 
 	/* Update receive sequence number */
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
+	if (eigrph->sequence)
+		nbr->recv_sequence_number = ntohl(eigrph->sequence);
 
 	//Startup sequence
 	if (eigrph->opcode == EIGRP_OPC_HELLO) {
@@ -729,11 +745,17 @@ int eigrp_read(struct thread *thread)
 				(ntohl(eigrph->flags) & EIGRP_EOT_FLAG) ||
 				(eigrph->ack != 0) ) {
 			eigrp_neighbor_up_packet(nbr, eigrph);
+		} else {
+			/* Some other non-init packet. Needs an INIT to kickstart */
+			eigrp_update_send_init(nbr);
+			eigrp_neighbor_up_packet(nbr, eigrph);
 		}
 	} else {	//Nbr is supposedly up...
 		if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG)) {		// But is sending us an INIT.
-			/* So we will reset the neighbor, tearing down all of the routes in the process */
+			/* Do a hard-reset on the neighbor, tearing down all of the routes in the process */
 			eigrp_nbr_down(nbr);
+			nbr = eigrp_nbr_get(ei, eigrph, iph);
+			nbr->recv_sequence_number = ntohl(eigrph->sequence);
 			eigrp_neighbor_up_packet(nbr, eigrph);
 		}
 	}
@@ -999,9 +1021,8 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 	} else {
 		if (eigrp->sequence_number == 0) {
 			(eigrp->sequence_number)++;
-		} else {
-			eigrph->sequence = htonl((eigrp->sequence_number)++);
 		}
+		eigrph->sequence = htonl((eigrp->sequence_number)++);
 	}
 	//  if(flags == EIGRP_INIT_FLAG)
 	//    eigrph->sequence = htonl(3);
@@ -1188,6 +1209,9 @@ struct eigrp_packet *eigrp_fifo_pop(struct eigrp_fifo *fifo)
 			fifo->tail->next = NULL;
 
 		fifo->count--;
+
+		ep->next = NULL;
+		ep->previous = NULL;
 	}
 
 	return ep;
@@ -1336,8 +1360,8 @@ struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s)
 	return etlv;
 }
 
-uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
-					 struct eigrp_prefix_entry *pe)
+uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
+					 struct eigrp_prefix_entry *pe, int flags)
 {
 	uint16_t length;
 
@@ -1396,16 +1420,29 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 	stream_putl(s, 0x00000000);
 
 	/*Metric*/
-	stream_putl(s, pe->reported_metric.delay);
-	stream_putl(s, pe->reported_metric.bandwidth);
-	stream_putc(s, pe->reported_metric.mtu[2]);
-	stream_putc(s, pe->reported_metric.mtu[1]);
-	stream_putc(s, pe->reported_metric.mtu[0]);
-	stream_putc(s, pe->reported_metric.hop_count+1);
-	stream_putc(s, pe->reported_metric.reliability);
-	stream_putc(s, pe->reported_metric.load);
-	stream_putc(s, pe->reported_metric.tag);
-	stream_putc(s, pe->reported_metric.flags);
+	if (flags) {
+		stream_putl(s, EIGRP_INFINITE_METRIC.delay);
+		stream_putl(s, EIGRP_INFINITE_METRIC.bandwidth);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
+		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
+		stream_putc(s, EIGRP_INFINITE_METRIC.load);
+		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
+		stream_putc(s, EIGRP_INFINITE_METRIC.flags);
+	} else {
+		stream_putl(s, pe->reported_metric.delay);
+		stream_putl(s, pe->reported_metric.bandwidth);
+		stream_putc(s, pe->reported_metric.mtu[2]);
+		stream_putc(s, pe->reported_metric.mtu[1]);
+		stream_putc(s, pe->reported_metric.mtu[0]);
+		stream_putc(s, pe->reported_metric.hop_count+1);
+		stream_putc(s, pe->reported_metric.reliability);
+		stream_putc(s, pe->reported_metric.load);
+		stream_putc(s, pe->reported_metric.tag);
+		stream_putc(s, pe->reported_metric.flags);
+	}
 
 	stream_putc(s, pe->destination->prefixlen);
 
@@ -1422,8 +1459,8 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 	return length;
 }
 
-uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
-					 struct eigrp_prefix_entry *pe)
+uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
+					 struct eigrp_prefix_entry *pe, int flags)
 {
 
 	/* We write out external routes exactly the same way we received them. */
@@ -1439,17 +1476,29 @@ uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
 	stream_putc(s, pe->extTLV->external_flags);
 
 	/*Metric*/
-	stream_putl(s, pe->reported_metric.delay);
-	stream_putl(s, pe->reported_metric.bandwidth);
-	stream_putc(s, pe->reported_metric.mtu[2]);
-	stream_putc(s, pe->reported_metric.mtu[1]);
-	stream_putc(s, pe->reported_metric.mtu[0]);
-	stream_putc(s, pe->reported_metric.hop_count+1);
-	stream_putc(s, pe->reported_metric.reliability);
-	stream_putc(s, pe->reported_metric.load);
-	stream_putc(s, pe->reported_metric.tag);
-	stream_putc(s, pe->reported_metric.flags);
-
+	if (flags) {
+		stream_putl(s, EIGRP_INFINITE_METRIC.delay);
+		stream_putl(s, EIGRP_INFINITE_METRIC.bandwidth);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
+		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
+		stream_putc(s, EIGRP_INFINITE_METRIC.load);
+		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
+		stream_putc(s, EIGRP_INFINITE_METRIC.flags);
+	} else {
+		stream_putl(s, pe->reported_metric.delay);
+		stream_putl(s, pe->reported_metric.bandwidth);
+		stream_putc(s, pe->reported_metric.mtu[2]);
+		stream_putc(s, pe->reported_metric.mtu[1]);
+		stream_putc(s, pe->reported_metric.mtu[0]);
+		stream_putc(s, pe->reported_metric.hop_count+1);
+		stream_putc(s, pe->reported_metric.reliability);
+		stream_putc(s, pe->reported_metric.load);
+		stream_putc(s, pe->reported_metric.tag);
+		stream_putc(s, pe->reported_metric.flags);
+	}
 	stream_putc(s, pe->extTLV->prefix_length);
 
 	if (pe->extTLV->prefix_length <= 8) {
