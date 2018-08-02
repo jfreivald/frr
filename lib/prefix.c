@@ -983,8 +983,12 @@ uint8_t ip_masklen(struct in_addr netmask)
 void apply_mask_ipv4(struct prefix_ipv4 *p)
 {
 	struct in_addr mask;
-	masklen2ip(p->prefixlen, &mask);
-	p->prefix.s_addr &= mask.s_addr;
+	if (p->prefixlen != IPV4_MAX_PREFIXLEN && p->prefixlen != 0) {
+		masklen2ip(p->prefixlen, &mask);
+		p->prefix.s_addr &= mask.s_addr;
+	} else if (p->prefixlen == 0) {
+		p->prefix.s_addr = 0;
+	}
 }
 
 /* If prefix is 0.0.0.0/0 then return 1 else return 0. */

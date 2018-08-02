@@ -134,6 +134,70 @@ void eigrp_master_init()
 	eigrp_om->start_time = tv.tv_sec;
 }
 
+static void topology_changes_int_IPV4_debug(list_debug_stage_t stage, struct list *list, struct listnode *node, void *val, const char *file, const char *func, int line) {
+	struct eigrp_prefix_entry *pe = val;
+	const char *buf = "INVALID DEBUG STAGE";
+	char pbuf[PREFIX2STR_BUFFER];
+
+	if (list && list->debug_on) {
+		if (pe)
+			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+		else {
+			strncpy(pbuf, "NULL PREFIX ENTRY", PREFIX2STR_BUFFER);
+		}
+		switch (stage) {
+		case LIST_DEBUG_DEFAULT:
+		case LIST_DEBUG_PRE_DELETE:
+		case LIST_DEBUG_POST_DELETE:
+		case LIST_DEBUG_PRE_INSERT:
+		case LIST_DEBUG_POST_INSERT:
+			buf = list_debug_stage_s[stage];
+			break;
+		default:
+			break;
+		}
+	}
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%s %s LIST[%08x] COUNT[%d] HEAD[%08x] TAIL[%08x] "
+			"NODE[%0x8] NEXT[%08x] PREV[%08x], PNEXT[%08x], NPREV[%08x] "
+			"CF[%s:%s:%d]",
+			buf, pbuf, list, list->count, list->head, list->tail,
+			node, node ? node->next : 0, node ? node->prev : 0, node && node->prev ? node->prev->next : 0, node && node->next ? node->next->prev : 0,
+					file, func, line);
+}
+
+static void topology_changes_ext_IPV4_debug(list_debug_stage_t stage, struct list *list, struct listnode *node, void *val, const char *file, const char *func, int line) {
+	struct eigrp_prefix_entry *pe = val;
+	const char *buf = "INVALID DEBUG STAGE";
+	char pbuf[PREFIX2STR_BUFFER];
+
+	if (list && list->debug_on) {
+		if (pe)
+			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+		else {
+			strncpy(pbuf, "NULL PREFIX ENTRY", PREFIX2STR_BUFFER);
+		}
+		switch (stage) {
+		case LIST_DEBUG_DEFAULT:
+		case LIST_DEBUG_PRE_DELETE:
+		case LIST_DEBUG_POST_DELETE:
+		case LIST_DEBUG_PRE_INSERT:
+		case LIST_DEBUG_POST_INSERT:
+			buf = list_debug_stage_s[stage];
+			break;
+		default:
+			break;
+		}
+	}
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%s %s LIST[%08x] COUNT[%d] HEAD[%08x] TAIL[%08x] "
+			"NODE[%0x8] NEXT[%08x] PREV[%08x], PNEXT[%08x], NPREV[%08x] "
+			"CF[%s:%s:%d]",
+			buf, pbuf, list, list->count, list->head, list->tail,
+			node, node ? node->next : 0, node ? node->prev : 0, node && node->prev ? node->prev->next : 0, node && node->next ? node->next->prev : 0,
+					file, func, line);
+}
+
 /* Allocate new eigrp structure. */
 static struct eigrp *eigrp_new(const char *AS)
 {
@@ -191,8 +255,8 @@ static struct eigrp *eigrp_new(const char *AS)
 
 	eigrp->serno = 0;
 	eigrp->serno_last_update = 0;
-	eigrp->topology_changes_externalIPV4 = list_new();
-	eigrp->topology_changes_internalIPV4 = list_new();
+	eigrp->topology_changes_externalIPV4 = list_new_cb(NULL, NULL, topology_changes_ext_IPV4_debug, 0);
+	eigrp->topology_changes_internalIPV4 = list_new_cb(NULL, NULL, topology_changes_int_IPV4_debug, 0);
 
 	eigrp->list[EIGRP_FILTER_IN] = NULL;
 	eigrp->list[EIGRP_FILTER_OUT] = NULL;
@@ -274,8 +338,8 @@ void eigrp_finish_final(struct eigrp *eigrp)
 
 	for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei)) {
 		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr))
-			eigrp_nbr_delete(nbr);
-		eigrp_if_free(ei, INTERFACE_DOWN_BY_FINAL);
+			eigrp_nbr_down(nbr);
+		eigrp_if_down(ei, INTERFACE_DOWN_BY_FINAL);
 	}
 
 	THREAD_OFF(eigrp->t_write);
@@ -285,13 +349,15 @@ void eigrp_finish_final(struct eigrp *eigrp)
 	list_delete_and_null(&eigrp->eiflist);
 	list_delete_and_null(&eigrp->oi_write_q);
 
+	eigrp_nbr_down(eigrp->neighbor_self);
+
 	eigrp_topology_cleanup(eigrp);
 	eigrp_topology_free(eigrp);
 
-	eigrp_nbr_delete(eigrp->neighbor_self);
-
 	list_delete_and_null(&eigrp->topology_changes_externalIPV4);
 	list_delete_and_null(&eigrp->topology_changes_internalIPV4);
+
+	stream_free(eigrp->ibuf);
 
 	eigrp_delete(eigrp);
 

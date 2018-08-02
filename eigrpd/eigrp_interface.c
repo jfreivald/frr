@@ -61,10 +61,14 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	struct eigrp_interface *ei = ifp->info;
 	int i;
 
+	if (ifp->info) {
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "IFP %s already has EIGRP Interface. KILL.", ei->ifp->name);
+		eigrp_if_down(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
+	}
+
 	if (ei && ei->nbrs) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Reinitialize an interface %s.", ei->ifp->name);
-		list_delete_and_null(&(ei->nbrs));
-		listnode_delete(eigrp->eiflist, ei);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "REINITIALIZE INTERFACE %s.", ei->ifp->name);
+		eigrp_if_down(ei, INTERFACE_DOWN_BY_ZEBRA);
 	}
 
 	ei = XCALLOC(MTYPE_EIGRP_IF, sizeof(struct eigrp_interface));
@@ -76,7 +80,7 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	ifp->info = ei;
 	listnode_add(eigrp->eiflist, ei);
 
-	ei->type = EIGRP_IFTYPE_BROADCAST;
+	ei->type = eigrp_default_iftype(ifp);
 
 	/* Initialize neighbor list. */
 	ei->nbrs = list_new();
@@ -144,8 +148,6 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	struct eigrp_prefix_entry *pe;
 	struct eigrp_nexthop_entry *ne;
 	struct eigrp_metrics metric;
-	struct eigrp_interface *ei2;
-	struct listnode *node, *nnode;
 	struct eigrp *eigrp;
 	struct eigrp_fsm_action_message msg;
 	struct prefix dest_addr;
@@ -160,6 +162,13 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Turning EIGRP Interface %s Up CF[%s:%s:%d]", ei->ifp ? ei->ifp->name : "NEW", file, func, line );
 
 	eigrp = ei->eigrp;
+	/* Assign the first 'up' interface as the primary for the eigrp instance */
+	if (!eigrp->neighbor_self->ei) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "%s used for Neighbor Self CF[%s:%s:%d]", ei->ifp ? ei->ifp->name : "NEW", file, func, line );
+		eigrp->neighbor_self->ei = ei;
+		eigrp->neighbor_self->src = ei->connected->address->u.prefix4;
+	}
+
 	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
 
 	eigrp_if_stream_set(ei);
@@ -169,28 +178,20 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
 	thread_add_event(master, eigrp_hello_timer, ei, (1), NULL);
 
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Add EIGRP route for Interface %s", ei->ifp->name);
+
 	/*Prepare metrics*/
 	metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
 	metric.delay = eigrp_delay_to_scaled(ei->params.delay);
 	metric.load = ei->params.load;
 	metric.reliability = ei->params.reliability;
-	metric.mtu[0] = 0xDC;
-	metric.mtu[1] = 0x05;
-	metric.mtu[2] = 0x00;
+	MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
 	metric.hop_count = 0;
 	metric.flags = 0;
 	metric.tag = 0;
 
 	/*Add connected entry to topology table*/
-
-	ne = eigrp_nexthop_entry_new();
-	ne->ei = ei;
-	ne->reported_metric = metric;
-	ne->total_metric = metric;
-	ne->distance = eigrp_calculate_metrics(eigrp, metric);
-	ne->reported_distance = 0;
-	ne->adv_router = eigrp->neighbor_self;
-	ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
 	dest_addr.family = AF_INET;
 	dest_addr.u.prefix4 = ei->connected->address->u.prefix4;
@@ -202,71 +203,34 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
 	if (pe == NULL) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "%s not found in topology", addr_buf);
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "Create topology entry for %s", addr_buf);
 		pe = eigrp_prefix_entry_new();
-		pe->serno = eigrp->serno;
-		pe->destination = (struct prefix *)prefix_ipv4_new();
-		prefix_copy(pe->destination, &dest_addr);
-		pe->af = AF_INET;
-		pe->nt = EIGRP_TOPOLOGY_TYPE_CONNECTED;
+		eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+				EIGRP_TOPOLOGY_TYPE_CONNECTED, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+				EIGRP_MAX_FEASIBLE_DISTANCE);
 
-		ne->prefix = pe;
-		pe->reported_metric = metric;
-		pe->state = EIGRP_FSM_STATE_PASSIVE;
-		pe->fdistance = eigrp_calculate_metrics(eigrp, metric);
-		pe->req_action |= EIGRP_FSM_NEED_UPDATE;
-
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", addr_buf, eigrp->name);
 		eigrp_prefix_entry_add(eigrp, pe);
-
 	}
 
-	ne->prefix = pe;
-
-	listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
-	eigrp_nexthop_entry_add(pe, ne);
-
-	for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei2)) {
-		eigrp_update_send(ei2);
-	}
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(eigrp->neighbor_self->src));
+	ne = eigrp_nexthop_entry_new();
+	eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, eigrp->neighbor_self, metric);
+	ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_CONNECTED;
-	msg.adv_router = NULL;
+	msg.data_type = EIGRP_INT;
+	msg.adv_router = eigrp->neighbor_self;
+	msg.metrics = metric;
 	msg.entry = ne;
 	msg.prefix = pe;
 
 	eigrp_fsm_event(&msg);
 
-	pe->req_action &= ~EIGRP_FSM_NEED_UPDATE;
-	listnode_delete(eigrp->topology_changes_internalIPV4, pe);
-
 	return 1;
 }
 
-int eigrp_if_down(struct eigrp_interface *ei)
-{
-	struct listnode *node, *nnode;
-	struct eigrp_neighbor *nbr;
-
-	if (ei == NULL)
-		return 0;
-
-	/* Shutdown packet reception and sending */
-	if (ei->t_hello)
-		THREAD_OFF(ei->t_hello);
-
-	eigrp_if_stream_unset(ei);
-
-	/*Set infinite metrics to routes learned by this interface and start
-	 * query process*/
-	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
-		eigrp_nbr_delete(nbr);
-	}
-
-	return 1;
-}
 
 void eigrp_if_stream_set(struct eigrp_interface *ei)
 {
@@ -342,43 +306,65 @@ uint8_t eigrp_default_iftype(struct interface *ifp)
 		return EIGRP_IFTYPE_BROADCAST;
 }
 
-void eigrp_if_free(struct eigrp_interface *ei, int source)
+void eigrp_if_down(struct eigrp_interface *ei, int source)
 {
 	struct prefix dest_addr;
 	struct eigrp_prefix_entry *pe;
-	struct eigrp *eigrp = eigrp_lookup();
 
-	if (!eigrp)
-		return;
+	struct listnode *node, *nnode;
+	struct eigrp_neighbor *nbr;
 
-	if (source == INTERFACE_DOWN_BY_VTY) {
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s GOING DOWN", ei->ifp->name);
+
+	/* Shutdown packet reception and sending */
+	if (ei->t_hello)
 		THREAD_OFF(ei->t_hello);
+
+	//Interface doesn't exist if killed by Zebra, so skip packet
+	if (source == INTERFACE_DOWN_BY_VTY) {
 		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
+		sleep(1);
 	}
 
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Unset transmit stream", ei->ifp->name);
+	eigrp_if_stream_unset(ei);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Remove topology information", ei->ifp->name);
 	dest_addr = *ei->connected->address;
 	apply_mask(&dest_addr);
-	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
+	pe = eigrp_topology_table_lookup_ipv4(ei->eigrp->topology_table,
 			&dest_addr);
 	if (pe)
-		eigrp_prefix_entry_delete(eigrp, pe);
+		eigrp_prefix_entry_delete(ei->eigrp, pe);
 
-	eigrp_if_down(ei);
 
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Terminate neighbors", ei->ifp->name);
+	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
+		eigrp_nbr_down(nbr);
+	}
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Free neighbor list", ei->ifp->name);
 	list_delete_and_null(&(ei->nbrs));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Remove interface from eigrp instance", ei->ifp->name);
 	listnode_delete(ei->eigrp->eiflist, ei);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s DOWN", ei->ifp->name);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Free interface structure", ei->ifp->name);
+	ei->ifp->info = NULL;
+	XFREE(MTYPE_EIGRP_IF, ei);
 }
 
 /* Simulate down/up on the interface.  This is needed, for example, when
    the MTU changes. */
-void eigrp_if_reset(struct interface *ifp)
+void eigrp_if_reset(struct interface *ifp, int source)
 {
 	struct eigrp_interface *ei = ifp->info;
 
 	if (!ei)
 		return;
 
-	eigrp_if_down(ei);
+	eigrp_if_down(ei, source);
 	eigrp_if_up(ei);
 }
 
@@ -430,7 +416,7 @@ struct eigrp_interface *eigrp_if_lookup_by_name(struct eigrp *eigrp,
 
 uint32_t eigrp_bandwidth_to_scaled(uint32_t bandwidth)
 {
-	uint64_t temp_bandwidth = (256ull * 10000000) / bandwidth;
+	uint64_t temp_bandwidth = (10000000 / bandwidth) * 256ull;
 
 	temp_bandwidth = temp_bandwidth < EIGRP_MAX_METRIC ? temp_bandwidth
 			: EIGRP_MAX_METRIC;

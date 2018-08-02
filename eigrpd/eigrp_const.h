@@ -34,14 +34,15 @@
 
 #define FALSE 0
 
-#define EIGRP_NEIGHBOR_DOWN           0
-#define EIGRP_NEIGHBOR_PENDING        1
-#define EIGRP_NEIGHBOR_UP             2
-#define EIGRP_NEIGHBOR_STATE_MAX      3
+#define EIGRP_NEIGHBOR_DOWN				0x00
+#define EIGRP_NEIGHBOR_INIT_TXD			0x01
+#define EIGRP_NEIGHBOR_INIT_RXD			0x02
+#define EIGRP_NEIGHBOR_ACK_RXD			0x04
+#define EIGRP_NEIGHBOR_UP				0xFF
 
 /*Packet requiring ack will be retransmitted again after this time*/
-#define EIGRP_PACKET_RETRANS_TIME        2 /* in seconds */
-#define EIGRP_PACKET_RETRANS_MAX         16 /* number of retrans attempts */
+#define EIGRP_PACKET_RETRANS_TIME        3 /* in seconds */
+#define EIGRP_PACKET_RETRANS_MAX         3 /* number of retrans attempts */
 #define PLAINTEXT_LENGTH                 81
 
 /*Metric variance multiplier*/
@@ -68,7 +69,7 @@
 #define EIGRP_MD5_UPDATE_INIT_COMPUTE       40
 
 #define EIGRP_AUTH_BASIC_HELLO_FLAG       0x01
-#define EIGRP_AUTH_TID_HELLO_FLAG       0x02
+#define EIGRP_AUTH_TID_HELLO_FLAG         0x02
 #define EIGRP_AUTH_UPDATE_INIT_FLAG       0x04
 #define EIGRP_AUTH_UPDATE_FLAG            0x08
 #define EIGRP_AUTH_EXTRA_SALT_FLAG        0x10
@@ -147,6 +148,7 @@ enum eigrp_fsm_states {
 /*EIGRP FSM events return values*/
 #define EIGRP_FSM_NEED_UPDATE				1
 #define EIGRP_FSM_NEED_QUERY				2
+#define EIGRP_FSM_NEED_REPLY				4
 
 /*EIGRP FSM events*/
 enum eigrp_fsm_events {
@@ -186,10 +188,10 @@ enum eigrp_fsm_events {
  */
 #define NULL_PROTID		0		/*!< unknown protocol */
 #define IGRP_PROTID		1		/*!< IGRP.. whos your daddy! */
-#define EIGRP_PROTID		2		/*!< EIGRP - Just flat out the best */
-#define STATIC_PROTID		3		/*!< Staticly configured source */
+#define EIGRP_PROTID	2		/*!< EIGRP - Just flat out the best */
+#define STATIC_PROTID	3		/*!< Staticly configured source */
 #define RIP_PROTID		4		/*!< Routing Information Protocol */
-#define HELLO_PROTID		5		/*!< Hello? RFC-891 you there? */
+#define HELLO_PROTID	5		/*!< Hello? RFC-891 you there? */
 #define OSPF_PROTID		6		/*!< OSPF - Open Shortest Path First */
 #define ISIS_PROTID		7		/*!< Intermediate System To Intermediate System */
 #define EGP_PROTID		8		/*!< Exterior Gateway Protocol */
@@ -228,6 +230,13 @@ enum eigrp_fsm_events {
 #define EIGRP_OPC_ACK           8       /*!< acknowledge         */
 #define EIGRP_OPC_SIAQUERY      10      /*!< QUERY - with relaxed restrictions */
 #define EIGRP_OPC_SIAREPLY      11      /*!< REPLY - may contain old routing information */
+
+/**
+ * EIGRP Update Packet Behavior
+ */
+#define EIGRP_UPDATE_CHANGED	0
+#define EIGRP_UPDATE_ALL_ROUTES	1
+
 
 /**
  * EIGRP TLV Range definitions

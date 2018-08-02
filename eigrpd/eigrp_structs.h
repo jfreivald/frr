@@ -57,7 +57,8 @@ struct eigrp_master {
 #define EIGRP_MASTER_SHUTDOWN (1 << 0) /* deferred-shutdown */
 };
 
-#define EIGRP_INFINITE_DISTANCE		(0xFFFF)
+#define EIGRP_INFINITE_DISTANCE		(0xFFFFFFFF)
+#define EIGRP_MAX_FEASIBLE_DISTANCE (0xFFFFFFFE)
 
 struct eigrp_metrics {
 	uint32_t delay;
@@ -69,6 +70,8 @@ struct eigrp_metrics {
 	uint8_t tag;
 	uint8_t flags;
 };
+
+#define MTU_TO_BYTES(mtu,bytes)		bytes[0]=(mtu & 0x000000FF);bytes[1]=((mtu & 0x0000FF00) >> 8);bytes[2]=((mtu & 0x00FF0000) >> 16);
 
 extern const struct eigrp_metrics infinite_metrics;
 
@@ -240,7 +243,7 @@ struct eigrp_neighbor {
 	struct eigrp_interface *ei;
 
 	/* EIGRP neighbor Information */
-	uint8_t state; /* neigbor status. */
+	uint32_t state; /* neigbor status. */
 
 	uint32_t recv_sequence_number; /* Last received sequence Number. */
 	uint32_t init_sequence_number;
@@ -461,7 +464,7 @@ enum GR_type { EIGRP_GR_MANUAL, EIGRP_GR_FILTER };
 
 /* EIGRP Topology table node structure */
 struct eigrp_prefix_entry {
-	struct list *entries, *rij;
+	struct list *entries, *rij, *active_queries, *reply_entries;
 	uint32_t fdistance;		      // FD
 	uint32_t rdistance;		      // RD
 	uint32_t distance;		      // D
@@ -503,6 +506,7 @@ typedef enum {
 	EIGRP_CONNECTED,
 	EIGRP_INT,
 	EIGRP_EXT,
+	EIGRP_FSM_ACK
 } msg_data_t;
 
 /* EIGRP Finite State Machine */

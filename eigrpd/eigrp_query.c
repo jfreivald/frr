@@ -55,11 +55,13 @@
 #include "eigrpd/eigrp_memory.h"
 #include "eigrpd/eigrp_network.h"
 
-uint32_t eigrp_query_send_all(struct eigrp *eigrp)
+uint32_t eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_neighbor *exception)
 {
 	struct eigrp_interface *iface;
-	struct listnode *node, *node2, *nnode2;
+	struct listnode *einode, *nbrnode, *node2, *nnode2;
 	struct eigrp_prefix_entry *pe;
+	struct eigrp_neighbor *nbr;
+
 	uint32_t counter;
 
 	if (eigrp == NULL) {
@@ -68,17 +70,29 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp)
 	}
 
 	counter = 0;
-	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, iface)) {
-		eigrp_send_query(iface);
-		counter++;
+	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
+		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
+			if (nbr != exception && nbr->state == EIGRP_NEIGHBOR_UP) {
+				eigrp_send_query(nbr);
+				counter++;
+			}
+		}
 	}
 
 	for (ALL_LIST_ELEMENTS(eigrp->topology_changes_internalIPV4, node2,
 			       nnode2, pe)) {
 		if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
 			pe->req_action &= ~EIGRP_FSM_NEED_QUERY;
-			listnode_delete(eigrp->topology_changes_internalIPV4,
-					pe);
+			if (!pe->req_action)
+				listnode_delete(eigrp->topology_changes_internalIPV4, pe);
+		}
+	}
+	for (ALL_LIST_ELEMENTS(eigrp->topology_changes_externalIPV4, node2,
+			       nnode2, pe)) {
+		if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
+			pe->req_action &= ~EIGRP_FSM_NEED_QUERY;
+			if (!pe->req_action)
+				listnode_delete(eigrp->topology_changes_externalIPV4, pe);
 		}
 	}
 
@@ -96,6 +110,8 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 	struct TLV_IPv4_External_type *etlv;
 	struct prefix dest_addr;
 	struct eigrp_prefix_entry *pe;
+	struct eigrp_fsm_action_message msg;
+	char pbuf[PREFIX2STR_BUFFER];
 
 	uint16_t type;
 	uint16_t length;
@@ -109,8 +125,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
-
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 		switch (type) {
@@ -122,49 +136,33 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			dest_addr.family = AF_INET;
 			dest_addr.u.prefix4 = tlv->destination;
 			dest_addr.prefixlen = tlv->prefix_length;
+			prefix2str(&dest_addr, pbuf, PREFIX2STR_BUFFER);
 			pe = eigrp_topology_table_lookup_ipv4(
 					eigrp->topology_table, &dest_addr);
 
 			/* If the destination exists (it should, but one never
 			 * knows)*/
 			if (pe != NULL) {
-				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+
 				if (!ne) {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
 					ne = eigrp_nexthop_entry_new();
 					ne->ei = ei;
 					ne->adv_router = nbr;
-					ne->reported_metric = tlv->metric;
-					ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
-					/*
-					 * Filtering
-					 */
-					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-						ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+					ne->reported_metric = EIGRP_INFINITE_METRIC;
+					ne->reported_distance = EIGRP_INFINITE_DISTANCE;
+					ne->distance = EIGRP_INFINITE_DISTANCE;
 					ne->prefix = pe;
 					ne->flags = 0;
-
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", inet_ntoa(nbr->src));
-					eigrp_nexthop_entry_add(pe, ne);
-
-					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
-					pe->reported_metric = ne->total_metric;
-					eigrp_topology_update_node_flags(pe);
-
-					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
-					listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
 				}
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_INT;
 				msg.adv_router = nbr;
-				msg.metrics = tlv->metric;
+				msg.metrics = EIGRP_INFINITE_METRIC;
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
@@ -188,49 +186,34 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			dest_addr.family = AF_INET;
 			dest_addr.u.prefix4 = etlv->destination;
 			dest_addr.prefixlen = etlv->prefix_length;
+			prefix2str(&dest_addr, pbuf, PREFIX2STR_BUFFER);
 			pe = eigrp_topology_table_lookup_ipv4(
 					eigrp->topology_table, &dest_addr);
 
 			/* If the destination exists (it should, but one never
 			 * knows)*/
 			if (pe != NULL) {
-				struct eigrp_fsm_action_message msg;
 				struct eigrp_nexthop_entry *ne;
+
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+
 				if (!ne) {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
 					ne = eigrp_nexthop_entry_new();
 					ne->ei = ei;
 					ne->adv_router = nbr;
-					ne->reported_metric = etlv->metric;
-					ne->reported_distance = eigrp_calculate_metrics(eigrp, etlv->metric);
-					/*
-					 * Filtering
-					 */
-					if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-						ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-					ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-					pe->fdistance = pe->distance = pe->rdistance = ne->distance;
+					ne->reported_metric = EIGRP_INFINITE_METRIC;
+					ne->reported_distance = EIGRP_INFINITE_DISTANCE;
+					ne->distance = EIGRP_INFINITE_DISTANCE;
 					ne->prefix = pe;
 					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
-
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add nexthop entry for %s", inet_ntoa(nbr->src));
-					eigrp_nexthop_entry_add(pe, ne);
-
-					pe->distance = pe->fdistance = pe->rdistance = ne->distance;
-					pe->reported_metric = ne->total_metric;
-					eigrp_topology_update_node_flags(pe);
-
-					pe->req_action |= EIGRP_FSM_NEED_UPDATE;
-					listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
 				}
 
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_EXT;
 				msg.adv_router = nbr;
-				msg.metrics = etlv->metric;
+				msg.metrics = EIGRP_INFINITE_METRIC;
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
@@ -246,87 +229,72 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 		}
 	}
-	eigrp_send_reply(nbr, pe);
-	eigrp_hello_send_ack(nbr);
-	eigrp_query_send_all(eigrp);
-	eigrp_update_send_all(eigrp, nbr->ei);
+
+	msg.packet_type = EIGRP_OPC_UPDATE;
+	msg.eigrp = eigrp;
+	msg.data_type = EIGRP_FSM_ACK;
+	msg.adv_router = nbr;
+	msg.metrics = EIGRP_INFINITE_METRIC;
+	msg.entry = NULL;
+	msg.prefix = NULL;
+
+	eigrp_fsm_event(&msg);
 }
 
-void eigrp_send_query(struct eigrp_interface *ei)
+void eigrp_send_query(struct eigrp_neighbor *nbr)
 {
+	struct eigrp_interface *ei = nbr->ei;
 	struct eigrp_packet *ep = NULL;
 	uint16_t length = EIGRP_HEADER_LEN;
-	struct listnode *node, *nnode, *node2, *nnode2;
-	struct eigrp_neighbor *nbr;
+	struct listnode *node, *nnode;
 	struct eigrp_prefix_entry *pe;
 	bool has_tlv = false;
 	bool new_packet = true;
 	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(ei->ifp->mtu);
 
+	char pbuf[PREFIX2STR_BUFFER];
+
+	if (nbr->state != EIGRP_NEIGHBOR_UP) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Skip Query for Neighbor %s State[%02x]", inet_ntoa(nbr->src), nbr->state);
+		return;
+	}
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Building Query for %s", inet_ntoa(nbr->src));
 	for (ALL_LIST_ELEMENTS(ei->eigrp->topology_changes_internalIPV4, node,
 			       nnode, pe)) {
 		if (!(pe->req_action & EIGRP_FSM_NEED_QUERY))
 			continue;
 
+		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+
 		if (new_packet) {
 			ep = eigrp_packet_new(eigrp_mtu, NULL);
 
 			/* Prepare EIGRP INIT UPDATE header */
-			eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp,
-						 ep->s, 0,
-						 ei->eigrp->sequence_number, 0);
-
-			// encode Authentication TLV, if needed
-			if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-			    && (ei->params.auth_keychain != NULL)) {
-				length += eigrp_add_authTLV_MD5_to_stream(ep->s,
-									  ei);
-			}
+			eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp, ep->s, 0);
 			new_packet = false;
 		}
 
 		if (pe->extTLV) {
-			char pbuf[PREFIX2STR_BUFFER];
-			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route [%s].", pbuf);
 			length += eigrp_add_externalTLV_to_stream(ep->s, pe);
 		} else {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route [%s].", pbuf);
 			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
 		}
+
 		has_tlv = true;
-		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
-			if (nbr->state == EIGRP_NEIGHBOR_UP)
-				listnode_add(pe->rij, nbr);
+
+		if (nbr->state == EIGRP_NEIGHBOR_UP) {
+			/* Remove the neighbor first, to prevent waiting for duplicate replies, which may never come */
+			listnode_delete(pe->rij, nbr);
+			listnode_add(pe->rij, nbr);
 		}
 
 		if (length + EIGRP_TLV_MAX_IPV4_BYTE > eigrp_mtu) {
-			if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-			    && ei->params.auth_keychain != NULL) {
-				eigrp_make_md5_digest(ei, ep->s,
-						      EIGRP_AUTH_UPDATE_FLAG);
-			}
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query packet full. Send and start again.");
 
-			eigrp_packet_checksum(ei, ep->s, length);
-			ep->length = length;
-
-			ep->dst.s_addr = htonl(EIGRP_MULTICAST_ADDRESS);
-
-			ep->sequence_number = ei->eigrp->sequence_number;
-			ei->eigrp->sequence_number++;
-
-			for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
-				struct eigrp_packet *dup;
-
-				if (nbr->state != EIGRP_NEIGHBOR_UP)
-					continue;
-
-				dup = eigrp_packet_duplicate(ep, nbr);
-				/*Put packet to retransmission queue*/
-				eigrp_fifo_push(nbr->retrans_queue, dup);
-
-				if (nbr->retrans_queue->count == 1)
-					eigrp_send_packet_reliably(nbr);
-			}
+			eigrp_place_on_nbr_queue(nbr, ep, length);
 
 			has_tlv = false;
 			length = 0;
@@ -342,34 +310,5 @@ void eigrp_send_query(struct eigrp_interface *ei)
 		return;
 	}
 
-	if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-	    && ei->params.auth_keychain != NULL)
-		eigrp_make_md5_digest(ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
-
-
-	/* EIGRP Checksum */
-	eigrp_packet_checksum(ei, ep->s, length);
-
-	ep->length = length;
-	ep->dst.s_addr = htonl(EIGRP_MULTICAST_ADDRESS);
-
-	/*This ack number we await from neighbor*/
-	ep->sequence_number = ei->eigrp->sequence_number;
-	ei->eigrp->sequence_number++;
-
-	for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
-		struct eigrp_packet *dup;
-
-		if (nbr->state != EIGRP_NEIGHBOR_UP)
-			continue;
-
-		dup = eigrp_packet_duplicate(ep, nbr);
-		/*Put packet to retransmission queue*/
-		eigrp_fifo_push(nbr->retrans_queue, dup);
-
-		if (nbr->retrans_queue->count == 1)
-			eigrp_send_packet_reliably(nbr);
-	}
-
-	eigrp_packet_free(ep);
+	eigrp_place_on_nbr_queue(nbr, ep, length);
 }

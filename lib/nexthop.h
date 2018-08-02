@@ -35,12 +35,12 @@ union g_addr {
 };
 
 enum nexthop_types_t {
-	NEXTHOP_TYPE_IFINDEX = 1,  /* Directly connected.  */
-	NEXTHOP_TYPE_IPV4,	 /* IPv4 nexthop.  */
-	NEXTHOP_TYPE_IPV4_IFINDEX, /* IPv4 nexthop with ifindex.  */
-	NEXTHOP_TYPE_IPV6,	 /* IPv6 nexthop.  */
-	NEXTHOP_TYPE_IPV6_IFINDEX, /* IPv6 nexthop with ifindex.  */
-	NEXTHOP_TYPE_BLACKHOLE,    /* Null0 nexthop.  */
+	NEXTHOP_TYPE_IFINDEX = 1,  		/* Directly connected.  */
+	NEXTHOP_TYPE_IPV4,	 			/* IPv4 nexthop.  */
+	NEXTHOP_TYPE_IPV4_IFINDEX, 		/* IPv4 nexthop with ifindex.  */
+	NEXTHOP_TYPE_IPV6,	 			/* IPv6 nexthop.  */
+	NEXTHOP_TYPE_IPV6_IFINDEX, 		/* IPv6 nexthop with ifindex.  */
+	NEXTHOP_TYPE_BLACKHOLE,    		/* Null0 nexthop.  */
 };
 
 enum blackhole_type {

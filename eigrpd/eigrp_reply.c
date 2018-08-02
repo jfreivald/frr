@@ -67,33 +67,12 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	uint16_t length = EIGRP_HEADER_LEN;
 	struct eigrp_interface *ei = nbr->ei;
 	struct eigrp *eigrp = ei->eigrp;
-	struct eigrp_prefix_entry *pe2;
-
-
-	if (pe) {
-		// TODO: Work in progress
-		/* Filtering */
-		/* get list from eigrp process */
-		pe2 = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
-				  sizeof(struct eigrp_prefix_entry));
-		memcpy(pe2, pe, sizeof(struct eigrp_prefix_entry));
-
-		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT,
-						  pe2->destination)) {
-			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"REPLY SEND: Setting Metric to max");
-			pe2->reported_metric.delay = EIGRP_MAX_METRIC;
-		}
-
-		/*
-		 * End of filtering
-		 */
-	}
+	char pbuf[PREFIX2STR_BUFFER];
 
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(ei->ifp->mtu), nbr);
 
 	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep->s, 0,
-				 eigrp->sequence_number, 0);
+	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep->s, 0);
 
 	// encode Authentication TLV, if needed
 	if (ei->params.auth_type == EIGRP_AUTH_TYPE_MD5
@@ -101,38 +80,21 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 		length += eigrp_add_authTLV_MD5_to_stream(ep->s, ei);
 	}
 
-
-	if (pe && pe->extTLV) {
-		char pbuf[PREFIX2STR_BUFFER];
+	if (pe) {
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "External route. Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
-		length += eigrp_add_externalTLV_to_stream(ep->s, pe);
-	} else if (pe) {
-		length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+		if (pe->extTLV) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "Using external TLV [%d:%s].", pe->extTLV->length, pbuf);
+			length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+		} else {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "Appending TLV data for %s", pbuf);
+			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+		}
+	} else {
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "No prefix to reply to.");
+		return;
 	}
 
-	if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-	    && (ei->params.auth_keychain != NULL)) {
-		eigrp_make_md5_digest(ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
-	}
-
-	/* EIGRP Checksum */
-	eigrp_packet_checksum(ei, ep->s, length);
-
-	ep->length = length;
-	ep->dst.s_addr = nbr->src.s_addr;
-
-	/*This ack number we await from neighbor*/
-	ep->sequence_number = eigrp->sequence_number;
-
-	/*Put packet to retransmission queue*/
-	eigrp_fifo_push(nbr->retrans_queue, ep);
-
-	if (nbr->retrans_queue->count == 1) {
-		eigrp_send_packet_reliably(nbr);
-	}
-	if (pe)
-		XFREE(MTYPE_EIGRP_PREFIX_ENTRY, pe2);
+	eigrp_place_on_nbr_queue(nbr, ep, length);
 }
 
 /*EIGRP REPLY read function*/
@@ -160,8 +122,6 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	nbr->recv_sequence_number = ntohl(eigrph->sequence);
-
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 
@@ -183,32 +143,14 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				char buf[PREFIX_STRLEN];
 
 				L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
-						"%s: Received prefix %s which we do not know about",
-						__PRETTY_FUNCTION__,
+						"Received REPLY for prefix which we do not have %s",
 						prefix2str(&dest_addr, buf, sizeof(buf)));
 				eigrp_IPv4_InternalTLV_free(tlv);
 				continue;
 			}
 
-			ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-
-			if (!ne) {
-				ne = eigrp_nexthop_entry_new();
-				ne->ei = ei;
-				ne->adv_router = nbr;
-				ne->reported_metric = tlv->metric;
-				ne->reported_distance = eigrp_calculate_metrics(eigrp, tlv->metric);
-				/*
-				 * Filtering
-				 */
-				if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-					ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-				ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-				pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-				ne->prefix = pe;
-				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-			}
+			ne = eigrp_nexthop_entry_new();
+			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, tlv->metric);
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;
@@ -238,32 +180,14 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				char buf[PREFIX_STRLEN];
 
 				L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
-						"%s: Received prefix %s which we do not know about",
-						__PRETTY_FUNCTION__,
+						"Received prefix which we do not have %s",
 						prefix2str(&dest_addr, buf, sizeof(buf)));
 				eigrp_IPv4_ExternalTLV_free(etlv);
 				continue;
 			}
 
-			ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-
-			if (!ne) {
-				ne = eigrp_nexthop_entry_new();
-				ne->ei = ei;
-				ne->adv_router = nbr;
-				ne->reported_metric = etlv->metric;
-				ne->reported_distance = eigrp_calculate_metrics(eigrp, etlv->metric);
-				/*
-				 * Filtering
-				 */
-				if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-					ne->reported_metric.delay = EIGRP_MAX_METRIC;
-
-				ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-				pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-				ne->prefix = pe;
-				ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-			}
+			ne = eigrp_nexthop_entry_new();
+			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, etlv->metric);
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;
@@ -272,6 +196,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			msg.metrics = etlv->metric;
 			msg.entry = ne;
 			msg.prefix = pe;
+
 			eigrp_fsm_event(&msg);
 
 			eigrp_IPv4_ExternalTLV_free(etlv);
@@ -284,6 +209,17 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 			break;
 		}
+
+//		struct listnode *ein, *nbrn;
+//		struct eigrp_interface *eick;
+//		struct eigrp_neighbor *einbr;
+//
+//		for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, eick)) {
+//			for (ALL_LIST_ELEMENTS_RO(eick->nbrs, nbrn, einbr)) {
+//				if (einbr != nbr) {
+//					eigrp_update_send_with_flags(einbr, EIGRP_UDPATE_ALL_ROUTES);
+//				}
+//			}
+//		}
 	}
-	eigrp_hello_send_ack(nbr);
 }

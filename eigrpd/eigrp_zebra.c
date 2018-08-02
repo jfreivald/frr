@@ -206,7 +206,7 @@ static int eigrp_interface_delete(int command, struct zclient *zclient,
 			ifp->metric, ifp->mtu);
 
 	if (ifp->info)
-		eigrp_if_free(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
+		eigrp_if_down(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
 
 	if_set_index(ifp, IFINDEX_INTERNAL);
 	return 0;
@@ -259,7 +259,7 @@ static int eigrp_interface_address_delete(int command, struct zclient *zclient,
 		return 0;
 
 	/* Call interface hook functions to clean up */
-	eigrp_if_free(ei, INTERFACE_DOWN_BY_ZEBRA);
+	eigrp_if_down(ei, INTERFACE_DOWN_BY_ZEBRA);
 
 	connected_free(c);
 
@@ -306,7 +306,7 @@ static int eigrp_interface_state_up(int command, struct zclient *zclient,
 
 			/* Must reset the interface (simulate down/up) when MTU
 			 * changes. */
-			eigrp_if_reset(ifp);
+			eigrp_if_reset(ifp, INTERFACE_DOWN_BY_ZEBRA);
 		}
 		return 0;
 	}
@@ -338,7 +338,7 @@ static int eigrp_interface_state_down(int command, struct zclient *zclient,
 			   ifp->name);
 
 	if (ifp->info)
-		eigrp_if_down(ifp->info);
+		eigrp_if_down(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
 
 	return 0;
 }
@@ -360,8 +360,10 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 	struct zapi_nexthop *api_nh;
 	struct eigrp_nexthop_entry *te;
 	struct listnode *node;
-	int count = 0;
+	int i, count = 0;
 	char pbuf[PREFIX2STR_BUFFER];
+	char nh_buf[MULTIPATH_NUM][100] = {};
+	char nh_str_buf[MULTIPATH_NUM*100] = {0};
 
 	if (!zclient->redist[AFI_IP][ZEBRA_ROUTE_EIGRP])
 		return;
@@ -372,6 +374,7 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 	api.safi = SAFI_UNICAST;
 	memcpy(&api.prefix, p, sizeof(*p));
 
+
 	SET_FLAG(api.message, ZAPI_MESSAGE_NEXTHOP);
 
 	/* Nexthop, ifindex, distance and metric information. */
@@ -381,28 +384,42 @@ void eigrp_zebra_route_add(struct prefix *p, struct list *successors)
 			break;
 		api_nh = &api.nexthops[count];
 		api_nh->vrf_id = VRF_DEFAULT;
-		if (te->adv_router->src.s_addr) {
+		if (te->adv_router && te->adv_router != te->ei->eigrp->neighbor_self && te->adv_router->src.s_addr) {
 			api_nh->gate.ipv4 = te->adv_router->src;
 			api_nh->type = NEXTHOP_TYPE_IPV4_IFINDEX;
-		} else
+		} else {
 			api_nh->type = NEXTHOP_TYPE_IFINDEX;
+		}
+
 		api_nh->ifindex = te->ei->ifp->ifindex;
+
+		snprintf(nh_buf[count], 100, "VRF_ID[%d] ", api_nh->vrf_id);
+		if (api_nh->type == NEXTHOP_TYPE_IPV4_IFINDEX)
+			snprintf(&(nh_buf[count][strnlen(nh_buf[count], 100)]), 100, "GW[%s] ", inet_ntoa(api_nh->gate.ipv4));
+		else
+			snprintf(&(nh_buf[count][strnlen(nh_buf[count], 100)]), 100, "IF[%s] ", te->ei->ifp->name);
 
 		count++;
 	}
+
 	api.nexthop_num = count;
+
+	for (i = 0; i < count; i++) {
+		snprintf(&(nh_str_buf[strnlen(nh_str_buf, sizeof(nh_str_buf))]), MULTIPATH_NUM*100, "[[ NH[%d] %s]]", i, nh_buf[i]);
+	}
 
 	prefix2str(&api.prefix, pbuf, PREFIX2STR_BUFFER);
 	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "Send to Zebra: type[%d], instance[%d], flags[%d], message[%d], safi[%d], prefix[%s], src_prefix[%d], "
-			"nexthop_num[%d], nexthops[%d], distance[%d], metric[%d], tag[%d], mtu[%d], vrf_id[%d], tableid[%d]",
-			api.type, api.instance, api.flags, api.message, api.safi, pbuf, api.src_prefix, api.nexthop_num,
-			api.nexthops[api.nexthop_num], api.distance, api.metric, api.tag, api.mtu, api.vrf_id, api.tableid);
+			"distance[%d], metric[%d], tag[%d], mtu[%d], tableid[%d]",
+			api.type, api.instance, api.flags, api.message, api.safi, pbuf, api.src_prefix, api.distance, api.metric,
+			api.tag, api.mtu, api.tableid);
+	L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_API, "nexthops[%d] : %s", count, nh_str_buf);
 
 	if (IS_DEBUG_EIGRP(zebra, ZEBRA_REDISTRIBUTE)) {
-		char buf[2][PREFIX_STRLEN];
+		char buf[2][PREFIX2STR_BUFFER];
 		L(zlog_debug, LOGGER_ZEBRA, LOGGER_ZEBRA_ROUTES,"Zebra: Route add %s nexthop %s",
-			   prefix2str(p, buf[0], PREFIX_STRLEN),
-			   inet_ntop(AF_INET, 0, buf[1], PREFIX_STRLEN));
+			   prefix2str(p, buf[0], PREFIX2STR_BUFFER),
+			   inet_ntop(AF_INET, &api_nh->gate, buf[1], PREFIX2STR_BUFFER));
 	}
 
 	if ((zclient_route_send(ZEBRA_ROUTE_ADD, zclient, &api)) < 0) {

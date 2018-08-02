@@ -58,6 +58,7 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_network.h"
 #include "eigrpd/eigrp_fsm.h"
+#include "eigrpd/eigrp_packet.h"
 
 /* Packet Type String. */
 static const struct message eigrp_general_tlv_type_str[] = {
@@ -147,19 +148,10 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 			&& (eigrp->k_values[4] == nbr->K5)) {
 
 		if (eigrp_nbr_state_get(nbr) == EIGRP_NEIGHBOR_DOWN) {
-			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"%s: Neighbor %s (%s) is pending from HELLO: new adjacency", __PRETTY_FUNCTION__,
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Neighbor %s (%s) is pending from HELLO: new adjacency",
 					inet_ntoa(nbr->src),
 					ifindex2ifname(nbr->ei->ifp->ifindex,
 							VRF_DEFAULT));
-
-			/* Expedited hello sent */
-			eigrp_hello_send(nbr->ei, EIGRP_HELLO_NORMAL, NULL);
-
-			//     if(ntohl(nbr->ei->address->u.prefix4.s_addr) >
-			//     ntohl(nbr->src.s_addr))
-			eigrp_update_send_init(nbr);
-
-			eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_PENDING);
 		}
 	} else {
 		if (eigrp_nbr_state_get(nbr) != EIGRP_NEIGHBOR_DOWN) {
@@ -171,7 +163,7 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 						inet_ntoa(nbr->src),
 						ifindex2ifname(nbr->ei->ifp->ifindex,
 								VRF_DEFAULT));
-				eigrp_nbr_delete(nbr);
+				eigrp_nbr_down(nbr);
 				return NULL;
 			} else {
 				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,
@@ -179,7 +171,11 @@ eigrp_hello_parameter_decode(struct eigrp_neighbor *nbr,
 						inet_ntoa(nbr->src),
 						ifindex2ifname(nbr->ei->ifp->ifindex,
 								VRF_DEFAULT));
-				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_DOWN);
+				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Neighbor %s (%s) is DOWN",
+									inet_ntoa(nbr->src),
+									ifindex2ifname(nbr->ei->ifp->ifindex,
+											VRF_DEFAULT));
+				eigrp_nbr_down(nbr);
 			}
 		}
 	}
@@ -258,10 +254,8 @@ static void eigrp_peer_termination_decode(struct eigrp_neighbor *nbr,
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Neighbor %s (%s) is down: Peer Termination received",
 				inet_ntoa(nbr->src),
 				ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
-		/* set neighbor to DOWN */
-		nbr->state = EIGRP_NEIGHBOR_DOWN;
 		/* delete neighbor */
-		eigrp_nbr_delete(nbr);
+		eigrp_nbr_down(nbr);
 	}
 }
 
@@ -332,7 +326,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 
 	char pre_text[PREFIX_STRLEN];
 
-	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Hello: EI[%s],EIGRPH[v:%02x|op:%02x|csum:%04x|fl:%08x|seq:%08x|ack:%04x|vrid:%02x|as:%d]",
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Hello: EI[%s],EIGRPH[v:%02x|op:%02x|csum:%04x|fl:%08x|seq:%08x|ack:%04x|vrid:%02x|as:%d]",
 			ei->ifp->name, eigrph->version, eigrph->opcode, ntohs(eigrph->checksum), ntohl(eigrph->flags), 
 			ntohl(eigrph->sequence), ntohl(eigrph->ack), eigrph->vrid, ntohs(eigrph->ASNumber));
 
@@ -422,84 +416,57 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Hello Packet received from %s",
 				inet_ntoa(nbr->src));
 
-	/* Add host route to neighbor to topology */
+	/* For PtP, Add a host route for neighbor to topology */
+	if (nbr->state == EIGRP_NEIGHBOR_DOWN && ei->type == EIGRP_IFTYPE_POINTOPOINT) {
 
-	/* Search if destination exists */
-	dest_addr.family = AF_INET;
-	dest_addr.u.prefix4 = nbr->src;
-	dest_addr.prefixlen = 32;
+		/* Search if destination exists */
+		dest_addr.family = AF_INET;
+		dest_addr.u.prefix4 = nbr->src;
+		dest_addr.prefixlen = 32;
 
-	prefix2str(&dest_addr, pre_text, PREFIX_STRLEN);
-	pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
+		prefix2str(&dest_addr, pre_text, PREFIX_STRLEN);
+		pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
-	/*Prepare metrics*/
-	metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
-	metric.delay = eigrp_delay_to_scaled(ei->params.delay);
-	metric.load = ei->params.load;
-	metric.reliability = ei->params.reliability;
-	metric.mtu[0] = 0xDC;
-	metric.mtu[1] = 0x05;
-	metric.mtu[2] = 0x00;
-	metric.hop_count = 0;
-	metric.flags = 0;
-	metric.tag = 0;
+		/* Prepare metrics for route to neighbor host address */
+		metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
+		metric.delay = eigrp_delay_to_scaled(ei->params.delay);
+		metric.load = ei->params.load;
+		metric.reliability = ei->params.reliability;
+		MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
+		metric.hop_count = 0;
+		metric.flags = 0;
+		metric.tag = 0;
 
-	if (!pe) {
-		//Create PE host entry for neighbor
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Create prefix entry for %s", pre_text);
-		pe = eigrp_prefix_entry_new();
-		pe->serno = eigrp->serno;
-		pe->destination = (struct prefix *)prefix_ipv4_new();
-		prefix_copy(pe->destination, &dest_addr);
-		pe->af = AF_INET;
-		pe->state = EIGRP_FSM_STATE_PASSIVE;
-		pe->nt = EIGRP_TOPOLOGY_TYPE_REMOTE;
+		if (!pe) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "Create topology entry for %s", pre_text);
+			pe = eigrp_prefix_entry_new();
+			eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+									EIGRP_TOPOLOGY_TYPE_CONNECTED, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+									EIGRP_MAX_FEASIBLE_DISTANCE);
 
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Add prefix entry for %s into %s", pre_text, eigrp->name);
-		eigrp_prefix_entry_add(eigrp, pe);
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+			eigrp_prefix_entry_add(eigrp, pe);
+		}
 
-	} else {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Prefix entry already exists for %s", pre_text);
-	}
+		ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 
-	ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-	if (!ne) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Create nexthop entry for %s", pre_text);
-		ne = eigrp_nexthop_entry_new();
-		ne->ei = ei;
-		ne->adv_router = nbr;
-		ne->reported_metric = metric;
-		ne->reported_distance = eigrp_calculate_metrics(eigrp, metric);
-		/*
-		 * Filtering
-		 */
-		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_IN, &dest_addr))
-			ne->reported_metric.delay = EIGRP_MAX_METRIC;
+		if (!ne) {
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s",
+					pre_text, inet_ntoa(eigrp->neighbor_self->src));
+			ne = eigrp_nexthop_entry_new();
+			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, metric);
+			ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
-		ne->distance = eigrp_calculate_total_metrics(eigrp, ne);
-		pe->fdistance = pe->distance = pe->rdistance = ne->distance;
-		ne->prefix = pe;
-		ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
+			msg.packet_type = EIGRP_OPC_UPDATE;
+			msg.eigrp = eigrp;
+			msg.data_type = EIGRP_INT;
+			msg.adv_router = nbr;
+			msg.metrics = metric;
+			msg.entry = ne;
+			msg.prefix = pe;
 
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "Add nexthop entry for %s", pre_text);
-		eigrp_nexthop_entry_add(pe, ne);
-
-		pe->distance = pe->fdistance = pe->rdistance = ne->distance;
-		pe->reported_metric = ne->total_metric;
-		eigrp_topology_update_node_flags(pe);
-
-		pe->req_action |= EIGRP_FSM_NEED_UPDATE;
-		listnode_add(eigrp->topology_changes_internalIPV4, pe);
-
-		msg.packet_type = EIGRP_OPC_UPDATE;
-		msg.eigrp = eigrp;
-		msg.data_type = EIGRP_INT;
-		msg.adv_router = nbr;
-		msg.metrics = metric;
-		msg.entry = ne;
-		msg.prefix = pe;
-
-		eigrp_fsm_event(&msg);
+			eigrp_fsm_event(&msg);
+		}
 	}
 }
 
@@ -720,7 +687,7 @@ static uint16_t eigrp_hello_parameter_encode(struct eigrp_interface *ei,
  *
  */
 static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
-		in_addr_t addr, uint32_t ack,
+		in_addr_t addr,
 		uint8_t flags,
 		struct in_addr *nbr_addr)
 {
@@ -731,9 +698,8 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(ei->ifp->mtu), NULL);
 
 	if (ep) {
-		// encode common header feilds
-		eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep->s, 0,
-				0, ack);
+		// encode common header fields
+		eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep->s, 0);
 
 		// encode Authentication TLV
 		if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
@@ -771,7 +737,7 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 		// Set packet length
 		ep->length = length;
 
-		// set soruce address for the hello packet
+		// set destination address for the hello packet
 		ep->dst.s_addr = addr;
 
 		if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
@@ -808,16 +774,16 @@ void eigrp_hello_send_ack(struct eigrp_neighbor *nbr)
 {
 	struct eigrp_packet *ep;
 
-	/* if packet succesfully created, add it to the interface queue */
-	ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr,
-			nbr->recv_sequence_number, EIGRP_HELLO_NORMAL,
-			NULL);
+	/* if packet successfully created, add it to the interface queue */
+	ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_NORMAL, NULL);
 
 	if (ep) {
 		if (IS_DEBUG_EIGRP_PACKET(0, SEND))
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Queueing [Hello] Ack Seq [%u] nbr [%s]",
 					nbr->recv_sequence_number,
 					inet_ntoa(nbr->src));
+
+		ep->nbr = nbr;
 
 		/* Add packet to the top of the interface output queue*/
 		eigrp_fifo_push(nbr->ei->obuf, ep);
@@ -861,9 +827,9 @@ void eigrp_hello_send(struct eigrp_interface *ei, uint8_t flags,
 	if (IS_DEBUG_EIGRP_PACKET(0, SEND))
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Queueing [Hello] Interface(%s)", IF_NAME(ei));
 
-	/* if packet was succesfully created, then add it to the interface queue
+	/* if packet was successfully created, then add it to the interface queue
 	 */
-	ep = eigrp_hello_encode(ei, htonl(EIGRP_MULTICAST_ADDRESS), 0, flags,
+	ep = eigrp_hello_encode(ei, htonl(EIGRP_MULTICAST_ADDRESS), flags,
 			nbr_addr);
 
 	if (ep) {

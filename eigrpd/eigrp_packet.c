@@ -85,6 +85,11 @@ static int eigrp_verify_header(struct stream *, struct eigrp_interface *,
 static int eigrp_retrans_count_exceeded(struct eigrp_packet *ep,
 					struct eigrp_neighbor *nbr)
 {
+
+	L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
+				"NEIGHBOR %s: Retransmit exceeded. NEIGHBOR RESET.",
+				inet_ntoa(nbr->src));
+	eigrp_nbr_hard_restart(nbr, NULL);
 	return 1;
 }
 
@@ -321,7 +326,6 @@ int eigrp_write(struct thread *thread)
 	struct ip iph;
 	struct msghdr msg;
 	struct iovec iov[2];
-	uint32_t seqno, ack;
 
 	int ret;
 	int flags = 0;
@@ -347,12 +351,12 @@ int eigrp_write(struct thread *thread)
 	/* Get one packet from queue. */
 	ep = eigrp_fifo_next(ei->obuf);
 	if (!ep) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"%s: Interface %s no packet on queue?",
-			 __PRETTY_FUNCTION__, ei->ifp->name);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Interface %s no packet on queue?",
+			 ei->ifp->name);
 		goto out;
 	}
 	if (ep->length < EIGRP_HEADER_LEN) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"%s: Packet just has a header?", __PRETTY_FUNCTION__);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Packet just has a header?");
 		eigrp_header_dump((struct eigrp_header *)ep->s->data);
 		eigrp_packet_delete(ei);
 		goto out;
@@ -373,14 +377,19 @@ int eigrp_write(struct thread *thread)
 	 * this outgoing packet.
 	 */
 	eigrph = (struct eigrp_header *)STREAM_DATA(ep->s);
-	seqno = ntohl(eigrph->sequence);
-	ack = ntohl(eigrph->ack);
-	if (ep->nbr && (ack != ep->nbr->recv_sequence_number)) {
+
+	if (ep->nbr && !(IN_MULTICAST(htonl(ep->dst.s_addr)))) {
 		eigrph->ack = htonl(ep->nbr->recv_sequence_number);
-		ack = ep->nbr->recv_sequence_number;
+		eigrph->checksum = 0;
+		eigrp_packet_checksum(ei, ep->s, ep->length);
+	} else {
+		eigrph->ack = 0;
 		eigrph->checksum = 0;
 		eigrp_packet_checksum(ei, ep->s, ep->length);
 	}
+
+	if (eigrph->opcode == EIGRP_OPC_HELLO && eigrph->ack == 0 && !(IN_MULTICAST(htonl(ep->dst.s_addr))))
+		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"UNICAST HELLO");
 
 	sa_dst.sin_family = AF_INET;
 #ifdef HAVE_STRUCT_SOCKADDR_IN_SIN_LEN
@@ -439,7 +448,7 @@ int eigrp_write(struct thread *thread)
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
 			"Sending [%s][%d/%d] to [%s] via [%s] ret [%d].",
 			lookup_msg(eigrp_packet_type_str, eigrph->opcode, NULL),
-			seqno, ack, inet_ntoa(ep->dst), IF_NAME(ei), ret);
+			ntohl(eigrph->sequence), ntohl(eigrph->ack), inet_ntoa(ep->dst), IF_NAME(ei), ret);
 	}
 
 	if (ret < 0)
@@ -469,6 +478,46 @@ out:
 	return 0;
 }
 
+static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
+		struct eigrp_header* eigrph, struct eigrp_interface* ei, struct ip* iph) {
+
+	uint32_t flags = ntohl(eigrph->flags);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "PACKET FROM NON-UP NEIGHBOR [%s]: OPCODE[%d] FLAGS[%02x] STATE[%02x]]",
+			inet_ntoa(nbr->src), eigrph->opcode, flags, nbr->state);
+
+	if (flags & EIGRP_INIT_FLAG) {
+		nbr->state |= EIGRP_NEIGHBOR_INIT_RXD;
+	}
+
+	if (eigrph->ack != 0) {
+		nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;
+	}
+
+	// EIGRP_NEIGHBOR_DOWN
+	// EIGRP_NEIGHBOR_INIT_TXD
+	// EIGRP_NEIGHBOR_INIT_RXD
+	// EIGRP_NEIGHBOR_ACK_RXD
+	// EIGRP_NEIGHBOR_UP
+
+	if (!(nbr->state & EIGRP_NEIGHBOR_INIT_TXD) || ((flags & EIGRP_INIT_FLAG) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD))) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s SEND INIT: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
+		eigrp_update_send_init(nbr);
+		nbr->state |= EIGRP_NEIGHBOR_INIT_TXD;
+	} else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && (nbr->state & EIGRP_NEIGHBOR_INIT_TXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INIT TX/RX. NO ACK. SEND ACK: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
+		eigrp_hello_send_ack(nbr);
+	} else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && (nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
+		nbr->state = EIGRP_NEIGHBOR_UP;
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s UP: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
+		eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
+	} else if (eigrph->opcode != EIGRP_OPC_HELLO) {
+		/* Some other non-init packet. The other router probably thinks we're up. Reset them. */
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INVALID STARTUP SEQUENCE: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
+		eigrp_nbr_hard_restart(nbr, NULL);
+	}
+}
+
 /* Starting point of packet process function. */
 int eigrp_read(struct thread *thread)
 {
@@ -482,6 +531,8 @@ int eigrp_read(struct thread *thread)
 	struct eigrp_neighbor *nbr;
 	struct route_node *rn;
 	route_table_iter_t rtit;
+	struct eigrp_packet *ep = NULL;
+	uint32_t ack = 0;
 
 	uint16_t opcode = 0;
 	uint16_t length = 0;
@@ -543,7 +594,7 @@ int eigrp_read(struct thread *thread)
 	 * any neighbors, so checking for a NULL on nbrs should tell us whether
 	 * or not this needs to happen. Plus there are asserts later that die
 	 * if nbrs is NULL, so a good check anyway! */
-	if(ei->nbrs == NULL) {
+	if(!ei || ei->nbrs == NULL) {
 		char pstr[25];
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE,"Initialize Interface[%s]",ifp->name);
 
@@ -622,7 +673,7 @@ int eigrp_read(struct thread *thread)
 	 */
 	else if (ei->ifp != ifp) {
 		if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV))
-			L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet from [%s] received on wrong link %s",
+			L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet from [%s] received on wrong link [%s]",
 				  inet_ntoa(iph->ip_src), ifp->name);
 		return 0;
 	}
@@ -637,11 +688,11 @@ int eigrp_read(struct thread *thread)
 		return ret;
 	}
 
-	/* calcualte the eigrp packet length, and move the pounter to the
+	/* Calculate the eigrp packet length, and move the pointer to the
 	   start of the eigrp TLVs */
 	opcode = eigrph->opcode;
 
-//	if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV)) {
+	if (IS_DEBUG_EIGRP_TRANSMIT(0, RECV)) {
 		char src[PREFIX_STRLEN], dst[PREFIX_STRLEN];
 
 		strlcpy(src, inet_ntoa(iph->ip_src), sizeof(src));
@@ -651,57 +702,88 @@ int eigrp_read(struct thread *thread)
 			lookup_msg(eigrp_packet_type_str, opcode, NULL),
 			ntohl(eigrph->sequence), ntohl(eigrph->ack), length,
 			IF_NAME(ei), src, dst);
-//	}
+	}
 
-	/* Read rest of the packet and call each sort of packet routine. */
-	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);
+	nbr = eigrp_nbr_get(ei, eigrph, iph);
 
-	/* New testing block of code for handling Acks */
-	if (ntohl(eigrph->ack) != 0) {
-		struct eigrp_packet *ep = NULL;
+	// neighbor must be valid, eigrp_nbr_get creates if none existed
+	assert(nbr);
 
-		nbr = eigrp_nbr_get(ei, eigrph, iph);
+	/* Manage retransmit queues */
+	ack = ntohl(eigrph->ack);
+	if (eigrph->ack != 0) {
+		//Check unicast queue
+		do {
+			ep = eigrp_fifo_next(nbr->retrans_queue);
+			if (ep && ep->sequence_number == 0) {
+				eigrp_fifo_pop(nbr->retrans_queue);
+				eigrp_packet_free(ep);
+			}
+		} while (ep && ep->sequence_number == 0);
 
-		// neighbor must be valid, eigrp_nbr_get creates if none existed
-		assert(nbr);
-
-		ep = eigrp_fifo_next(nbr->retrans_queue);
-		if ((ep) && (ntohl(eigrph->ack) == ep->sequence_number)) {
+		if ((ep) && ack == ep->sequence_number) {
+			//We got the ack from the last packet sent. Discard it and send the next packet.
+			nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;		//We've received an ACK, so we have two-way comms.
 			ep = eigrp_fifo_pop(nbr->retrans_queue);
 			eigrp_packet_free(ep);
-
-			if ((nbr->state == EIGRP_NEIGHBOR_PENDING)
-			    && (ntohl(eigrph->ack)
-				== nbr->init_sequence_number)) {
-				eigrp_nbr_state_set(nbr, EIGRP_NEIGHBOR_UP);
-				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Neighbor(%s) up",
-					  inet_ntoa(nbr->src));
-				nbr->init_sequence_number = 0;
-				nbr->recv_sequence_number =
-					ntohl(eigrph->sequence);
-				eigrp_update_send_EOT(nbr);
-			} else
+			ep = NULL;
+			if (nbr->retrans_queue->count > 0) {
 				eigrp_send_packet_reliably(nbr);
+			}
+		} else if ((ep) && ack != ep->sequence_number) {
+			L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR, "INVALID ACK [%s]: O[%d] ACK[%02x] SEQ[%02x]]",
+								inet_ntoa(nbr->src), eigrph->opcode, ack, ep->sequence_number);
 		}
-		ep = eigrp_fifo_next(nbr->multicast_queue);
-		if (ep) {
-			if (ntohl(eigrph->ack) == ep->sequence_number) {
-				ep = eigrp_fifo_pop(nbr->multicast_queue);
+
+		//Check multicast queue
+		do {
+			ep = eigrp_fifo_next(nbr->multicast_queue);
+			if (ep && ep->sequence_number == 0) {
+				eigrp_fifo_pop(nbr->retrans_queue);
 				eigrp_packet_free(ep);
-				if (nbr->multicast_queue->count > 0) {
-					eigrp_send_packet_reliably(nbr);
-				}
+			}
+		} while (ep && ep->sequence_number == 0);
+
+		if (ep && ack == ep->sequence_number) {
+			nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;		//We've received an ACK, so we have two-way comms.
+			ep = eigrp_fifo_pop(nbr->multicast_queue);
+			eigrp_packet_free(ep);
+			ep = NULL;
+			if (nbr->retrans_queue->count > 0) {
+				eigrp_send_packet_reliably(nbr);
 			}
 		}
 	}
 
+	if (nbr->state != EIGRP_NEIGHBOR_UP) {
+		eigrp_neighbor_startup_sequence(nbr, eigrph, ei, iph);
+	} else if ((ntohl(eigrph->flags) & EIGRP_INIT_FLAG)) {
+		/* Nbr is supposedly up...
+		 * But is sending us an INIT.
+		 * Do a hard-reset on the neighbor, tearing down all of the routes in the process.
+		 */
+		eigrp_nbr_down(nbr);
+		nbr = eigrp_nbr_get(ei, eigrph, iph);
+		nbr->recv_sequence_number = ntohl(eigrph->sequence);
+		eigrp_neighbor_startup_sequence(nbr, eigrph, ei, iph);
+	}
+
+	/* Update receive sequence number and send ack */
+	if (eigrph->sequence) {
+		nbr->recv_sequence_number = ntohl(eigrph->sequence);
+		if (nbr->state == EIGRP_NEIGHBOR_UP)
+			eigrp_hello_send_ack(nbr);
+	}
+
+	/* Read rest of the packet and call each sort of packet routine. */
+	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);
 
 	switch (opcode) {
 	case EIGRP_OPC_HELLO:
 		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_PROBE:
-		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: PROBE PACKET WITH NO PROBE HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"PROBE PACKET WITH NO PROBE HANDLER");
 		//      eigrp_probe_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -712,7 +794,7 @@ int eigrp_read(struct thread *thread)
 		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_REQUEST:
-		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"%s: REQUEST PACKET WITH NO REQUEST HANDLER", __PRETTY_FUNCTION__);
+		L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"REQUEST PACKET WITH NO REQUEST HANDLER");
 		//      eigrp_request_receive(eigrp, iph, eigrph, ibuf, ei,
 		//      length);
 		break;
@@ -866,6 +948,35 @@ struct eigrp_packet *eigrp_packet_new(size_t size, struct eigrp_neighbor *nbr)
 	return new;
 }
 
+void eigrp_place_on_nbr_queue(struct eigrp_neighbor *nbr,
+					    struct eigrp_packet *ep, int length)
+{
+	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
+	    && (nbr->ei->params.auth_keychain != NULL)) {
+		length += eigrp_add_authTLV_MD5_to_stream(ep->s, nbr->ei);
+		eigrp_make_md5_digest(nbr->ei, ep->s,
+				      EIGRP_AUTH_UPDATE_INIT_FLAG);
+	}
+
+	/* EIGRP Checksum */
+	eigrp_packet_checksum(nbr->ei, ep->s, length);
+
+	ep->length = length;
+	ep->nbr = nbr;
+	ep->dst.s_addr = nbr->src.s_addr;
+
+	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Enqueuing Packet Len [%u] Seq [%u] Dest [%s]",
+			   ep->length, ep->sequence_number, inet_ntoa(ep->dst));
+
+	/*Put packet to retransmission queue*/
+	eigrp_fifo_push(nbr->retrans_queue, ep);
+
+	if (nbr->retrans_queue->count == 1) {
+		eigrp_send_packet_reliably(nbr);
+	}
+}
+
 void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr)
 {
 	struct eigrp_packet *ep;
@@ -882,9 +993,6 @@ void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr)
 		thread_add_timer(master, eigrp_unack_packet_retrans, nbr,
 				 EIGRP_PACKET_RETRANS_TIME,
 				 &ep->t_retrans_timer);
-
-		/*Increment sequence number counter*/
-		nbr->ei->eigrp->sequence_number++;
 
 		/* Hook thread to write packet. */
 		if (nbr->ei->on_write_q == 0) {
@@ -910,7 +1018,7 @@ void eigrp_packet_checksum(struct eigrp_interface *ei, struct stream *s,
 
 /* Make EIGRP header. */
 void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
-			      uint32_t flags, uint32_t sequence, uint32_t ack)
+			      uint32_t flags)
 {
 	struct eigrp_header *eigrph;
 
@@ -923,15 +1031,21 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 
 	eigrph->vrid = htons(eigrp->vrid);
 	eigrph->ASNumber = htons(eigrp->AS);
-	eigrph->ack = htonl(ack);
-	eigrph->sequence = htonl(sequence);
+	if (type == EIGRP_OPC_HELLO) {
+		eigrph->sequence = 0;
+	} else {
+		if (eigrp->sequence_number == 0) {
+			(eigrp->sequence_number)++;
+		}
+		eigrph->sequence = htonl((eigrp->sequence_number)++);
+	}
 	//  if(flags == EIGRP_INIT_FLAG)
 	//    eigrph->sequence = htonl(3);
 	eigrph->flags = htonl(flags);
 
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, PACKET_DETAIL))
-		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet Header Init Seq [%u] Ack [%u]",
-			   htonl(eigrph->sequence), htonl(eigrph->ack));
+		L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"Packet Header Init Seq [%u]",
+			   htonl(eigrph->sequence));
 
 	stream_forward_endp(s, EIGRP_HEADER_LEN);
 }
@@ -1110,6 +1224,9 @@ struct eigrp_packet *eigrp_fifo_pop(struct eigrp_fifo *fifo)
 			fifo->tail->next = NULL;
 
 		fifo->count--;
+
+		ep->next = NULL;
+		ep->previous = NULL;
 	}
 
 	return ep;
@@ -1258,8 +1375,8 @@ struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s)
 	return etlv;
 }
 
-uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
-					 struct eigrp_prefix_entry *pe)
+uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
+					 struct eigrp_prefix_entry *pe, int flags)
 {
 	uint16_t length;
 
@@ -1318,16 +1435,29 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 	stream_putl(s, 0x00000000);
 
 	/*Metric*/
-	stream_putl(s, pe->reported_metric.delay);
-	stream_putl(s, pe->reported_metric.bandwidth);
-	stream_putc(s, pe->reported_metric.mtu[2]);
-	stream_putc(s, pe->reported_metric.mtu[1]);
-	stream_putc(s, pe->reported_metric.mtu[0]);
-	stream_putc(s, pe->reported_metric.hop_count);
-	stream_putc(s, pe->reported_metric.reliability);
-	stream_putc(s, pe->reported_metric.load);
-	stream_putc(s, pe->reported_metric.tag);
-	stream_putc(s, pe->reported_metric.flags);
+	if (flags) {
+		stream_putl(s, EIGRP_INFINITE_METRIC.delay);
+		stream_putl(s, EIGRP_INFINITE_METRIC.bandwidth);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
+		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
+		stream_putc(s, EIGRP_INFINITE_METRIC.load);
+		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
+		stream_putc(s, EIGRP_INFINITE_METRIC.flags);
+	} else {
+		stream_putl(s, pe->reported_metric.delay);
+		stream_putl(s, pe->reported_metric.bandwidth);
+		stream_putc(s, pe->reported_metric.mtu[2]);
+		stream_putc(s, pe->reported_metric.mtu[1]);
+		stream_putc(s, pe->reported_metric.mtu[0]);
+		stream_putc(s, pe->reported_metric.hop_count+1);
+		stream_putc(s, pe->reported_metric.reliability);
+		stream_putc(s, pe->reported_metric.load);
+		stream_putc(s, pe->reported_metric.tag);
+		stream_putc(s, pe->reported_metric.flags);
+	}
 
 	stream_putc(s, pe->destination->prefixlen);
 
@@ -1344,8 +1474,8 @@ uint16_t eigrp_add_internalTLV_to_stream(struct stream *s,
 	return length;
 }
 
-uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
-					 struct eigrp_prefix_entry *pe)
+uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
+					 struct eigrp_prefix_entry *pe, int flags)
 {
 
 	/* We write out external routes exactly the same way we received them. */
@@ -1360,17 +1490,30 @@ uint16_t eigrp_add_externalTLV_to_stream(struct stream *s,
 	stream_putc(s, pe->extTLV->external_protocol);
 	stream_putc(s, pe->extTLV->external_flags);
 
-	stream_putl(s, pe->extTLV->metric.delay);
-	stream_putl(s, pe->extTLV->metric.bandwidth);
-	stream_putc(s, pe->extTLV->metric.mtu[0]);
-	stream_putc(s, pe->extTLV->metric.mtu[1]);
-	stream_putc(s, pe->extTLV->metric.mtu[2]);
-	stream_putc(s, pe->extTLV->metric.hop_count);
-	stream_putc(s, pe->extTLV->metric.reliability);
-	stream_putc(s, pe->extTLV->metric.load);
-	stream_putc(s, pe->extTLV->metric.tag);
-	stream_putc(s, pe->extTLV->metric.flags);
-
+	/*Metric*/
+	if (flags) {
+		stream_putl(s, EIGRP_INFINITE_METRIC.delay);
+		stream_putl(s, EIGRP_INFINITE_METRIC.bandwidth);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
+		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
+		stream_putc(s, EIGRP_INFINITE_METRIC.load);
+		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
+		stream_putc(s, EIGRP_INFINITE_METRIC.flags);
+	} else {
+		stream_putl(s, pe->reported_metric.delay);
+		stream_putl(s, pe->reported_metric.bandwidth);
+		stream_putc(s, pe->reported_metric.mtu[2]);
+		stream_putc(s, pe->reported_metric.mtu[1]);
+		stream_putc(s, pe->reported_metric.mtu[0]);
+		stream_putc(s, pe->reported_metric.hop_count+1);
+		stream_putc(s, pe->reported_metric.reliability);
+		stream_putc(s, pe->reported_metric.load);
+		stream_putc(s, pe->reported_metric.tag);
+		stream_putc(s, pe->reported_metric.flags);
+	}
 	stream_putc(s, pe->extTLV->prefix_length);
 
 	if (pe->extTLV->prefix_length <= 8) {

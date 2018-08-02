@@ -44,14 +44,12 @@
  *          /                /     /        +----+                    \    \
  *         |                |     |               |                    |    |
  *         |                v     |               |                    |    v
- *    +===========+   (6)  +===========+       +===========+   (6) +===========+
- *    |           |------->|           |  (5)  |           |-------->| |
- *    |           |   (4)  |           |------>|           |   (4)   | |
- *    | ACTIVE 0  |<-------| ACTIVE 1  |       | ACTIVE 2  |<--------| ACTIVE 3
- * |
- * +--|           |     +--|           |    +--|           |      +--| |
- * |  +===========+     |  +===========+    |  +===========+      |
- * +===========+
+ *    +===========+   (6)  +===========+       +===========+   (6)   +===========+
+ *    |           |------->|           |  (5)  |           |-------->|           |
+ *    |           |   (4)  |           |------>|           |   (4)   |           |
+ *    | ACTIVE 0  |<-------| ACTIVE 1  |       | ACTIVE 2  |<--------| ACTIVE 3  |
+ * +--|           |     +--|           |    +--|           |      +--|           |
+ * |  +===========+     |  +===========+    |  +===========+      |  +===========+
  * |       ^  |(5)      |      ^            |    ^    ^           |         ^
  * |       |  +---------|------|------------|----+    |           |         |
  * +-------+            +------+            +---------+           +---------+
@@ -103,7 +101,7 @@ int eigrp_fsm_event_qact(struct eigrp_fsm_action_message *);
 
 //---------------------------------------------------------------------
 
-const struct eigrp_metrics infinite_metrics = {0,0,{0,0,0},255,0,0,0,0};
+const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_METRIC,0,{0,0,0},255,0,0,0,0};
 
 /*
  * NSM - field of fields of struct containing one function each.
@@ -115,142 +113,243 @@ const struct eigrp_metrics infinite_metrics = {0,0,{0,0,0},255,0,0,0,0};
 struct {
 	int (*func)(struct eigrp_fsm_action_message *);
 } NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
-	{
-		// PASSIVE STATE
-		{eigrp_fsm_event_nq_fcn},     /* Event 0 */
-		{eigrp_fsm_event_keep_state}, /* Event 1 */
-		{eigrp_fsm_event_q_fcn},      /* Event 2 */
-		{eigrp_fsm_event_keep_state}, /* Event 3 */
-		{eigrp_fsm_event_keep_state}, /* Event 4 */
-		{eigrp_fsm_event_keep_state}, /* Event 5 */
-		{eigrp_fsm_event_keep_state}, /* Event 6 */
-		{eigrp_fsm_event_keep_state}, /* Event 7 */
-	},
-	{
-		// Active 0 state
-		{eigrp_fsm_event_keep_state}, /* Event 0 */
-		{eigrp_fsm_event_keep_state}, /* Event 1 */
-		{eigrp_fsm_event_keep_state}, /* Event 2 */
-		{eigrp_fsm_event_lr_fcs},     /* Event 3 */
-		{eigrp_fsm_event_keep_state}, /* Event 4 */
-		{eigrp_fsm_event_qact},       /* Event 5 */
-		{eigrp_fsm_event_lr_fcn},     /* Event 6 */
-		{eigrp_fsm_event_keep_state}, /* Event 7 */
-	},
-	{
-		// Active 1 state
-		{eigrp_fsm_event_keep_state}, /* Event 0 */
-		{eigrp_fsm_event_lr},	 /* Event 1 */
-		{eigrp_fsm_event_keep_state}, /* Event 2 */
-		{eigrp_fsm_event_keep_state}, /* Event 3 */
-		{eigrp_fsm_event_dinc},       /* Event 4 */
-		{eigrp_fsm_event_qact},       /* Event 5 */
-		{eigrp_fsm_event_keep_state}, /* Event 6 */
-		{eigrp_fsm_event_keep_state}, /* Event 7 */
-	},
-	{
-		// Active 2 state
-		{eigrp_fsm_event_keep_state}, /* Event 0 */
-		{eigrp_fsm_event_keep_state}, /* Event 1 */
-		{eigrp_fsm_event_keep_state}, /* Event 2 */
-		{eigrp_fsm_event_lr_fcs},     /* Event 3 */
-		{eigrp_fsm_event_keep_state}, /* Event 4 */
-		{eigrp_fsm_event_keep_state}, /* Event 5 */
-		{eigrp_fsm_event_lr_fcn},     /* Event 6 */
-		{eigrp_fsm_event_keep_state}, /* Event 7 */
-	},
-	{
-		// Active 3 state
-		{eigrp_fsm_event_keep_state}, /* Event 0 */
-		{eigrp_fsm_event_lr},	 /* Event 1 */
-		{eigrp_fsm_event_keep_state}, /* Event 2 */
-		{eigrp_fsm_event_keep_state}, /* Event 3 */
-		{eigrp_fsm_event_dinc},       /* Event 4 */
-		{eigrp_fsm_event_keep_state}, /* Event 5 */
-		{eigrp_fsm_event_keep_state}, /* Event 6 */
-		{eigrp_fsm_event_keep_state}, /* Event 7 */
-	},
+		{
+				// PASSIVE STATE
+				{eigrp_fsm_event_nq_fcn},     /* Event 0 */
+				{eigrp_fsm_event_keep_state}, /* Event 1 */
+				{eigrp_fsm_event_q_fcn},      /* Event 2 */
+				{eigrp_fsm_event_keep_state}, /* Event 3 */
+				{eigrp_fsm_event_keep_state}, /* Event 4 */
+				{eigrp_fsm_event_keep_state}, /* Event 5 */
+				{eigrp_fsm_event_keep_state}, /* Event 6 */
+				{eigrp_fsm_event_keep_state}, /* Event 7 */
+		},
+		{
+				// Active 0 state
+				{eigrp_fsm_event_keep_state}, /* Event 0 */
+				{eigrp_fsm_event_keep_state}, /* Event 1 */
+				{eigrp_fsm_event_keep_state}, /* Event 2 */
+				{eigrp_fsm_event_lr_fcs},     /* Event 3 */
+				{eigrp_fsm_event_keep_state}, /* Event 4 */
+				{eigrp_fsm_event_qact},       /* Event 5 */
+				{eigrp_fsm_event_lr_fcn},     /* Event 6 */
+				{eigrp_fsm_event_keep_state}, /* Event 7 */
+		},
+		{
+				// Active 1 state
+				{eigrp_fsm_event_keep_state}, /* Event 0 */
+				{eigrp_fsm_event_lr},	      /* Event 1 */
+				{eigrp_fsm_event_keep_state}, /* Event 2 */
+				{eigrp_fsm_event_keep_state}, /* Event 3 */
+				{eigrp_fsm_event_dinc},       /* Event 4 */
+				{eigrp_fsm_event_qact},       /* Event 5 */
+				{eigrp_fsm_event_keep_state}, /* Event 6 */
+				{eigrp_fsm_event_keep_state}, /* Event 7 */
+		},
+		{
+				// Active 2 state
+				{eigrp_fsm_event_keep_state}, /* Event 0 */
+				{eigrp_fsm_event_keep_state}, /* Event 1 */
+				{eigrp_fsm_event_keep_state}, /* Event 2 */
+				{eigrp_fsm_event_lr_fcs},     /* Event 3 */
+				{eigrp_fsm_event_keep_state}, /* Event 4 */
+				{eigrp_fsm_event_keep_state}, /* Event 5 */
+				{eigrp_fsm_event_lr_fcn},     /* Event 6 */
+				{eigrp_fsm_event_keep_state}, /* Event 7 */
+		},
+		{
+				// Active 3 state
+				{eigrp_fsm_event_keep_state}, /* Event 0 */
+				{eigrp_fsm_event_lr},	 /* Event 1 */
+				{eigrp_fsm_event_keep_state}, /* Event 2 */
+				{eigrp_fsm_event_keep_state}, /* Event 3 */
+				{eigrp_fsm_event_dinc},       /* Event 4 */
+				{eigrp_fsm_event_keep_state}, /* Event 5 */
+				{eigrp_fsm_event_keep_state}, /* Event 6 */
+				{eigrp_fsm_event_keep_state}, /* Event 7 */
+		},
 };
 
-static const char *packet_type2str(uint8_t packet_type)
-{
-	if (packet_type == EIGRP_OPC_UPDATE)
-		return "UPDATE";
-	if (packet_type == EIGRP_OPC_REQUEST)
-		return "REQUEST";
-	if (packet_type == EIGRP_OPC_QUERY)
-		return "QUERY";
-	if (packet_type == EIGRP_OPC_REPLY)
-		return "REPLY";
-	if (packet_type == EIGRP_OPC_HELLO)
-		return "HELLO";
-	if (packet_type == EIGRP_OPC_IPXSAP)
-		return "IPXSAP";
-	if (packet_type == EIGRP_OPC_ACK)
-		return "ACK";
-	if (packet_type == EIGRP_OPC_SIAQUERY)
-		return "SIA QUERY";
-	if (packet_type == EIGRP_OPC_SIAREPLY)
-		return "SIA REPLY";
+//static const char *packet_type2str(uint8_t packet_type)
+//{
+//	if (packet_type == EIGRP_OPC_UPDATE)
+//		return "UPDATE";
+//	if (packet_type == EIGRP_OPC_REQUEST)
+//		return "REQUEST";
+//	if (packet_type == EIGRP_OPC_QUERY)
+//		return "QUERY";
+//	if (packet_type == EIGRP_OPC_REPLY)
+//		return "REPLY";
+//	if (packet_type == EIGRP_OPC_HELLO)
+//		return "HELLO";
+//	if (packet_type == EIGRP_OPC_IPXSAP)
+//		return "IPXSAP";
+//	if (packet_type == EIGRP_OPC_ACK)
+//		return "ACK";
+//	if (packet_type == EIGRP_OPC_SIAQUERY)
+//		return "SIA QUERY";
+//	if (packet_type == EIGRP_OPC_SIAREPLY)
+//		return "SIA REPLY";
+//
+//	return "Unknown";
+//}
 
-	return "Unknown";
+//static const char *prefix_state2str(enum eigrp_fsm_states state)
+//{
+//	switch (state) {
+//	case EIGRP_FSM_STATE_PASSIVE:
+//		return "Passive";
+//	case EIGRP_FSM_STATE_ACTIVE_0:
+//		return "Active oij0";
+//	case EIGRP_FSM_STATE_ACTIVE_1:
+//		return "Active oij1";
+//	case EIGRP_FSM_STATE_ACTIVE_2:
+//		return "Active oij2";
+//	case EIGRP_FSM_STATE_ACTIVE_3:
+//		return "Active oij3";
+//	}
+//
+//	return "Unknown";
+//}
+
+//static const char *fsm_state2str(enum eigrp_fsm_events event)
+//{
+//	switch (event) {
+//	case EIGRP_FSM_KEEP_STATE:
+//		return "Keep State Event";
+//	case EIGRP_FSM_EVENT_NQ_FCN:
+//		return "Non Query Event Feasability not satisfied";
+//	case EIGRP_FSM_EVENT_LR:
+//		return "Last Reply Event";
+//	case EIGRP_FSM_EVENT_Q_FCN:
+//		return "Query Event Feasability not satisified";
+//	case EIGRP_FSM_EVENT_LR_FCS:
+//		return "Last Reply Event Feasability satisified";
+//	case EIGRP_FSM_EVENT_DINC:
+//		return "Distance Increase Event";
+//	case EIGRP_FSM_EVENT_QACT:
+//		return "Query from Successor while in active state";
+//	case EIGRP_FSM_EVENT_LR_FCN:
+//		return "Last Reply Event, Feasibility not satisfied";
+//	};
+//
+//	return "Unknown";
+//}
+
+//static const char *change2str(enum metric_change change)
+//{
+//	switch (change) {
+//	case METRIC_DECREASE:
+//		return "Decrease";
+//	case METRIC_SAME:
+//		return "Same";
+//	case METRIC_INCREASE:
+//		return "Increase";
+//	}
+//
+//	return "Unknown";
+//}
+
+static int send_flags = EIGRP_FSM_NEED_UPDATE;
+
+static void eigrp_fsm_set_topology_flags(struct list *list, struct eigrp_prefix_entry *prefix, uint8_t set_flags) {
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
+	struct listnode *node = NULL;
+	struct eigrp_prefix_entry *pe = NULL;
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(prefix->destination, pbuf, PREFIX2STR_BUFFER);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "Setting flags[%02x:%02x] on %s", prefix->req_action, set_flags, pbuf);
+
+	if ((node = listnode_lookup(list, prefix))) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "%s already in topology change. Using existing entry.", pbuf);
+		pe = node->data;
+	} else {
+		pe = prefix;
+		listnode_add(list, prefix);
+	}
+	pe->req_action |= set_flags;
+	send_flags |= set_flags;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 }
 
-static const char *prefix_state2str(enum eigrp_fsm_states state)
-{
-	switch (state) {
-	case EIGRP_FSM_STATE_PASSIVE:
-		return "Passive";
-	case EIGRP_FSM_STATE_ACTIVE_0:
-		return "Active oij0";
-	case EIGRP_FSM_STATE_ACTIVE_1:
-		return "Active oij1";
-	case EIGRP_FSM_STATE_ACTIVE_2:
-		return "Active oij2";
-	case EIGRP_FSM_STATE_ACTIVE_3:
-		return "Active oij3";
+static enum eigrp_fsm_events eigrp_fsm_update_topology(struct eigrp_fsm_action_message *msg) {
+	/***** NOTE: ONLY CALL THIS FUNCTION FROM A PASSIVE STATE *****/
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
+
+	struct eigrp_nexthop_entry *previous_head = listnode_head(msg->prefix->entries);
+	struct eigrp_nexthop_entry *new_head;
+	struct listnode *node, *nnode;
+	struct eigrp_neighbor *nbr;
+	enum eigrp_fsm_events ret_state = EIGRP_FSM_KEEP_STATE;
+
+	if (msg->packet_type == EIGRP_OPC_UPDATE) {
+		eigrp_nexthop_entry_add(msg->prefix, msg->entry);
 	}
 
-	return "Unknown";
-}
+	eigrp_prefix_update_metrics(msg->prefix);
 
-static const char *fsm_state2str(enum eigrp_fsm_events event)
-{
-	switch (event) {
-	case EIGRP_FSM_KEEP_STATE:
-		return "Keep State Event";
-	case EIGRP_FSM_EVENT_NQ_FCN:
-		return "Non Query Event Feasability not satisfied";
-	case EIGRP_FSM_EVENT_LR:
-		return "Last Reply Event";
-	case EIGRP_FSM_EVENT_Q_FCN:
-		return "Query Event Feasability not satisified";
-	case EIGRP_FSM_EVENT_LR_FCS:
-		return "Last Reply Event Feasability satisified";
-	case EIGRP_FSM_EVENT_DINC:
-		return "Distance Increase Event";
-	case EIGRP_FSM_EVENT_QACT:
-		return "Query from Successor while in active state";
-	case EIGRP_FSM_EVENT_LR_FCN:
-		return "Last Reply Event, Feasibility not satisfied";
-	};
+	//Update the successor flags on this prefix and its route nodes
+	eigrp_topology_update_node_flags(msg->prefix);
 
-	return "Unknown";
-}
+	//Update the topology and route tables
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology and route tables");
+	eigrp_update_topology_table_prefix(msg->eigrp, msg->prefix);
 
-static const char *change2str(enum metric_change change)
-{
-	switch (change) {
-	case METRIC_DECREASE:
-		return "Decrease";
-	case METRIC_SAME:
-		return "Same";
-	case METRIC_INCREASE:
-		return "Increase";
+	//Add to UPDATE or QUERY lists
+	new_head = listnode_head(msg->prefix->entries);
+	if (((new_head == NULL) && (previous_head != NULL)) ||
+			(new_head && (new_head->distance > msg->prefix->fdistance))
+			) {
+		/* GOING ACTIVE */
+		eigrp_fsm_set_topology_flags(msg->eigrp->topology_changes_internalIPV4, msg->prefix, EIGRP_FSM_NEED_QUERY);
+		if (msg->packet_type == EIGRP_OPC_QUERY) {
+			ret_state = EIGRP_FSM_EVENT_Q_FCN;
+		} else {
+			ret_state = EIGRP_FSM_EVENT_NQ_FCN;
+		}
+	} else if (new_head != previous_head) {
+		eigrp_fsm_set_topology_flags(msg->eigrp->topology_changes_internalIPV4, msg->prefix, EIGRP_FSM_NEED_UPDATE);
 	}
 
-	return "Unknown";
+	//This route is passive. Send replies to anyone that queried.
+	if (ret_state == EIGRP_FSM_KEEP_STATE) {
+		for (ALL_LIST_ELEMENTS(msg->prefix->active_queries, node, nnode, nbr)) {
+			eigrp_send_reply(nbr, msg->prefix);
+			listnode_delete(msg->prefix->active_queries, nbr);
+		}
+	}
+
+	return ret_state;
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 }
+
+static void eigrp_fsm_swap_nexthops_for_replies(struct eigrp_fsm_action_message* msg) {
+	struct listnode *node, *nnode;
+	struct eigrp_nexthop_entry* ne;
+
+	/* Update the entry table with the new ones from the replies */
+
+	for (ALL_LIST_ELEMENTS(msg->prefix->entries, node, nnode, ne)) {
+		if (ne->flags & EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG) {
+			eigrp_zebra_route_delete(msg->prefix->destination);
+			ne->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
+		}
+		eigrp_nexthop_entry_delete(msg->prefix, ne);
+		eigrp_nexthop_entry_free(ne);
+	}
+
+	for (ALL_LIST_ELEMENTS(msg->prefix->reply_entries, node, nnode, ne)) {
+		eigrp_nexthop_entry_add(msg->prefix, ne);
+		listnode_delete(msg->prefix->reply_entries, ne);
+	}
+
+	eigrp_fsm_set_topology_flags(msg->eigrp->topology_changes_internalIPV4, msg->prefix, EIGRP_FSM_NEED_UPDATE);
+	eigrp_fsm_update_topology(msg);
+}
+
 /*
  * Main function in which are make decisions which event occurred.
  * msg - argument of type struct eigrp_fsm_action_message contain
@@ -266,9 +365,14 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	uint8_t actual_state = msg->prefix->state;
 	enum metric_change change;
 	uint8_t ret_state;
+	char pbuf[PREFIX2STR_BUFFER];
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 
 	assert(msg->entry);
 	assert(msg->prefix);
+
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
 	/*
 	 * Calculate resultant metrics and insert to correct position
@@ -279,49 +383,47 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	/* Store for display later */
 	msg->change = change;
 
+	if (msg->packet_type == EIGRP_OPC_QUERY) {
+		/* New query. If we already have one from this neighbor, remove it and reapply it. *
+		 */
+		listnode_delete(msg->prefix->active_queries, msg->adv_router);
+		listnode_add(msg->prefix->active_queries, msg->adv_router);
+	} else if (msg->packet_type == EIGRP_OPC_REPLY) {
+		/* Reply with metrics */
+		listnode_add(msg->prefix->reply_entries, msg->entry);
+		listnode_delete(msg->prefix->rij, msg->entry->adv_router);
+	}
+
 	switch (actual_state) {
 	case EIGRP_FSM_STATE_PASSIVE: {
-		struct eigrp_nexthop_entry *head = listnode_head(msg->prefix->entries);
-
-		if (head && head->reported_distance < msg->prefix->fdistance) {
-			ret_state  = EIGRP_FSM_KEEP_STATE;
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s is PASSIVE", pbuf);
+			struct eigrp_nexthop_entry *ne = listnode_head(msg->prefix->entries);
+			if (msg->packet_type == EIGRP_OPC_QUERY && ne && msg->adv_router->src.s_addr == ne->adv_router->src.s_addr) {
+				/* Successor has sent us a query */
+				ret_state = EIGRP_FSM_EVENT_Q_FCN;
+			} else {
+				ret_state = eigrp_fsm_update_topology(msg);
+			}
 			break;
-		}
-		/*
-		 * if best entry doesn't satisfy feasibility condition it means
-		 * move to active state
-		 * dependently if it was query from successor
-		 */
-		if (msg->packet_type == EIGRP_OPC_QUERY) {
-			ret_state = EIGRP_FSM_EVENT_Q_FCN;
-			break;
-		} else {
-			ret_state = EIGRP_FSM_EVENT_NQ_FCN;
-			break;
-		}
-
-		break;
 	}
 	case EIGRP_FSM_STATE_ACTIVE_0: {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 0", pbuf);
 		if (msg->packet_type == EIGRP_OPC_REPLY) {
 			struct eigrp_nexthop_entry *head =
-				listnode_head(msg->prefix->entries);
-
-			listnode_delete(msg->prefix->rij, msg->entry->adv_router);
+					listnode_head(msg->prefix->entries);
 			if (msg->prefix->rij->count) {
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			}
-			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
-			if (head->reported_distance < msg->prefix->fdistance) {
+			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All replies received");
+			if (head->distance < msg->prefix->fdistance) {
 				ret_state = EIGRP_FSM_EVENT_LR_FCS;
 				break;
 			}
-
 			return EIGRP_FSM_EVENT_LR_FCN;
 		} else if (msg->packet_type == EIGRP_OPC_QUERY
-			   && (msg->entry->flags
-			       & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+				&& (msg->entry->flags
+						& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
 			ret_state = EIGRP_FSM_EVENT_QACT;
 			break;
 		}
@@ -330,16 +432,15 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 		break;
 	}
 	case EIGRP_FSM_STATE_ACTIVE_1: {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 1", pbuf);
 		if (msg->packet_type == EIGRP_OPC_QUERY
-		    && (msg->entry->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+				&& (msg->entry->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
 			ret_state = EIGRP_FSM_EVENT_QACT;
 			break;
 		} else if (msg->packet_type == EIGRP_OPC_REPLY) {
-			listnode_delete(msg->prefix->rij, msg->entry->adv_router);
-
 			if (change == METRIC_INCREASE
-			    && (msg->entry->flags
-				& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+					&& (msg->entry->flags
+							& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
 				ret_state = EIGRP_FSM_EVENT_DINC;
 				break;
 			} else if (msg->prefix->rij->count) {
@@ -351,9 +452,9 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				break;
 			}
 		} else if (msg->packet_type == EIGRP_OPC_UPDATE
-			   && change == METRIC_INCREASE
-			   && (msg->entry->flags
-			       & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+				&& change == METRIC_INCREASE
+				&& (msg->entry->flags
+						& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
 			ret_state = EIGRP_FSM_EVENT_DINC;
 			break;
 		}
@@ -361,18 +462,16 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 		break;
 	}
 	case EIGRP_FSM_STATE_ACTIVE_2: {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 2", pbuf);
 		if (msg->packet_type == EIGRP_OPC_REPLY) {
 			struct eigrp_nexthop_entry *head =
-				listnode_head(msg->prefix->entries);
-
-			listnode_delete(msg->prefix->rij, msg->entry->adv_router);
+					listnode_head(msg->prefix->entries);
 			if (msg->prefix->rij->count) {
 				ret_state = EIGRP_FSM_KEEP_STATE;
 				break;
 			} else {
 				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
-				if (head->reported_distance
-				    < msg->prefix->fdistance) {
+				if (head->distance < msg->prefix->fdistance) {
 					ret_state = EIGRP_FSM_EVENT_LR_FCS;
 					break;
 				}
@@ -385,12 +484,10 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 		break;
 	}
 	case EIGRP_FSM_STATE_ACTIVE_3: {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 3", pbuf);
 		if (msg->packet_type == EIGRP_OPC_REPLY) {
-			listnode_delete(msg->prefix->rij, msg->entry->adv_router);
-
 			if (change == METRIC_INCREASE
-			    && (msg->entry->flags
-				& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+					&& (msg->entry->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
 				ret_state = EIGRP_FSM_EVENT_DINC;
 				break;
 			} else if (msg->prefix->rij->count) {
@@ -402,9 +499,9 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 				break;
 			}
 		} else if (msg->packet_type == EIGRP_OPC_UPDATE
-			   && change == METRIC_INCREASE
-			   && (msg->entry->flags
-			       & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+				&& change == METRIC_INCREASE
+				&& (msg->entry->flags
+						& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
 			ret_state = EIGRP_FSM_EVENT_DINC;
 			break;
 		}
@@ -413,6 +510,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	}
 	}
 
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return ret_state;
 }
 
@@ -422,12 +520,25 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
  */
 int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 {
-	assert(msg && msg->entry && msg->prefix);
-	enum eigrp_fsm_events event = eigrp_get_fsm_event(msg);
+	if (msg->data_type != EIGRP_FSM_ACK) {
+		assert(msg && msg->entry && msg->prefix);
 
-	assert(msg->prefix->entries && msg->prefix->rij);
+		enum eigrp_fsm_events event = eigrp_get_fsm_event(msg);
 
-	(*(NSM[msg->prefix->state][event].func))(msg);
+		(*(NSM[msg->prefix->state][event].func))(msg);
+	} else {
+		//Send and update if we need to [contains ACK]
+		if (send_flags & EIGRP_FSM_NEED_UPDATE) {
+			/* If this neighbor isn't up, skip sending them an update */
+			eigrp_update_send_all(msg->eigrp, msg->adv_router->state == EIGRP_NEIGHBOR_UP ? NULL : msg->adv_router);
+			send_flags &= ~EIGRP_FSM_NEED_UPDATE;
+		}
+		if (send_flags & EIGRP_FSM_NEED_QUERY) {
+			/* If this neighbor isn't up, skip sending them an query */
+			eigrp_query_send_all(msg->eigrp, msg->adv_router->state == EIGRP_NEIGHBOR_UP ? NULL : msg->adv_router);
+			send_flags &= ~EIGRP_FSM_NEED_QUERY;
+		}
+	}
 
 	return 1;
 }
@@ -438,244 +549,173 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
  */
 int eigrp_fsm_event_nq_fcn(struct eigrp_fsm_action_message *msg)
 {
-	struct eigrp *eigrp = msg->eigrp;
 	struct eigrp_prefix_entry *prefix = msg->prefix;
-	struct list *successors = eigrp_topology_get_successor(prefix);
-	struct eigrp_nexthop_entry *ne;
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
-	assert(successors); // If this is NULL we have shit the bed, fun huh?
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 
-	ne = listnode_head(successors);
 	prefix->state = EIGRP_FSM_STATE_ACTIVE_1;
-	if (ne) {
-		prefix->rdistance = prefix->distance = prefix->fdistance = ne->distance;
-		prefix->reported_metric = ne->total_metric;
-	} else {
-		prefix->rdistance = prefix->distance = prefix->fdistance = EIGRP_INFINITE_DISTANCE;
-		prefix->reported_metric = EIGRP_INFINITE_METRIC;
-	}
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 1", pbuf);
 
 	if (eigrp_nbr_count_get()) {
-		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
-		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+		eigrp_fsm_set_topology_flags(msg->eigrp->topology_changes_internalIPV4, msg->prefix, EIGRP_FSM_NEED_QUERY);
 	} else {
 		eigrp_fsm_event_lr(msg); // in the case that there are no more neighbors left
 	}
 
-	list_delete_and_null(&successors);
-
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return 1;
 }
 
 int eigrp_fsm_event_q_fcn(struct eigrp_fsm_action_message *msg)
 {
-	struct eigrp *eigrp = msg->eigrp;
-	struct eigrp_prefix_entry *prefix = msg->prefix;
-	struct list *successors = eigrp_topology_get_successor(prefix);
-	struct eigrp_nexthop_entry *ne;
 
-	assert(successors); // If this is NULL somebody poked us in the eye.
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
-	ne = listnode_head(successors);
-	prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
-	if (ne) {
-		prefix->rdistance = prefix->distance = prefix->fdistance = ne->distance;
-		prefix->reported_metric = ne->total_metric;
-	} else {
-		prefix->rdistance = prefix->distance = prefix->fdistance = EIGRP_INFINITE_DISTANCE;
-		prefix->reported_metric = EIGRP_INFINITE_METRIC;
-	}
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
+	msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 3", pbuf);
 
 	if (eigrp_nbr_count_get()) {
-		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
-		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+		eigrp_fsm_set_topology_flags(msg->eigrp->topology_changes_internalIPV4, msg->prefix, EIGRP_FSM_NEED_QUERY);
 	} else {
 		eigrp_fsm_event_lr(msg); // in the case that there are no more
-					 // neighbors left
 	}
 
-	list_delete_and_null(&successors);
-
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return 1;
 }
 
 int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *msg)
 {
-	struct eigrp *eigrp;
-	struct eigrp_prefix_entry *prefix = msg->prefix;
-	struct eigrp_nexthop_entry *ne = listnode_head(prefix->entries);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 
-	if (prefix->state == EIGRP_FSM_STATE_PASSIVE) {
-		eigrp = eigrp_lookup();
-		assert(eigrp);
-		if (!eigrp_metrics_is_same(prefix->reported_metric,
-					   ne->total_metric)) {
-			prefix->rdistance = prefix->fdistance =
-				prefix->distance = ne->distance;
-			prefix->reported_metric = ne->total_metric;
-			if (msg->packet_type == EIGRP_OPC_QUERY)
-				eigrp_send_reply(msg->adv_router, prefix);
-			prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
-			listnode_add(eigrp->topology_changes_internalIPV4,
-				     prefix);
+	if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE) {
+		if (msg->packet_type == EIGRP_OPC_QUERY)			//Query was satisfied by FS.
+			eigrp_send_reply(msg->adv_router, msg->prefix);
+	} else {
+		if (msg->packet_type == EIGRP_OPC_REPLY) {
+			struct listnode *n, *nn;
+			struct eigrp_nexthop_entry *ne;
+
+			char pbuf[PREFIX2STR_BUFFER];
+			prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
+
+			/* Remove previous replies, although there shouldn't be any.... */
+			for (ALL_LIST_ELEMENTS(msg->prefix->reply_entries, n, nn, ne)){
+				if (ne->adv_router == msg->entry->adv_router) {
+					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s already has reply entry from %s", pbuf, inet_ntoa(ne->adv_router->src));
+					listnode_delete(msg->prefix->reply_entries, ne);
+					eigrp_nexthop_entry_free(ne);
+				}
+			}
+			listnode_add(msg->prefix->reply_entries, msg->entry);
 		}
-		eigrp_topology_update_node_flags(prefix);
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
-		eigrp_update_topology_table_prefix(eigrp, msg->entry->prefix);
-		eigrp_update_routing_table(prefix);
 	}
 
-	if (msg->packet_type == EIGRP_OPC_QUERY)
-		eigrp_send_reply(msg->adv_router, prefix);
-
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return 1;
 }
 
 int eigrp_fsm_event_lr(struct eigrp_fsm_action_message *msg)
 {
-	struct eigrp *eigrp = msg->eigrp;
-	struct eigrp_prefix_entry *prefix = msg->prefix;
-	struct eigrp_nexthop_entry *ne = listnode_head(prefix->entries);
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
-	if (ne) {
-		prefix->fdistance = prefix->distance = prefix->rdistance = ne->distance;
-		prefix->reported_metric = ne->total_metric;
-	} else {
-		prefix->fdistance = prefix->distance = prefix->rdistance = EIGRP_MAX_METRIC;
-	}
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
+	eigrp_prefix_update_metrics(msg->prefix);
 
-	if (prefix->state == EIGRP_FSM_STATE_ACTIVE_3) {
-		struct list *successors = eigrp_topology_get_successor(prefix);
+	msg->prefix->state = EIGRP_FSM_STATE_PASSIVE;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s PASSIVE", pbuf);
 
-		assert(successors); // It's like Napolean and Waterloo
+	eigrp_fsm_swap_nexthops_for_replies(msg);
 
-		ne = listnode_head(successors);
-		if (ne)
-			eigrp_send_reply(ne->adv_router, prefix);
-		list_delete_and_null(&successors);
-	}
-
-	prefix->state = EIGRP_FSM_STATE_PASSIVE;
-	prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
-	listnode_add(eigrp->topology_changes_internalIPV4, prefix);
-	eigrp_topology_update_node_flags(prefix);
-	//eigrp_update_topology_table_prefix(eigrp->topology_table, prefix);
-	//eigrp_update_routing_table(prefix);
-
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return 1;
 }
 
 int eigrp_fsm_event_dinc(struct eigrp_fsm_action_message *msg)
 {
-	struct list *successors = eigrp_topology_get_successor(msg->prefix);
-	struct eigrp_nexthop_entry *ne;
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
-	assert(successors); // Trump and his big hands
-
-	msg->prefix->state = msg->prefix->state == EIGRP_FSM_STATE_ACTIVE_1
-				     ? EIGRP_FSM_STATE_ACTIVE_0
-				     : EIGRP_FSM_STATE_ACTIVE_2;
-
-	ne = listnode_head(successors);
-	if (ne) {
-		msg->prefix->distance = ne->distance;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
+	if (msg->prefix->state == EIGRP_FSM_STATE_ACTIVE_1) {
+		msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_0;
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 0", pbuf);
 	} else {
-		msg->prefix->distance = EIGRP_INFINITE_DISTANCE;
+		msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_2;
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 2", pbuf);
 	}
 
 	if (!msg->prefix->rij->count)
 		(*(NSM[msg->prefix->state][eigrp_get_fsm_event(msg)].func))(
-			msg);
+				msg);
 
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 
-	list_delete_and_null(&successors);
 	return 1;
 }
 
 int eigrp_fsm_event_lr_fcs(struct eigrp_fsm_action_message *msg)
 {
-	struct eigrp *eigrp = msg->eigrp;
-	struct eigrp_prefix_entry *prefix = msg->prefix;
-	struct eigrp_nexthop_entry *ne = listnode_head(prefix->entries);
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
-	prefix->state = EIGRP_FSM_STATE_PASSIVE;
-	prefix->distance = prefix->rdistance = ne->distance;
-	prefix->reported_metric = ne->total_metric;
-	prefix->fdistance = prefix->fdistance > prefix->distance
-				    ? prefix->distance
-				    : prefix->fdistance;
-	if (prefix->state == EIGRP_FSM_STATE_ACTIVE_2) {
-		struct list *successors = eigrp_topology_get_successor(prefix);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 
-		assert(successors); // Having a spoon and all you need is a knife
+	msg->prefix->state = EIGRP_FSM_STATE_PASSIVE;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s PASSIVE", pbuf);
 
-		ne = listnode_head(successors);
-		if (ne)
-			eigrp_send_reply(ne->adv_router, prefix);
+	eigrp_fsm_swap_nexthops_for_replies(msg);
 
-		list_delete_and_null(&successors);
-	}
-	prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
-	listnode_add(eigrp->topology_changes_internalIPV4, prefix);
-	eigrp_topology_update_node_flags(prefix);
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Update the topology table");
-	eigrp_update_topology_table_prefix(eigrp, msg->entry->prefix);
-	eigrp_update_routing_table(prefix);
-	eigrp_update_topology_table_prefix(eigrp, prefix);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 
 	return 1;
 }
 
 int eigrp_fsm_event_lr_fcn(struct eigrp_fsm_action_message *msg)
 {
-	struct eigrp *eigrp = msg->eigrp;
-	struct eigrp_prefix_entry *prefix = msg->prefix;
-	struct eigrp_nexthop_entry *best_successor;
-	struct list *successors = eigrp_topology_get_successor(prefix);
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
-	assert(successors); // Routing without a stack
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 
-	prefix->state = prefix->state == EIGRP_FSM_STATE_ACTIVE_0
-				? EIGRP_FSM_STATE_ACTIVE_1
-				: EIGRP_FSM_STATE_ACTIVE_3;
-
-	best_successor = listnode_head(successors);
-
-	if (best_successor) {
-		prefix->rdistance = prefix->distance = best_successor->distance;
-		prefix->reported_metric = best_successor->total_metric;
+	if (msg->prefix->state == EIGRP_FSM_STATE_ACTIVE_0) {
+		msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_1;
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 1", pbuf);
 	} else {
-		prefix->rdistance = prefix->distance = EIGRP_INFINITE_DISTANCE;
-		prefix->reported_metric = EIGRP_INFINITE_METRIC;
+		msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 3", pbuf);
 	}
+
+	eigrp_prefix_update_metrics(msg->prefix);
 
 	if (eigrp_nbr_count_get()) {
-		prefix->req_action |= EIGRP_FSM_NEED_QUERY;
-		listnode_add(eigrp->topology_changes_internalIPV4, prefix);
+		eigrp_fsm_set_topology_flags(msg->eigrp->topology_changes_internalIPV4, msg->prefix, EIGRP_FSM_NEED_QUERY);
 	} else {
 		eigrp_fsm_event_lr(msg); // in the case that there are no more
-					 // neighbors left
+		// neighbors left
 	}
 
-	list_delete_and_null(&successors);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 
 	return 1;
 }
 
 int eigrp_fsm_event_qact(struct eigrp_fsm_action_message *msg)
 {
-	struct list *successors = eigrp_topology_get_successor(msg->prefix);
-	struct eigrp_nexthop_entry *ne;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
+	char pbuf[PREFIX2STR_BUFFER];
+	prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
-	assert(successors); // Cats and no Dogs
-
-	ne = listnode_head(successors);
 	msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_2;
-	if (ne)
-		msg->prefix->distance = ne->distance;
-	else
-		msg->prefix->distance = EIGRP_INFINITE_DISTANCE;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 2", pbuf);
 
-	list_delete_and_null(&successors);
+	eigrp_prefix_update_metrics(msg->prefix);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return 1;
 }

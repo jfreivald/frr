@@ -42,7 +42,7 @@ extern struct eigrp_packet *eigrp_packet_duplicate(struct eigrp_packet *,
 extern void eigrp_packet_free(struct eigrp_packet *);
 extern void eigrp_packet_delete(struct eigrp_interface *);
 extern void eigrp_packet_header_init(int, struct eigrp *, struct stream *,
-				     uint32_t, uint32_t, uint32_t);
+				     uint32_t);
 extern void eigrp_packet_checksum(struct eigrp_interface *, struct stream *,
 				  uint16_t);
 
@@ -53,14 +53,18 @@ extern void eigrp_fifo_push(struct eigrp_fifo *, struct eigrp_packet *);
 extern void eigrp_fifo_free(struct eigrp_fifo *);
 extern void eigrp_fifo_reset(struct eigrp_fifo *);
 
+extern void eigrp_place_on_nbr_queue(struct eigrp_neighbor *nbr,
+					    struct eigrp_packet *ep, int length);
 extern void eigrp_send_packet_reliably(struct eigrp_neighbor *);
 
 extern struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *);
 struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s);
-extern uint16_t eigrp_add_internalTLV_to_stream(struct stream *,
-						struct eigrp_prefix_entry *);
-extern uint16_t eigrp_add_externalTLV_to_stream(struct stream *,
-						struct eigrp_prefix_entry *);
+#define eigrp_add_internalTLV_to_stream(s,i)	eigrp_add_internalTLV_to_stream_extended(s,i,0)
+extern uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *,
+						struct eigrp_prefix_entry *, int flags);
+#define eigrp_add_externalTLV_to_stream(s,i)	eigrp_add_externalTLV_to_stream_extended(s,i,0)
+extern uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *,
+						struct eigrp_prefix_entry *, int flags);
 extern uint16_t eigrp_add_authTLV_MD5_to_stream(struct stream *,
 						struct eigrp_interface *);
 extern uint16_t eigrp_add_authTLV_SHA256_to_stream(struct stream *,
@@ -88,11 +92,12 @@ extern int eigrp_hello_timer(struct thread *);
 extern bool eigrp_update_prefix_apply(struct eigrp *eigrp,
 				      struct eigrp_interface *ei, int in,
 				      struct prefix *prefix);
-extern void eigrp_update_send(struct eigrp_interface *);
+#define eigrp_update_send(n)	eigrp_update_send_with_flags(n,0);
+extern void eigrp_update_send_with_flags(struct eigrp_neighbor *, uint32_t);
 extern void eigrp_update_receive(struct eigrp *, struct ip *,
 				 struct eigrp_header *, struct stream *,
 				 struct eigrp_interface *, int);
-extern void eigrp_update_send_all(struct eigrp *, struct eigrp_interface *);
+extern void eigrp_update_send_all(struct eigrp *, struct eigrp_neighbor *);
 extern void eigrp_update_send_init(struct eigrp_neighbor *);
 extern void eigrp_update_send_EOT(struct eigrp_neighbor *);
 extern int eigrp_update_send_GR_thread(struct thread *);
@@ -107,11 +112,11 @@ extern void eigrp_update_send_process_GR(struct eigrp *, enum GR_type,
  * These externs are found in eigrp_query.c
  */
 
-extern void eigrp_send_query(struct eigrp_interface *);
+extern void eigrp_send_query(struct eigrp_neighbor *);
 extern void eigrp_query_receive(struct eigrp *, struct ip *,
 				struct eigrp_header *, struct stream *,
 				struct eigrp_interface *, int);
-extern uint32_t eigrp_query_send_all(struct eigrp *);
+extern uint32_t eigrp_query_send_all(struct eigrp *, struct eigrp_neighbor *);
 
 /*
  * These externs are found in eigrp_reply.c
