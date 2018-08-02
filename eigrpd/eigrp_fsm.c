@@ -532,11 +532,7 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 			/* If this neighbor isn't up, skip sending them an update */
 			eigrp_update_send_all(msg->eigrp, msg->adv_router->state == EIGRP_NEIGHBOR_UP ? NULL : msg->adv_router);
 			send_flags &= ~EIGRP_FSM_NEED_UPDATE;
-		} else if (msg->adv_router != msg->eigrp->neighbor_self) {
-			//Otherwise send a self-contained ACK.
-			eigrp_hello_send_ack(msg->adv_router);
 		}
-
 		if (send_flags & EIGRP_FSM_NEED_QUERY) {
 			/* If this neighbor isn't up, skip sending them an query */
 			eigrp_query_send_all(msg->eigrp, msg->adv_router->state == EIGRP_NEIGHBOR_UP ? NULL : msg->adv_router);

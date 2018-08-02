@@ -752,7 +752,7 @@ void eigrp_update_send_all(struct eigrp *eigrp,
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
 		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
 			if (nbr->state == EIGRP_NEIGHBOR_UP && nbr != exception) {
-				eigrp_update_send_with_flags(nbr, EIGRP_UDPATE_ALL_ROUTES);
+				eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
 			}
 		}
 	}

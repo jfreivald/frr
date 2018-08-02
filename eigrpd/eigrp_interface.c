@@ -61,10 +61,14 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	struct eigrp_interface *ei = ifp->info;
 	int i;
 
+	if (ifp->info) {
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "IFP %s already has EIGRP Interface. KILL.", ei->ifp->name);
+		eigrp_if_down(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
+	}
+
 	if (ei && ei->nbrs) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Reinitialize interface %s.", ei->ifp->name);
-		list_delete_and_null(&(ei->nbrs));
-		listnode_delete(eigrp->eiflist, ei);
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "REINITIALIZE INTERFACE %s.", ei->ifp->name);
+		eigrp_if_down(ei, INTERFACE_DOWN_BY_ZEBRA);
 	}
 
 	ei = XCALLOC(MTYPE_EIGRP_IF, sizeof(struct eigrp_interface));
@@ -227,28 +231,6 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	return 1;
 }
 
-int eigrp_if_down(struct eigrp_interface *ei)
-{
-	struct listnode *node, *nnode;
-	struct eigrp_neighbor *nbr;
-
-	if (ei == NULL)
-		return 0;
-
-	/* Shutdown packet reception and sending */
-	if (ei->t_hello)
-		THREAD_OFF(ei->t_hello);
-
-	eigrp_if_stream_unset(ei);
-
-	/*Set infinite metrics to routes learned by this interface and start
-	 * query process*/
-	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
-		eigrp_nbr_down(nbr);
-	}
-
-	return 1;
-}
 
 void eigrp_if_stream_set(struct eigrp_interface *ei)
 {
@@ -324,44 +306,65 @@ uint8_t eigrp_default_iftype(struct interface *ifp)
 		return EIGRP_IFTYPE_BROADCAST;
 }
 
-void eigrp_if_free(struct eigrp_interface *ei, int source)
+void eigrp_if_down(struct eigrp_interface *ei, int source)
 {
 	struct prefix dest_addr;
 	struct eigrp_prefix_entry *pe;
-	struct eigrp *eigrp = eigrp_lookup();
 
-	if (!eigrp)
-		return;
+	struct listnode *node, *nnode;
+	struct eigrp_neighbor *nbr;
 
-	THREAD_OFF(ei->t_hello);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s GOING DOWN", ei->ifp->name);
 
-	//These things don't exist if killed by Zebra.
+	/* Shutdown packet reception and sending */
+	if (ei->t_hello)
+		THREAD_OFF(ei->t_hello);
+
+	//Interface doesn't exist if killed by Zebra, so skip packet
 	if (source == INTERFACE_DOWN_BY_VTY) {
 		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
-		dest_addr = *ei->connected->address;
-		apply_mask(&dest_addr);
-		pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table,
-				&dest_addr);
-		if (pe)
-			eigrp_prefix_entry_delete(eigrp, pe);
+		sleep(1);
 	}
 
-	eigrp_if_down(ei);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Unset transmit stream", ei->ifp->name);
+	eigrp_if_stream_unset(ei);
 
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Remove topology information", ei->ifp->name);
+	dest_addr = *ei->connected->address;
+	apply_mask(&dest_addr);
+	pe = eigrp_topology_table_lookup_ipv4(ei->eigrp->topology_table,
+			&dest_addr);
+	if (pe)
+		eigrp_prefix_entry_delete(ei->eigrp, pe);
+
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Terminate neighbors", ei->ifp->name);
+	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
+		eigrp_nbr_down(nbr);
+	}
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Free neighbor list", ei->ifp->name);
 	list_delete_and_null(&(ei->nbrs));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Remove interface from eigrp instance", ei->ifp->name);
 	listnode_delete(ei->eigrp->eiflist, ei);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s DOWN", ei->ifp->name);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Free interface structure", ei->ifp->name);
+	ei->ifp->info = NULL;
+	XFREE(MTYPE_EIGRP_IF, ei);
 }
 
 /* Simulate down/up on the interface.  This is needed, for example, when
    the MTU changes. */
-void eigrp_if_reset(struct interface *ifp)
+void eigrp_if_reset(struct interface *ifp, int source)
 {
 	struct eigrp_interface *ei = ifp->info;
 
 	if (!ei)
 		return;
 
-	eigrp_if_down(ei);
+	eigrp_if_down(ei, source);
 	eigrp_if_up(ei);
 }
 

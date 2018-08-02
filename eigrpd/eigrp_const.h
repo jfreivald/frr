@@ -35,13 +35,9 @@
 #define FALSE 0
 
 #define EIGRP_NEIGHBOR_DOWN				0x00
-#define EIGRP_NEIGHBOR_HELLO			0x01
-#define EIGRP_NEIGHBOR_INIT_TXD			0x02
-#define EIGRP_NEIGHBOR_INIT_RXD			0x04
-#define EIGRP_NEIGHBOR_EOT_RXD			0x08
-#define EIGRP_NEIGHBOR_EOT_TXD			0x10
-#define EIGRP_NEIGHBOR_UPDATE_TXD		0x20
-#define EIGRP_NEIGHBOR_ACK_RXD			0x40
+#define EIGRP_NEIGHBOR_INIT_TXD			0x01
+#define EIGRP_NEIGHBOR_INIT_RXD			0x02
+#define EIGRP_NEIGHBOR_ACK_RXD			0x04
 #define EIGRP_NEIGHBOR_UP				0xFF
 
 /*Packet requiring ack will be retransmitted again after this time*/
@@ -239,7 +235,7 @@ enum eigrp_fsm_events {
  * EIGRP Update Packet Behavior
  */
 #define EIGRP_UPDATE_CHANGED	0
-#define EIGRP_UDPATE_ALL_ROUTES	1
+#define EIGRP_UPDATE_ALL_ROUTES	1
 
 
 /**

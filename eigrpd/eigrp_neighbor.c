@@ -521,8 +521,6 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 			&(nbr->src));
 	/* set neighbor to DOWN */
 	eigrp_nbr_down(nbr);
-	/* delete neighbor */
-	eigrp_nbr_delete(nbr);
 }
 
 int eigrp_nbr_split_horizon_check(struct eigrp_nexthop_entry *ne,

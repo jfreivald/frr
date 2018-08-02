@@ -282,6 +282,16 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 	struct listnode *cnode, *enode;
 	struct connected *co;
 
+	/* if router_id is not configured, dont bring up
+	 * interfaces.
+	 * eigrp_router_id_update() will call eigrp_if_update
+	 * whenever r-id is configured instead.
+	 */
+	if (!if_is_operative(ifp)) {
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK, "Interface %s is not linked. Skip.", ifp->name);
+		return;
+	}
+
 	/* if interface prefix is match specified prefix,
 	   then create socket and join multicast group. */
 	for (ALL_LIST_ELEMENTS_RO(ifp->connected, cnode, co)) {
@@ -309,13 +319,7 @@ void eigrp_network_run_interface(struct eigrp *eigrp, struct prefix *p,
 			/* Relate eigrp interface to eigrp instance. */
 			ei->eigrp = eigrp;
 
-			/* if router_id is not configured, dont bring up
-			 * interfaces.
-			 * eigrp_router_id_update() will call eigrp_if_update
-			 * whenever r-id is configured instead.
-			 */
-			if (if_is_operative(ifp))
-				eigrp_if_up(ei);
+			eigrp_if_up(ei);
 		} else {
 			//L(zlog_debug, "%s skipped[%s|%s]", ifp->name, p->family == co->address->family ? "Family Match" : "Family Mismatch", eigrp_network_match_iface(co, p) ? "Network Match" : "Network Mismatch");
 		}
@@ -383,7 +387,7 @@ int eigrp_network_unset(struct eigrp *eigrp, struct prefix *p)
 		}
 
 		if (found == 0) {
-			eigrp_if_free(ei, INTERFACE_DOWN_BY_VTY);
+			eigrp_if_down(ei, INTERFACE_DOWN_BY_VTY);
 		}
 	}
 

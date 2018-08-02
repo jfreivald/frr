@@ -624,7 +624,7 @@ DEFUN (eigrp_if_delay,
 	delay = atoi(argv[1]->arg);
 
 	ei->params.delay = delay;
-	eigrp_if_reset(ifp);
+	eigrp_if_reset(ifp, INTERFACE_DOWN_BY_VTY);
 
 	return CMD_SUCCESS;
 }
@@ -652,7 +652,7 @@ DEFUN (no_eigrp_if_delay,
 	}
 
 	ei->params.delay = EIGRP_DELAY_DEFAULT;
-	eigrp_if_reset(ifp);
+	eigrp_if_reset(ifp, INTERFACE_DOWN_BY_VTY);
 
 	return CMD_SUCCESS;
 }
@@ -683,7 +683,7 @@ DEFUN (eigrp_if_bandwidth,
 	bandwidth = atoi(argv[1]->arg);
 
 	ei->params.bandwidth = bandwidth;
-	eigrp_if_reset(ifp);
+	eigrp_if_reset(ifp, INTERFACE_DOWN_BY_VTY);
 
 	return CMD_SUCCESS;
 }
@@ -712,7 +712,7 @@ DEFUN (no_eigrp_if_bandwidth,
 	}
 
 	ei->params.bandwidth = EIGRP_BANDWIDTH_DEFAULT;
-	eigrp_if_reset(ifp);
+	eigrp_if_reset(ifp, INTERFACE_DOWN_BY_VTY);
 
 	return CMD_SUCCESS;
 }

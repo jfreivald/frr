@@ -122,8 +122,6 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	eigrp_hello_send_ack(nbr);
-
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 

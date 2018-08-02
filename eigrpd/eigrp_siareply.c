@@ -107,7 +107,6 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
 			eigrp_IPv4_InternalTLV_free(tlv);
 		}
 	}
-	eigrp_hello_send_ack(nbr);
 }
 
 void eigrp_send_siareply(struct eigrp_neighbor *nbr,

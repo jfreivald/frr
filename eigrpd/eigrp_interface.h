@@ -46,8 +46,7 @@ extern int eigrp_if_up_cf(struct eigrp_interface *, const char *, const char *, 
 extern void eigrp_if_stream_set(struct eigrp_interface *);
 extern void eigrp_if_set_multicast(struct eigrp_interface *);
 extern uint8_t eigrp_default_iftype(struct interface *);
-extern void eigrp_if_free(struct eigrp_interface *, int);
-extern int eigrp_if_down(struct eigrp_interface *);
+extern void eigrp_if_down(struct eigrp_interface *, int);
 extern void eigrp_if_stream_unset(struct eigrp_interface *);
 
 extern struct eigrp_interface *eigrp_if_lookup_by_local_addr(struct eigrp *,
@@ -57,7 +56,7 @@ extern struct eigrp_interface *eigrp_if_lookup_by_name(struct eigrp *,
 						       const char *);
 
 /* Simulate down/up on the interface. */
-extern void eigrp_if_reset(struct interface *);
+extern void eigrp_if_reset(struct interface *, int);
 
 extern uint32_t eigrp_bandwidth_to_scaled(uint32_t);
 extern uint32_t eigrp_scaled_to_bandwidth(uint32_t);

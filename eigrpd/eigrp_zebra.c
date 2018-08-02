@@ -206,7 +206,7 @@ static int eigrp_interface_delete(int command, struct zclient *zclient,
 			ifp->metric, ifp->mtu);
 
 	if (ifp->info)
-		eigrp_if_free(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
+		eigrp_if_down(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
 
 	if_set_index(ifp, IFINDEX_INTERNAL);
 	return 0;
@@ -259,7 +259,7 @@ static int eigrp_interface_address_delete(int command, struct zclient *zclient,
 		return 0;
 
 	/* Call interface hook functions to clean up */
-	eigrp_if_free(ei, INTERFACE_DOWN_BY_ZEBRA);
+	eigrp_if_down(ei, INTERFACE_DOWN_BY_ZEBRA);
 
 	connected_free(c);
 
@@ -306,7 +306,7 @@ static int eigrp_interface_state_up(int command, struct zclient *zclient,
 
 			/* Must reset the interface (simulate down/up) when MTU
 			 * changes. */
-			eigrp_if_reset(ifp);
+			eigrp_if_reset(ifp, INTERFACE_DOWN_BY_ZEBRA);
 		}
 		return 0;
 	}
@@ -338,7 +338,7 @@ static int eigrp_interface_state_down(int command, struct zclient *zclient,
 			   ifp->name);
 
 	if (ifp->info)
-		eigrp_if_down(ifp->info);
+		eigrp_if_down(ifp->info, INTERFACE_DOWN_BY_ZEBRA);
 
 	return 0;
 }

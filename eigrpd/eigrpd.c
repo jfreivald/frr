@@ -339,7 +339,7 @@ void eigrp_finish_final(struct eigrp *eigrp)
 	for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei)) {
 		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr))
 			eigrp_nbr_down(nbr);
-		eigrp_if_free(ei, INTERFACE_DOWN_BY_FINAL);
+		eigrp_if_down(ei, INTERFACE_DOWN_BY_FINAL);
 	}
 
 	THREAD_OFF(eigrp->t_write);
