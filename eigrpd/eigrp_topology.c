@@ -11,6 +11,8 @@
  *   Tomas Hvorkovy
  *   Martin Kontsek
  *   Lukas Koribsky
+ * Copyright (C) 2018 AT&T Inc.
+ * Author: Joseph Freivald
  *
  * This file is part of GNU Zebra.
  *

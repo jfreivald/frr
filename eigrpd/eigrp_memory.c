@@ -1,6 +1,8 @@
 /* eigrpd memory type definitions
  *
  * Copyright (C) 2017  Donald Sharp
+ * Copyright (C) 2018 AT&T Inc.
+ * Author: Joseph Freivald
  *
  * This file is part of FRR
  *

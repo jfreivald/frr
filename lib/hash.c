@@ -1,5 +1,7 @@
 /* Hash routine.
  * Copyright (C) 1998 Kunihiro Ishiguro
+ * Copyright (C) 2018 AT&T Inc.
+ * Author: Joseph Freivald
  *
  * This file is part of GNU Zebra.
  *

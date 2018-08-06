@@ -1,6 +1,8 @@
 /*
  * Interface functions.
  * Copyright (C) 1997, 98 Kunihiro Ishiguro
+ * Copyright (C) 2018 AT&T Inc.
+ * Author: Joseph Freivald
  *
  * This file is part of GNU Zebra.
  *

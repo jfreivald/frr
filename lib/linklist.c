@@ -1,5 +1,7 @@
 /* Generic linked list routine.
  * Copyright (C) 1997, 2000 Kunihiro Ishiguro
+ * Copyright (C) 2018 AT&T Inc.
+ * Author: Joseph Freivald
  *
  * This file is part of GNU Zebra.
  *

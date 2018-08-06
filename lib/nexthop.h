@@ -2,6 +2,8 @@
  * Nexthop structure definition.
  * Copyright (C) 1997, 98, 99, 2001 Kunihiro Ishiguro
  * Copyright (C) 2013 Cumulus Networks, Inc.
+ * Copyright (C) 2018 AT&T Inc.
+ * Author: Joseph Freivald
  *
  * This file is part of Quagga.
  *

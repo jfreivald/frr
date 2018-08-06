@@ -7,6 +7,8 @@
  *   Matej Perina
  *   Peter Orsag
  *   Peter Paluch
+ * Copyright (C) 2018 AT&T Inc.
+ * Author: Joseph Freivald
  *
  * This file is part of GNU Zebra.
  *
