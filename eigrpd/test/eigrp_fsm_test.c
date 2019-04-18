@@ -193,7 +193,7 @@ void init(void) {
 	msg.eigrp = eigrp;
 	msg.data_type = EIGRP_INT;
 	msg.adv_router = nbr;
-	msg.metrics = tlv->metric;
+	msg.metrics = EIGRP_INFINITE_METRIC;
 	msg.entry = ne;
 	msg.prefix = pe;
 }
@@ -360,8 +360,6 @@ void sa3_e7 (void) {
 }
 
 Test(eigrp_fsm_test, passive_event0, .init=sp_e0) {
-	eigrp_fsm_event(&msg);
-
 	cr_expect(0);
 	cr_assert(1);
 }
