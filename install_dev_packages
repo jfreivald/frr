@@ -1,1 +1,1 @@
-sudo apt install bison flex libc-ares-dev libreadline-dev libsystemd-dev libjson-c-dev
+sudo apt install bison flex libc-ares-dev libreadline-dev libsystemd-dev libjson-c-dev python-sphinx
