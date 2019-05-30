@@ -93,4 +93,5 @@ doc-pak
 .project
 .settings/
 tun_up.sh
+cmake-build*
 .idea
