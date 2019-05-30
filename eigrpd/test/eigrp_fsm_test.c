@@ -37,6 +37,9 @@
 #include "eigrpd/eigrp_snmp.h"
 #include "eigrpd/eigrp_filter.h"
 #include "eigrpd/eigrp_fsm.h"
+#include "eigrpd/eigrp_topology.h"
+
+
 int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *);
 int eigrp_fsm_event_nq_fcn(struct eigrp_fsm_action_message *);
 int eigrp_fsm_event_q_fcn(struct eigrp_fsm_action_message *);
@@ -46,13 +49,15 @@ int eigrp_fsm_event_lr_fcs(struct eigrp_fsm_action_message *);
 int eigrp_fsm_event_lr_fcn(struct eigrp_fsm_action_message *);
 int eigrp_fsm_event_qact(struct eigrp_fsm_action_message *);
 
-struct eigrp *eigrp;
+struct eigrp *eigrp = 0;
 struct eigrp_fsm_action_message msg;
-struct eigrp_neighbor *nbr;
-struct TLV_IPv4_Internal_type *tlv;
-struct TLV_IPv4_External_type *etlv;
-struct eigrp_prefix_entry *pe;
-struct eigrp_nexthop_entry *ne;
+struct eigrp_interface *ei = 0;
+struct eigrp_neighbor *nbr = 0;
+struct TLV_IPv4_Internal_type *tlv = 0;
+struct TLV_IPv4_External_type *etlv = 0;
+struct eigrp_prefix_entry *pe = 0;
+struct eigrp_nexthop_entry *ne = 0;
+
 uint32_t flags;
 uint16_t type;
 uint16_t length;
@@ -189,6 +194,34 @@ int eigrpd_main()
 
 void init(void) {
 
+	if (!eigrp) {
+		eigrpd_main();
+	}
+
+	struct prefix dest_addr;
+	dest_addr.family = AF_INET;
+	dest_addr.u.prefix4.s_addr = 0x01a0a0a0;
+	dest_addr.prefixlen = 24;
+
+	pe = eigrp_prefix_entry_new();
+	eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+								  EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+								  EIGRP_MAX_FEASIBLE_DISTANCE);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+	eigrp_prefix_entry_add(eigrp, pe);
+
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
+	ne = eigrp_nexthop_entry_new();
+
+	if (!ei) {
+		ei = eigrp_if_new(eigrp, eigrp->, pe)
+	}
+
+	if (!nbr) {
+		nbr = eigrp_nbr_new()
+	}
+
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;
 	msg.data_type = EIGRP_INT;
@@ -198,6 +231,23 @@ void init(void) {
 	msg.prefix = pe;
 }
 
+void cleanup(void) {
+	if (msg.entry) {
+		eigrp_nexthop_entry_free(msg.entry);
+		msg.entry = ne = 0;
+	}
+
+	if (msg.prefix) {
+		eigrp_prefix_entry_delete(msg.eigrp, msg.prefix);
+		free(msg.prefix);
+		msg.prefix = pe = 0;
+	}
+
+	if (msg.adv_router) {
+		free(msg.adv_router);
+		msg.adv_router = nbr = 0;
+	}
+}
 
 void sp_e0 (void) {
 	init();
@@ -359,13 +409,13 @@ void sa3_e7 (void) {
 	init();
 }
 
-Test(eigrp_fsm_test, passive_event0, .init=sp_e0) {
-	cr_expect(0);
+Test(eigrp_fsm_test, passive_event0, .init=sp_e0, .fini=cleanup) {
+	cr_expect(1);
 	cr_assert(1);
 }
 
 Test(eigrp_fsm_test, passive_event1, .init=sp_e1) {
-	cr_expect(0);
+	cr_expect(1);
 	cr_assert(1);
 }
 
