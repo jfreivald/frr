@@ -89,7 +89,7 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_fsm.h"
 
-#define EIGRP_QUERY_AUDITING_ENABLED
+//#define EIGRP_QUERY_AUDITING_ENABLED
 
 /*
  * Prototypes
