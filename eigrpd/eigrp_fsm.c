@@ -108,13 +108,6 @@ int eigrp_fsm_event_qact(struct eigrp_fsm_action_message *);
 const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_METRIC,0,{0,0,0},255,0,0,0,0};
 
 /*
- * TODO: QUERY AUDITING
- * We are losing queries and getting SIA. Audit the queries and ensure each one gets a
- * response. The active queries are stored on the prefix "active_queries" and "replies"
- * lists.
- */
-
-/*
  * NSM - field of fields of struct containing one function each.
  * Which function is used depends on actual state of FSM and occurred
  * event(arrow in diagram). Usage:

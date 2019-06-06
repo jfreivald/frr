@@ -492,7 +492,7 @@ void eigrp_prefix_update_metrics(struct eigrp_prefix_entry *pe) {
 
 	assert(successors);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_TRACE, "ENTER");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	ne = listnode_head(successors);
 
 	if (ne) {
@@ -513,7 +513,7 @@ void eigrp_prefix_update_metrics(struct eigrp_prefix_entry *pe) {
 
 	list_delete_and_null(&successors);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_TRACE, "ENTER");
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
 
 uint8_t eigrp_metrics_is_same(struct eigrp_metrics metric1,
