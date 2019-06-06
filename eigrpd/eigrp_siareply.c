@@ -41,6 +41,7 @@
 #include "checksum.h"
 #include "md5.h"
 #include "vty.h"
+#include "lib/debug_wrapper.h"
 
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrpd.h"
@@ -60,55 +61,90 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
 			    struct eigrp_header *eigrph, struct stream *s,
 			    struct eigrp_interface *ei, int size)
 {
-	struct eigrp_neighbor *nbr;
-	struct TLV_IPv4_Internal_type *tlv;
+    struct eigrp_neighbor *nbr;
+    struct TLV_IPv4_Internal_type *tlv;
+    struct TLV_IPv4_External_type *etlv;
 
-	uint16_t type;
+    uint16_t type;
 
-	/* increment statistics. */
-	ei->siaReply_in++;
+    /* increment statistics. */
+    ei->siaQuery_in++;
 
-	/* get neighbor struct */
-	nbr = eigrp_nbr_get(ei, eigrph, iph);
+    /* get neighbor struct */
+    nbr = eigrp_nbr_get(ei, eigrph, iph);
 
-	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
-	assert(nbr);
+    /* neighbor must be valid, eigrp_nbr_get creates if none existed */
+    assert(nbr);
 
-	while (s->endp > s->getp) {
-		type = stream_getw(s);
-		if (type == EIGRP_TLV_IPv4_INT) {
-			struct prefix dest_addr;
+    while (s->endp > s->getp) {
+        type = stream_getw(s);
+        if (type == EIGRP_TLV_IPv4_INT) {
+            struct prefix dest_addr;
 
-			stream_set_getp(s, s->getp - sizeof(uint16_t));
+            stream_set_getp(s, s->getp - sizeof(uint16_t));
 
-			tlv = eigrp_read_ipv4_tlv(s);
+            tlv = eigrp_read_ipv4_tlv(s);
 
-			dest_addr.family = AFI_IP;
-			dest_addr.u.prefix4 = tlv->destination;
-			dest_addr.prefixlen = tlv->prefix_length;
-			struct eigrp_prefix_entry *dest =
-				eigrp_topology_table_lookup_ipv4(
-					eigrp->topology_table, &dest_addr);
+            dest_addr.family = AF_INET;
+            dest_addr.u.prefix4 = tlv->destination;
+            dest_addr.prefixlen = tlv->prefix_length;
+            struct eigrp_prefix_entry *dest =
+                    eigrp_topology_table_lookup_ipv4(
+                            eigrp->topology_table, &dest_addr);
 
-			/* If the destination exists (it should, but one never
-			 * know)*/
-			if (dest != NULL) {
-				struct eigrp_fsm_action_message msg;
-				struct eigrp_nexthop_entry *entry =
-					eigrp_prefix_entry_lookup(dest->entries,
-								  nbr);
-				msg.packet_type = EIGRP_OPC_SIAQUERY;
-				msg.eigrp = eigrp;
-				msg.data_type = EIGRP_INT;
-				msg.adv_router = nbr;
-				msg.metrics = tlv->metric;
-				msg.entry = entry;
-				msg.prefix = dest;
-				eigrp_fsm_event(&msg);
-			}
-			eigrp_IPv4_InternalTLV_free(tlv);
-		}
-	}
+            /* If the destination exists (it should, but one never
+             * know)*/
+            if (dest != NULL) {
+                struct eigrp_fsm_action_message msg;
+                struct eigrp_nexthop_entry *entry =
+                        eigrp_prefix_entry_lookup(dest->entries,
+                                                  nbr);
+                msg.packet_type = EIGRP_OPC_SIAREPLY;
+                msg.eigrp = eigrp;
+                msg.data_type = EIGRP_INT;
+                msg.adv_router = nbr;
+                msg.metrics = tlv->metric;
+                msg.entry = entry;
+                msg.prefix = dest;
+                eigrp_fsm_event(&msg);
+            }
+            eigrp_IPv4_InternalTLV_free(tlv);
+        }
+        if (type == EIGRP_TLV_IPv4_EXT) {
+            struct prefix dest_addr;
+
+            stream_set_getp(s, s->getp - sizeof(uint16_t));
+
+            etlv = eigrp_read_ipv4_external_tlv(s);
+
+            dest_addr.family = AF_INET;
+            dest_addr.u.prefix4 = etlv->destination;
+            dest_addr.prefixlen = etlv->prefix_length;
+            struct eigrp_prefix_entry *dest =
+                    eigrp_topology_table_lookup_ipv4(
+                            eigrp->topology_table, &dest_addr);
+
+            /* If the destination exists (it should, but one never
+             * know)*/
+            if (dest != NULL) {
+                struct eigrp_fsm_action_message msg;
+                struct eigrp_nexthop_entry *entry =
+                        eigrp_prefix_entry_lookup(dest->entries,
+                                                  nbr);
+                msg.packet_type = EIGRP_OPC_SIAREPLY;
+                msg.eigrp = eigrp;
+                msg.data_type = EIGRP_EXT;
+                msg.adv_router = nbr;
+                msg.metrics = etlv->metric;
+                msg.entry = entry;
+                msg.prefix = dest;
+                eigrp_fsm_event(&msg);
+            }
+            eigrp_IPv4_ExternalTLV_free(etlv);
+        }
+    }
+
+    //FIXME: What if we receive a siareply for a prefix we don't have?
 }
 
 void eigrp_send_siareply(struct eigrp_neighbor *nbr,
@@ -128,7 +164,13 @@ void eigrp_send_siareply(struct eigrp_neighbor *nbr,
 		length += eigrp_add_authTLV_MD5_to_stream(ep->s, nbr->ei);
 	}
 
-	length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+	if (pe) {
+        if (pe->extTLV) {
+            length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+        } else {
+            length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+        }
+    }
 
 	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
 	    && (nbr->ei->params.auth_keychain != NULL)) {
@@ -141,8 +183,7 @@ void eigrp_send_siareply(struct eigrp_neighbor *nbr,
 	ep->length = length;
 	ep->dst.s_addr = nbr->src.s_addr;
 
-	/*This ack number we await from neighbor*/
-	ep->sequence_number = nbr->ei->eigrp->sequence_number;
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR | LOGGER_EIGRP_PACKET, "SENDING SIAREPLY to %s", inet_ntoa(nbr->src));
 
 	if (nbr->state == EIGRP_NEIGHBOR_UP) {
 		/*Put packet to retransmission queue*/

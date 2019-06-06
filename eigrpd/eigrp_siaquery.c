@@ -62,7 +62,10 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 			    struct eigrp_interface *ei, int size)
 {
 	struct eigrp_neighbor *nbr;
-	struct TLV_IPv4_Internal_type *tlv;
+    struct TLV_IPv4_Internal_type *tlv;
+    struct TLV_IPv4_External_type *etlv;
+    char pre_text[PREFIX2STR_BUFFER];
+    struct eigrp_nexthop_entry *ne;
 
 	uint16_t type;
 
@@ -84,32 +87,106 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 
 			tlv = eigrp_read_ipv4_tlv(s);
 
-			dest_addr.family = AFI_IP;
+			dest_addr.family = AF_INET;
 			dest_addr.u.prefix4 = tlv->destination;
 			dest_addr.prefixlen = tlv->prefix_length;
-			struct eigrp_prefix_entry *dest =
+            prefix2str(&dest_addr, pre_text, PREFIX2STR_BUFFER);
+			struct eigrp_prefix_entry *pe =
 				eigrp_topology_table_lookup_ipv4(
 					eigrp->topology_table, &dest_addr);
 
-			/* If the destination exists (it should, but one never
-			 * know)*/
-			if (dest != NULL) {
-				struct eigrp_fsm_action_message msg;
-				struct eigrp_nexthop_entry *entry =
-					eigrp_prefix_entry_lookup(dest->entries,
-								  nbr);
-				msg.packet_type = EIGRP_OPC_SIAQUERY;
-				msg.eigrp = eigrp;
-				msg.data_type = EIGRP_INT;
-				msg.adv_router = nbr;
-				msg.metrics = tlv->metric;
-				msg.entry = entry;
-				msg.prefix = dest;
-				eigrp_fsm_event(&msg);
-				eigrp_send_siareply(nbr,dest);
-			}
+            if (pe != NULL) {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
+                /* remove received prefix from neighbor prefix list if in GR */
+
+                ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+                if (!ne) {
+                    ne = eigrp_nexthop_entry_new();
+                } else {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src), pre_text);
+                }
+            } else {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
+                pe = eigrp_prefix_entry_new();
+                eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                              EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+                                              EIGRP_MAX_FEASIBLE_DISTANCE);
+
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+                eigrp_prefix_entry_add(eigrp, pe);
+
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
+                ne = eigrp_nexthop_entry_new();
+            }
+
+            struct eigrp_fsm_action_message msg;
+            msg.packet_type = EIGRP_OPC_SIAQUERY;
+            msg.eigrp = eigrp;
+            msg.data_type = EIGRP_INT;
+            msg.adv_router = nbr;
+            msg.metrics = tlv->metric;
+            msg.entry = ne;
+            msg.prefix = pe;
+            eigrp_fsm_event(&msg);
+            eigrp_send_siareply(nbr,pe);
+
 			eigrp_IPv4_InternalTLV_free(tlv);
 		}
+        if (type == EIGRP_TLV_IPv4_EXT) {
+            struct prefix dest_addr;
+
+            stream_set_getp(s, s->getp - sizeof(uint16_t));
+
+            etlv = eigrp_read_ipv4_external_tlv(s);
+
+            dest_addr.family = AF_INET;
+            dest_addr.u.prefix4 = etlv->destination;
+            dest_addr.prefixlen = etlv->prefix_length;
+            struct eigrp_prefix_entry *dest =
+                    eigrp_topology_table_lookup_ipv4(
+                            eigrp->topology_table, &dest_addr);
+            prefix2str(&dest_addr, pre_text, PREFIX2STR_BUFFER);
+            struct eigrp_prefix_entry *pe =
+                    eigrp_topology_table_lookup_ipv4(
+                            eigrp->topology_table, &dest_addr);
+
+            if (pe != NULL) {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
+                /* remove received prefix from neighbor prefix list if in GR */
+
+                ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+                if (!ne) {
+                    ne = eigrp_nexthop_entry_new();
+                } else {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src), pre_text);
+                }
+            } else {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
+                pe = eigrp_prefix_entry_new();
+                eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                              EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+                                              EIGRP_MAX_FEASIBLE_DISTANCE);
+
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+                eigrp_prefix_entry_add(eigrp, pe);
+
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
+                ne = eigrp_nexthop_entry_new();
+            }
+
+            struct eigrp_fsm_action_message msg;
+            msg.packet_type = EIGRP_OPC_SIAQUERY;
+            msg.eigrp = eigrp;
+            msg.data_type = EIGRP_EXT;
+            msg.adv_router = nbr;
+            msg.metrics = etlv->metric;
+            msg.entry = ne;
+            msg.prefix = dest;
+            eigrp_fsm_event(&msg);
+            eigrp_send_siareply(nbr,dest);
+
+            eigrp_IPv4_ExternalTLV_free(etlv);
+        }
 	}
 }
 
@@ -130,9 +207,15 @@ void eigrp_send_siaquery(struct eigrp_neighbor *nbr,
 		length += eigrp_add_authTLV_MD5_to_stream(ep->s, nbr->ei);
 	}
 
-	length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+    if (pe) {
+        if (pe->extTLV) {
+            length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+        } else {
+            length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+        }
+    }
 
-	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
+    if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
 	    && (nbr->ei->params.auth_keychain != NULL)) {
 		eigrp_make_md5_digest(nbr->ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
 	}
@@ -142,9 +225,6 @@ void eigrp_send_siaquery(struct eigrp_neighbor *nbr,
 
 	ep->length = length;
 	ep->dst.s_addr = nbr->src.s_addr;
-
-	/*This ack number we await from neighbor*/
-	ep->sequence_number = nbr->ei->eigrp->sequence_number;
 
 	if (nbr->state == EIGRP_NEIGHBOR_UP) {
 		/*Put packet to retransmission queue*/

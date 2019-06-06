@@ -208,19 +208,19 @@ void init(void) {
 								  EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
 								  EIGRP_MAX_FEASIBLE_DISTANCE);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
+//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 	eigrp_prefix_entry_add(eigrp, pe);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
+//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
 	ne = eigrp_nexthop_entry_new();
 
-	if (!ei) {
-		ei = eigrp_if_new(eigrp, eigrp->, pe)
-	}
+//	if (!ei) {
+//		ei = eigrp_if_new(eigrp, eigrp->, pe)
+//	}
 
-	if (!nbr) {
-		nbr = eigrp_nbr_new()
-	}
+//	if (!nbr) {
+//		nbr = eigrp_nbr_new()
+//	}
 
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;

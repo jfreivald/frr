@@ -383,6 +383,8 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 		for (ALL_LIST_ELEMENTS(pe->active_queries, n, nn, qnbr)) {
 			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has pending query for %s", pbuf, inet_ntoa(nbr->src));
 			if (qnbr && nbr->src.s_addr == qnbr->src.s_addr) {
+			    //We send replies to this neighbor, even though we don't know they are there
+                eigrp_send_reply(nbr, pe);
 				listnode_delete(msg.prefix->active_queries, qnbr);
 			}
 		}

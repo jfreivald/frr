@@ -222,16 +222,29 @@ enum eigrp_fsm_events {
 /**
  * EIGRP Packet Opcodes
  */
-#define EIGRP_OPC_UPDATE        1       /*!< packet containing routing information */
-#define EIGRP_OPC_REQUEST       2       /*!< sent to request one or more routes */
-#define EIGRP_OPC_QUERY         3       /*!< sent when a routing is in active start */
-#define EIGRP_OPC_REPLY         4       /*!< sent in response to a query */
-#define EIGRP_OPC_HELLO         5       /*!< sent to maintain a peering session */
-#define EIGRP_OPC_IPXSAP        6       /*!< IPX SAP information */
-#define EIGRP_OPC_PROBE         7       /*!< for test purposes   */
-#define EIGRP_OPC_ACK           8       /*!< acknowledge         */
-#define EIGRP_OPC_SIAQUERY      10      /*!< QUERY - with relaxed restrictions */
-#define EIGRP_OPC_SIAREPLY      11      /*!< REPLY - may contain old routing information */
+enum eigrp_packet_opcodes_t {
+    EIGRP_OPC_UPDATE = 1,
+    EIGRP_OPC_REQUEST = 2,
+    EIGRP_OPC_QUERY = 3,
+    EIGRP_OPC_REPLY = 4,
+    EIGRP_OPC_HELLO = 5,
+    EIGRP_OPC_IPXSAP = 6,
+    EIGRP_OPC_PROBE = 7,
+    EIGRP_OPC_ACK = 8,
+    EIGRP_OPC_SIAQUERY = 10,
+    EIGRP_OPC_SIAREPLY = 11
+};
+
+//#define EIGRP_OPC_UPDATE        1       /*!< packet containing routing information */
+//#define EIGRP_OPC_REQUEST       2       /*!< sent to request one or more routes */
+//#define EIGRP_OPC_QUERY         3       /*!< sent when a routing is in active start */
+//#define EIGRP_OPC_REPLY         4       /*!< sent in response to a query */
+//#define EIGRP_OPC_HELLO         5       /*!< sent to maintain a peering session */
+//#define EIGRP_OPC_IPXSAP        6       /*!< IPX SAP information */
+//#define EIGRP_OPC_PROBE         7       /*!< for test purposes   */
+//#define EIGRP_OPC_ACK           8       /*!< acknowledge         */
+//#define EIGRP_OPC_SIAQUERY      10      /*!< QUERY - with relaxed restrictions */
+//#define EIGRP_OPC_SIAREPLY      11      /*!< REPLY - may contain old routing information */
 
 /**
  * EIGRP Update Packet Behavior

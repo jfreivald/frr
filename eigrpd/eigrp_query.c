@@ -74,7 +74,7 @@ uint32_t eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_neighbor *except
 	counter = 0;
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
 		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
-			if (nbr != exception && nbr->state == EIGRP_NEIGHBOR_UP) {
+			if (!exception || (nbr->src.s_addr != exception->src.s_addr && nbr->state == EIGRP_NEIGHBOR_UP)) {
 				eigrp_send_query(nbr);
 				counter++;
 			}
@@ -211,6 +211,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
 				}
 
+				//Process the query for this prefix.
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_EXT;
@@ -219,6 +220,11 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
+
+				//Send our queries and/or replies for this prefix.
+                msg.data_type = EIGRP_FSM_ACK;
+
+                eigrp_fsm_event(&msg);
 			}
 			eigrp_IPv4_ExternalTLV_free(etlv);
 
@@ -232,15 +238,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 		}
 	}
 
-	msg.packet_type = EIGRP_OPC_UPDATE;
-	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_FSM_ACK;
-	msg.adv_router = nbr;
-	msg.metrics = EIGRP_INFINITE_METRIC;
-	msg.entry = NULL;
-	msg.prefix = NULL;
-
-	eigrp_fsm_event(&msg);
 }
 
 void eigrp_send_query(struct eigrp_neighbor *nbr)

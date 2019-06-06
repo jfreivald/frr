@@ -63,10 +63,18 @@
 #define LOGGER_EIGRP_REPLY			(0x1000)
 #define LOGGER_EIGRP_TRACE			(0x8000)
 
+#ifdef __FILENAME__
+#define L(logfunc,m,f,...)     _logger(logfunc,m,f,__FILENAME__,__PRETTY_FUNCTION__,__LINE__,errno,__VA_ARGS__)
+#else
 #define L(logfunc,m,f,...)     _logger(logfunc,m,f,__FILE__,__PRETTY_FUNCTION__,__LINE__,errno,__VA_ARGS__)
+#endif
 void _logger(void (logfunc(const char *format, ...)), uint32_t module, uint32_t flags, const char *file, const char *func, int line, int e, const char *fmt, ...);
 
+#ifdef __FILENAME__
+#define LBT(logfunc,m,f,...)   _logger_backtrace(logfunc,m,f,__FILENAME__,__PRETTY_FUNCTION__,__LINE__,errno,__VA_ARGS__)
+#else
 #define LBT(logfunc,m,f,...)   _logger_backtrace(logfunc,m,f,__FILE__,__PRETTY_FUNCTION__,__LINE__,errno,__VA_ARGS__)
+#endif
 void _logger_backtrace(void (logfunc(const char *format, ...)), uint32_t module, uint32_t flags, const char *file, const char *func, int line, int e, const char *fmt, ...);
 
 #endif //DEBUG_PREFIX_H

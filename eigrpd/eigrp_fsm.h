@@ -25,6 +25,48 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+/*
+ * * This file contains functions for executing logic of finite state machine
+ *
+ *                                +------------ +
+ *                                |     (7)     |
+ *                                |             v
+ *                    +=====================================+
+ *                    |                                     |
+ *                    |              Passive                |
+ *                    |                                     |
+ *                    +=====================================+
+ *                        ^     |     ^     ^     ^    |
+ *                     (3)|     |  (1)|     |  (1)|    |
+ *                        |  (0)|     |  (3)|     | (2)|
+ *                        |     |     |     |     |    +---------------+
+ *                        |     |     |     |     |                     \
+ *              +--------+      |     |     |     +-----------------+    \
+ *            /                /     /      |                        \    \
+ *          /                /     /        +----+                    \    \
+ *         |                |     |               |                    |    |
+ *         |                v     |               |                    |    v
+ *    +===========+   (6)  +===========+       +===========+   (6)   +===========+
+ *    |           |------->|           |  (5)  |           |-------->|           |
+ *    |           |   (4)  |           |------>|           |   (4)   |           |
+ *    | ACTIVE 0  |<-------| ACTIVE 1  |       | ACTIVE 2  |<--------| ACTIVE 3  |
+ * +--|           |     +--|           |    +--|           |      +--|           |
+ * |  +===========+     |  +===========+    |  +===========+      |  +===========+
+ * |       ^  |(5)      |      ^            |    ^    ^           |         ^
+ * |       |  +---------|------|------------|----+    |           |         |
+ * +-------+            +------+            +---------+           +---------+
+ *    (7)                 (7)                  (7)                   (7)
+ *
+ * 0- input event other than query from successor, FC not satisfied
+ * 1- last reply, FD is reset
+ * 2- query from successor, FC not satisfied
+ * 3- last reply, FC satisfied with current value of FDij
+ * 4- distance increase while in active state
+ * 5- query from successor while in active state
+ * 6- last reply, FC not satisfied with current value of FDij
+ * 7- state not changed, usually by receiving not last reply
+ */
+
 #ifndef _ZEBRA_EIGRP_FSM_H
 #define _ZEBRA_EIGRP_FSM_H
 

@@ -514,7 +514,7 @@ typedef enum {
 /* EIGRP Finite State Machine */
 
 struct eigrp_fsm_action_message {
-	uint8_t packet_type;		   // UPDATE, QUERY, SIAQUERY, SIAREPLY
+    enum eigrp_packet_opcodes_t packet_type;		   // UPDATE, QUERY, SIAQUERY, SIAREPLY
 	struct eigrp *eigrp;		   // which thread sent mesg
 	struct eigrp_neighbor *adv_router; // advertising neighbor
 	struct eigrp_nexthop_entry *entry;

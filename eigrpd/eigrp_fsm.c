@@ -89,6 +89,8 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_fsm.h"
 
+#define EIGRP_QUERY_AUDITING_ENABLED
+
 /*
  * Prototypes
  */
@@ -104,6 +106,13 @@ int eigrp_fsm_event_qact(struct eigrp_fsm_action_message *);
 //---------------------------------------------------------------------
 
 const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_METRIC,0,{0,0,0},255,0,0,0,0};
+
+/*
+ * TODO: QUERY AUDITING
+ * We are losing queries and getting SIA. Audit the queries and ensure each one gets a
+ * response. The active queries are stored on the prefix "active_queries" and "replies"
+ * lists.
+ */
 
 /*
  * NSM - field of fields of struct containing one function each.
@@ -172,29 +181,43 @@ struct {
 		},
 };
 
-//static const char *packet_type2str(uint8_t packet_type)
-//{
-//	if (packet_type == EIGRP_OPC_UPDATE)
-//		return "UPDATE";
-//	if (packet_type == EIGRP_OPC_REQUEST)
-//		return "REQUEST";
-//	if (packet_type == EIGRP_OPC_QUERY)
-//		return "QUERY";
-//	if (packet_type == EIGRP_OPC_REPLY)
-//		return "REPLY";
-//	if (packet_type == EIGRP_OPC_HELLO)
-//		return "HELLO";
-//	if (packet_type == EIGRP_OPC_IPXSAP)
-//		return "IPXSAP";
-//	if (packet_type == EIGRP_OPC_ACK)
-//		return "ACK";
-//	if (packet_type == EIGRP_OPC_SIAQUERY)
-//		return "SIA QUERY";
-//	if (packet_type == EIGRP_OPC_SIAREPLY)
-//		return "SIA REPLY";
-//
-//	return "Unknown";
-//}
+static const char *packet_type2str(uint8_t packet_type)
+{
+	if (packet_type == EIGRP_OPC_UPDATE)
+		return "UPDATE";
+	else if (packet_type == EIGRP_OPC_REQUEST)
+		return "REQUEST";
+    else if (packet_type == EIGRP_OPC_QUERY)
+		return "QUERY";
+    else if (packet_type == EIGRP_OPC_REPLY)
+		return "REPLY";
+    else if (packet_type == EIGRP_OPC_HELLO)
+		return "HELLO";
+    else if (packet_type == EIGRP_OPC_IPXSAP)
+		return "IPXSAP";
+    else if (packet_type == EIGRP_OPC_ACK)
+		return "ACK";
+    else if (packet_type == EIGRP_OPC_SIAQUERY)
+		return "SIA QUERY";
+    else if (packet_type == EIGRP_OPC_SIAREPLY)
+		return "SIA REPLY";
+
+	return "WARNING: UNKNOWN PACKET TYPE";
+}
+
+static const char *data_type2str(uint8_t packet_type)
+{
+    if (packet_type == EIGRP_CONNECTED)
+        return "EIGRP_CONNECTED";
+    else if (packet_type == EIGRP_INT)
+        return "EIGRP_INT";
+    else if (packet_type == EIGRP_EXT)
+        return "EIGRP_EXT";
+    else if (packet_type == EIGRP_FSM_ACK)
+        return "EIGRP_FSM_ACK";
+
+    return "WARNING: UNKNOWN DATA TYPE";
+}
 
 //static const char *prefix_state2str(enum eigrp_fsm_states state)
 //{
@@ -385,15 +408,16 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	/* Store for display later */
 	msg->change = change;
 
+
 	if (msg->packet_type == EIGRP_OPC_QUERY) {
 		/* New query. If we already have one from this neighbor, remove it and reapply it. *
 		 */
 		listnode_delete(msg->prefix->active_queries, msg->adv_router);
 		listnode_add(msg->prefix->active_queries, msg->adv_router);
 	} else if (msg->packet_type == EIGRP_OPC_REPLY) {
-		/* Reply with metrics */
-		listnode_add(msg->prefix->reply_entries, msg->entry);
-		listnode_delete(msg->prefix->rij, msg->entry->adv_router);
+	    /* New reply. Update reply metrics for this prefix and then process the metrics in the FSM.
+	     */
+	    listnode_delete(msg->prefix->rij, msg->adv_router);
 	}
 
 	switch (actual_state) {
@@ -512,7 +536,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	}
 	}
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return ret_state;
 }
 
@@ -522,6 +546,69 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
  */
 int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 {
+
+    struct listnode *node2;
+    struct eigrp_neighbor *active_query_nbr, *active_reply_nbr;
+    struct eigrp_prefix_entry *pe;
+    struct prefix nbr_pfx;
+    struct route_node *rn;
+    char   prefixbuf[PREFIX2STR_BUFFER];
+    char   nbr_str[PREFIX2STR_BUFFER];
+
+#ifdef EIGRP_QUERY_AUDITING_ENABLED
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "BEGIN QUERY PRE ACTION AUDIT");
+    /* iterate over all prefixes in topology table */
+    for (rn = route_top(msg->eigrp->topology_table); rn; rn = route_next(rn)) {
+        if (!rn->info)
+            continue;
+        pe = rn->info;
+        /* iterate over all neighbor entry in prefix */
+        for (ALL_LIST_ELEMENTS_RO(pe->active_queries, node2, active_query_nbr)) {
+            prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
+            prefixbuf[PREFIX2STR_BUFFER - 1] = 0;
+            nbr_pfx.family = AF_INET;
+            nbr_pfx.prefixlen = 32;
+            nbr_pfx.u.prefix4 = active_query_nbr->src;
+            prefix2str(&nbr_pfx, nbr_str, PREFIX2STR_BUFFER);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "nbr[%s]: Active Query[%s]", nbr_str, prefixbuf);
+        }
+        for (ALL_LIST_ELEMENTS_RO(pe->reply_entries, node2, active_reply_nbr)) {
+            prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
+            prefixbuf[PREFIX2STR_BUFFER - 1] = 0;
+            nbr_pfx.family = AF_INET;
+            nbr_pfx.prefixlen = 32;
+            nbr_pfx.u.prefix4 = active_reply_nbr->src;
+            prefix2str(&nbr_pfx, nbr_str, PREFIX2STR_BUFFER);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "nbr[%s]: Received Reply[%s]", nbr_str, prefixbuf);
+        }
+        for (ALL_LIST_ELEMENTS_RO(pe->rij, node2, active_reply_nbr)) {
+            prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
+            prefixbuf[PREFIX2STR_BUFFER - 1] = 0;
+            nbr_pfx.family = AF_INET;
+            nbr_pfx.prefixlen = 32;
+            nbr_pfx.u.prefix4 = active_reply_nbr->src;
+            prefix2str(&nbr_pfx, nbr_str, PREFIX2STR_BUFFER);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "nbr[%s]: Awaiting Reply[%s]", nbr_str, prefixbuf);
+        }
+    }
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "END QUERY PRE ACTION AUDIT");
+#endif
+
+    if (msg->prefix) {
+        prefix2str(msg->prefix->destination, prefixbuf, PREFIX2STR_BUFFER);
+        prefixbuf[PREFIX2STR_BUFFER - 1] = 0;
+    } else {
+        strncpy(prefixbuf, "NO PREFIX", PREFIX2STR_BUFFER);
+    }
+    if (msg->adv_router) {
+        inet_ntop(AF_INET, &(msg->adv_router->src), nbr_str, INET_ADDRSTRLEN);
+        nbr_str[INET_ADDRSTRLEN - 1] = 0;
+    } else {
+        strncpy(nbr_str, "NO NBR", INET_ADDRSTRLEN);
+    }
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM UPDATE: Prefix[%s], NBR[%s], MSG[%s], DATA[%s]",
+            prefixbuf, nbr_str, packet_type2str(msg->packet_type), data_type2str(msg->data_type));
+
 	if (msg->data_type != EIGRP_FSM_ACK) {
 		assert(msg && msg->entry && msg->prefix);
 
@@ -536,12 +623,56 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 			send_flags &= ~EIGRP_FSM_NEED_UPDATE;
 		}
 		if (send_flags & EIGRP_FSM_NEED_QUERY) {
-			/* If this neighbor isn't up, skip sending them an query */
-			eigrp_query_send_all(msg->eigrp, msg->adv_router->state == EIGRP_NEIGHBOR_UP ? NULL : msg->adv_router);
+		    /* If this is a finish-up to a query then we skip the neighbor that sent us the query, else we send to all
+		     * Note that the second case should never happen because this should get run after every query, which
+		     * clears out the queue. */
+			if (!eigrp_query_send_all(msg->eigrp, msg->packet_type == EIGRP_OPC_QUERY ? msg->adv_router : NULL)) {
+			    /* No queries were sent, even though this prefix is in the active state. This means that there are
+			     * no neighbors for this route and we should immediately converge this route and send a reply. */
+                eigrp_fsm_event_lr(msg);
+			}
 			send_flags &= ~EIGRP_FSM_NEED_QUERY;
 		}
 	}
 
+#ifdef EIGRP_QUERY_AUDITING_ENABLED
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "BEGIN QUERY POST ACTION AUDIT");
+    /* iterate over all prefixes in topology table */
+    for (rn = route_top(msg->eigrp->topology_table); rn; rn = route_next(rn)) {
+        if (!rn->info)
+            continue;
+        pe = rn->info;
+        /* iterate over all neighbor entry in prefix */
+        for (ALL_LIST_ELEMENTS_RO(pe->active_queries, node2, active_query_nbr)) {
+            prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
+            prefixbuf[PREFIX2STR_BUFFER - 1] = 0;
+            nbr_pfx.family = AF_INET;
+            nbr_pfx.prefixlen = 32;
+            nbr_pfx.u.prefix4 = active_query_nbr->src;
+            prefix2str(&nbr_pfx, nbr_str, PREFIX2STR_BUFFER);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "nbr[%s]: Active Query[%s]", nbr_str, prefixbuf);
+        }
+        for (ALL_LIST_ELEMENTS_RO(pe->reply_entries, node2, active_reply_nbr)) {
+            prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
+            prefixbuf[PREFIX2STR_BUFFER - 1] = 0;
+            nbr_pfx.family = AF_INET;
+            nbr_pfx.prefixlen = 32;
+            nbr_pfx.u.prefix4 = active_reply_nbr->src;
+            prefix2str(&nbr_pfx, nbr_str, PREFIX2STR_BUFFER);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "nbr[%s]: Received Reply[%s]", nbr_str, prefixbuf);
+        }
+        for (ALL_LIST_ELEMENTS_RO(pe->rij, node2, active_reply_nbr)) {
+            prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
+            prefixbuf[PREFIX2STR_BUFFER - 1] = 0;
+            nbr_pfx.family = AF_INET;
+            nbr_pfx.prefixlen = 32;
+            nbr_pfx.u.prefix4 = active_reply_nbr->src;
+            prefix2str(&nbr_pfx, nbr_str, PREFIX2STR_BUFFER);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "nbr[%s]: Awaiting Reply[%s]", nbr_str, prefixbuf);
+        }
+    }
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "END QUERY POST ACTION AUDIT");
+#endif
 	return 1;
 }
 
@@ -613,7 +744,8 @@ int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *msg)
 					eigrp_nexthop_entry_free(ne);
 				}
 			}
-			listnode_add(msg->prefix->reply_entries, msg->entry);
+            listnode_add(msg->prefix->reply_entries, msg->entry);
+            listnode_delete(msg->prefix->rij, msg->entry->adv_router);
 		}
 	}
 

@@ -801,10 +801,10 @@ int eigrp_read(struct thread *thread)
 		//      length);
 		break;
 	case EIGRP_OPC_SIAQUERY:
-		eigrp_query_receive(eigrp, iph, eigrph, ibuf, ei, length);
+        eigrp_siaquery_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_SIAREPLY:
-		eigrp_reply_receive(eigrp, iph, eigrph, ibuf, ei, length);
+        eigrp_siareply_receive(eigrp, iph, eigrph, ibuf, ei, length);
 		break;
 	case EIGRP_OPC_UPDATE:
 		eigrp_update_receive(eigrp, iph, eigrph, ibuf, ei, length);
