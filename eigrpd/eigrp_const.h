@@ -43,8 +43,8 @@
 #define EIGRP_NEIGHBOR_UP				0xFF
 
 /*Packet requiring ack will be retransmitted again after this time*/
-#define EIGRP_PACKET_RETRANS_TIME        3 /* in seconds */
-#define EIGRP_PACKET_RETRANS_MAX         3 /* number of retrans attempts */
+#define EIGRP_PACKET_RETRANS_TIME        1 /* in seconds */
+#define EIGRP_PACKET_RETRANS_MAX         15 /* number of retrans attempts */
 #define PLAINTEXT_LENGTH                 81
 
 /*Metric variance multiplier*/

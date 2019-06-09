@@ -89,8 +89,8 @@ static int eigrp_retrans_count_exceeded(struct eigrp_packet *ep,
 {
 
 	L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,
-				"NEIGHBOR %s: Retransmit exceeded. NEIGHBOR RESET.",
-				inet_ntoa(nbr->src));
+				"NEIGHBOR %s: Retransmit exceeded. Unable to communicate for %d seconds. Reset neighbor.",
+				inet_ntoa(nbr->src), EIGRP_PACKET_RETRANS_MAX);
 	eigrp_nbr_hard_restart(nbr, NULL);
 	return 1;
 }
