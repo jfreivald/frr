@@ -453,6 +453,9 @@ if test $ac_cv_lib_json_c_json_object_get = no; then
 fi
 ])
 
+AC_CHECK_HEADERS(numaif.h)
+AC_CHECK_LIB(numa, get_mempolicy, LIBS="$LIBS -lnuma", [], [])
+
 AC_ARG_ENABLE([dev_build],
     AS_HELP_STRING([--enable-dev-build], [build for development]))
 

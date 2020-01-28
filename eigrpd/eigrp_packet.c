@@ -318,9 +318,18 @@ int eigrp_check_sha256_digest(struct stream *s,
 	return 1;
 }
 
+#include <numaif.h>
+
 int eigrp_write(struct thread *thread)
 {
+    int mem_node;
+    long policy_return;
+    if (( policy_return = get_mempolicy(&mem_node, NULL, 0, (void *)thread, MPOL_F_NODE | MPOL_F_ADDR) ) < 0 ) {
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TABLES, "eigrp_write() called with invalid thread pointer");
+        return policy_return;
+    }
 	struct eigrp *eigrp = THREAD_ARG(thread);
+    assert(eigrp);
 	struct eigrp_header *eigrph;
 	struct eigrp_interface *ei;
 	struct eigrp_packet *ep;
