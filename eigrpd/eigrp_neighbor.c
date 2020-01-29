@@ -298,8 +298,9 @@ static void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
 }
 void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char *func, const int line)
 {
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Sizes: %d,%d,%d,%d,%d", sizeof(struct route_node), sizeof(struct eigrp_neighbor), sizeof(struct eigrp_prefix_entry), sizeof(struct eigrp_nexthop_entry), sizeof(struct eigrp_fsm_action_message));
 
-	route_table_iter_t it;
+    route_table_iter_t it;
 	struct route_node *rn;
 	struct listnode *n, *nn;
 	struct listnode *rijn, *rijnn;

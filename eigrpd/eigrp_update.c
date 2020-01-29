@@ -477,145 +477,6 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 
 }
 
-//static void eigrp_update_send_to_all_nbrs(struct eigrp_interface *ei,
-//					  struct eigrp_packet *ep)
-//{
-//	struct listnode *node, *nnode;
-//	struct eigrp_neighbor *nbr;
-//	bool packet_sent = false;
-//
-//	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
-//		struct eigrp_packet *ep_dup;
-//
-//		if (nbr->state != EIGRP_NEIGHBOR_UP)
-//			continue;
-//
-//		if (packet_sent)
-//			ep_dup = eigrp_packet_duplicate(ep, NULL);
-//		else
-//			ep_dup = ep;
-//
-//		ep_dup->nbr = nbr;
-//		packet_sent = true;
-//		/*Put packet to retransmission queue*/
-//		eigrp_fifo_push(nbr->retrans_queue, ep_dup);
-//
-//		if (nbr->retrans_queue->count == 1) {
-//			eigrp_send_packet_reliably(nbr);
-//		}
-//	}
-//
-//	if (!packet_sent)
-//		eigrp_packet_free(ep);
-//}
-
-
-void eigrp_update_send_EOT(struct eigrp_neighbor *nbr)
-{
-	struct eigrp_packet *ep;
-	uint16_t length = EIGRP_HEADER_LEN;
-	struct eigrp_nexthop_entry *ne;
-	struct eigrp_prefix_entry *pe;
-	struct listnode *node, *nnode;
-	struct prefix *dest_addr;
-	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(nbr->ei->ifp->mtu);
-	struct route_node *rn;
-	char pbuf[PREFIX2STR_BUFFER];
-
-	ep = eigrp_packet_new(eigrp_mtu, nbr);
-
-	/* Prepare EIGRP EOT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_UPDATE, nbr->ei->eigrp, ep->s, EIGRP_EOT_FLAG);
-
-	ep->dst.s_addr = nbr->src.s_addr;
-
-	// encode Authentication TLV, if needed
-	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-	    && (nbr->ei->params.auth_keychain != NULL)) {
-		length += eigrp_add_authTLV_MD5_to_stream(ep->s, nbr->ei);
-	}
-
-	route_table_iter_t it;
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Constructing EOT Update packet for %s", inet_ntoa(nbr->src));
-	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
-	while ((rn = route_table_iter_next(&it)) != NULL) {
-		if (NULL == (pe = rn->info)) {
-			continue;
-		}
-
-		for (ALL_LIST_ELEMENTS(pe->entries, node, nnode, ne)) {
-			if (ne->prefix && ne->prefix->destination) {
-				prefix2str(ne->prefix->destination, pbuf, PREFIX2STR_BUFFER);
-			} else {
-				snprintf(pbuf, PREFIX2STR_BUFFER, "INVALID PREFIX");
-			}
-
-			//We only want connected routes for the EOT
-			if (ne->prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED) {
-				continue;
-			}
-
-//			if (eigrp_nbr_split_horizon_check(ne, nbr->ei)) {
-//				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Skip Split Horizon.", pbuf);
-//				continue;
-//			}
-
-			if (pe->destination->u.prefix4.s_addr == nbr->src.s_addr) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s Skip Neighbor's own address.", pbuf);
-				continue;
-			}
-
-			if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");
-
-				if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-						&& (nbr->ei->params.auth_keychain != NULL)) {
-					eigrp_make_md5_digest(nbr->ei, ep->s,
-							EIGRP_AUTH_UPDATE_FLAG);
-				}
-
-				eigrp_packet_checksum(nbr->ei, ep->s, length);
-				ep->length = length;
-
-				eigrp_place_on_nbr_queue(nbr, ep, length);
-
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Reset for a new packet.");
-
-				length = EIGRP_HEADER_LEN;
-				ep = eigrp_packet_new(eigrp_mtu, nbr);
-				eigrp_packet_header_init(
-					EIGRP_OPC_UPDATE, nbr->ei->eigrp, ep->s, EIGRP_EOT_FLAG);
-
-				if ((nbr->ei->params.auth_type
-				     == EIGRP_AUTH_TYPE_MD5)
-				    && (nbr->ei->params.auth_keychain != NULL)) {
-					length +=
-						eigrp_add_authTLV_MD5_to_stream(
-							ep->s, nbr->ei);
-				}
-			}
-			/* Get destination address from prefix */
-			dest_addr = pe->destination;
-
-			/* Check if any list fits */
-			if (eigrp_update_prefix_apply(
-					nbr->ei->eigrp, nbr->ei, EIGRP_FILTER_OUT, dest_addr))
-				continue;
-			else {
-				if (pe->extTLV) {
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add External route %s", pbuf);
-					length += eigrp_add_externalTLV_to_stream(ep->s, pe);
-				} else {
-					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add Internal route %s", pbuf);
-					length += eigrp_add_internalTLV_to_stream(ep->s, pe);
-				}
-			}
-		}
-	}
-
-	eigrp_place_on_nbr_queue(nbr, ep, length);
-}
-
 void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_routes)
 {
 	struct eigrp_interface *ei = nbr->ei;
@@ -692,7 +553,7 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 		}
 
 		if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send it.");
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send to %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
 
 			eigrp_place_on_nbr_queue(nbr, ep, length);
 
@@ -739,6 +600,11 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update length[%u] Seq [%u]", length,
 			   ep->sequence_number);
 
+    if (all_routes) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add EOT Flag", inet_ntoa(nbr->src), nbr->ei->ifp->name);
+        eigrp_packet_header_set_flags(ep->s, EIGRP_EOT_FLAG);
+    }
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Done processing update. Add EOT and send to %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
 	eigrp_place_on_nbr_queue(nbr, ep, length);
 
 }

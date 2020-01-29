@@ -326,6 +326,7 @@ int eigrp_write(struct thread *thread)
     long policy_return;
     if (( policy_return = get_mempolicy(&mem_node, NULL, 0, (void *)thread, MPOL_F_NODE | MPOL_F_ADDR) ) < 0 ) {
         L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TABLES, "eigrp_write() called with invalid thread pointer");
+        abort();
         return policy_return;
     }
 	struct eigrp *eigrp = THREAD_ARG(thread);
@@ -598,7 +599,7 @@ int eigrp_read(struct thread *thread)
 
 	/* associate packet with eigrp interface */
 	ei = ifp->info;
-	
+
 	/* Check to see if the interface is running, else start the interface.
 	 * Not exactly sure what to check, but if this is a new interface and
 	 * this is the first packet from that interface, then it will not have
@@ -1059,6 +1060,16 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 			   htonl(eigrph->sequence));
 
 	stream_forward_endp(s, EIGRP_HEADER_LEN);
+}
+
+void eigrp_packet_header_set_flags(struct stream *s, uint32_t flags)
+{
+    struct eigrp_header *eigrph;
+
+    stream_reset(s);
+    eigrph = (struct eigrp_header *)STREAM_DATA(s);
+
+    eigrph->flags |= htonl(flags);
 }
 
 /* Add new packet to head of fifo. */
