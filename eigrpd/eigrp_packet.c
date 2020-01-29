@@ -1051,8 +1051,7 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 		}
 		eigrph->sequence = htonl((eigrp->sequence_number)++);
 	}
-	//  if(flags == EIGRP_INIT_FLAG)
-	//    eigrph->sequence = htonl(3);
+
 	eigrph->flags = htonl(flags);
 
 	if (IS_DEBUG_EIGRP_TRANSMIT(0, PACKET_DETAIL))
@@ -1065,8 +1064,7 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct stream *s,
 void eigrp_packet_header_set_flags(struct stream *s, uint32_t flags)
 {
     struct eigrp_header *eigrph;
-
-    stream_reset(s);
+    
     eigrph = (struct eigrp_header *)STREAM_DATA(s);
 
     eigrph->flags |= htonl(flags);
