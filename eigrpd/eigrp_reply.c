@@ -74,7 +74,7 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(ei->ifp->mtu), nbr);
 
 	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep->s, 0);
+	eigrp_packet_header_init(EIGRP_OPC_REPLY, eigrp, ep, 0);
 
 	// encode Authentication TLV, if needed
 	if (ei->params.auth_type == EIGRP_AUTH_TYPE_MD5

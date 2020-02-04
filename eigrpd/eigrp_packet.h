@@ -43,9 +43,9 @@ extern struct eigrp_packet *eigrp_packet_duplicate(struct eigrp_packet *,
 						   struct eigrp_neighbor *);
 extern void eigrp_packet_free(struct eigrp_packet *);
 extern void eigrp_packet_delete(struct eigrp_interface *);
-extern void eigrp_packet_header_init(int, struct eigrp *, struct stream *,
-				     uint32_t);
-extern void eigrp_packet_header_set_flags(struct stream *s, uint32_t flags);
+extern void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct eigrp_packet *p,
+                                     uint32_t flags);
+extern void eigrp_packet_header_set_flags(bool set, struct stream *s, uint32_t flags);
 extern void eigrp_packet_checksum(struct eigrp_interface *, struct stream *,
 				  uint16_t);
 
@@ -62,6 +62,7 @@ extern void eigrp_send_packet_reliably(struct eigrp_neighbor *);
 
 extern struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *);
 struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s);
+void eigrp_discard_tlv(struct stream *s);
 #define eigrp_add_internalTLV_to_stream(s,i)	eigrp_add_internalTLV_to_stream_extended(s,i,0)
 extern uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *,
 						struct eigrp_prefix_entry *, int flags);

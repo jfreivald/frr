@@ -66,6 +66,9 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
     struct TLV_IPv4_External_type *etlv;
     char pre_text[PREFIX2STR_BUFFER];
     struct eigrp_nexthop_entry *ne;
+    struct prefix dest_addr;
+    struct eigrp_prefix_entry *pe;
+    struct eigrp_fsm_action_message msg;
 
 	uint16_t type;
 
@@ -78,114 +81,126 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	while (s->endp > s->getp) {
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Processing SIAQuery");
+
+    while (s->endp > s->getp) {
 		type = stream_getw(s);
-		if (type == EIGRP_TLV_IPv4_INT) {
-			struct prefix dest_addr;
+		switch(type) {
+            case EIGRP_TLV_IPv4_INT:
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Internal IPv4 Route");
 
-			stream_set_getp(s, s->getp - sizeof(uint16_t));
+                stream_set_getp(s, s->getp - sizeof(uint16_t));
 
-			tlv = eigrp_read_ipv4_tlv(s);
+                tlv = eigrp_read_ipv4_tlv(s);
 
-			dest_addr.family = AF_INET;
-			dest_addr.u.prefix4 = tlv->destination;
-			dest_addr.prefixlen = tlv->prefix_length;
-            prefix2str(&dest_addr, pre_text, PREFIX2STR_BUFFER);
-			struct eigrp_prefix_entry *pe =
-				eigrp_topology_table_lookup_ipv4(
-					eigrp->topology_table, &dest_addr);
+                dest_addr.family = AF_INET;
+                dest_addr.u.prefix4 = tlv->destination;
+                dest_addr.prefixlen = tlv->prefix_length;
+                prefix2str(&dest_addr, pre_text, PREFIX2STR_BUFFER);
+                pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
-            if (pe != NULL) {
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
-                /* remove received prefix from neighbor prefix list if in GR */
+                if (pe != NULL) {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
+                    /* remove received prefix from neighbor prefix list if in GR */
 
-                ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-                if (!ne) {
-                    ne = eigrp_nexthop_entry_new();
+                    ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+                    if (!ne) {
+                        ne = eigrp_nexthop_entry_new();
+                    } else {
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src),
+                          pre_text);
+                    }
                 } else {
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src), pre_text);
-                }
-            } else {
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
-                pe = eigrp_prefix_entry_new();
-                eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-                                              EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-                                              EIGRP_MAX_FEASIBLE_DISTANCE);
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
+                    pe = eigrp_prefix_entry_new();
+                    eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                                  EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC,
+                                                  EIGRP_MAX_FEASIBLE_DISTANCE,
+                                                  EIGRP_MAX_FEASIBLE_DISTANCE);
 
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
-                eigrp_prefix_entry_add(eigrp, pe);
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text,
+                      eigrp->name);
+                    eigrp_prefix_entry_add(eigrp, pe);
 
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
-                ne = eigrp_nexthop_entry_new();
-            }
-
-            struct eigrp_fsm_action_message msg;
-            msg.packet_type = EIGRP_OPC_SIAQUERY;
-            msg.eigrp = eigrp;
-            msg.data_type = EIGRP_INT;
-            msg.adv_router = nbr;
-            msg.metrics = tlv->metric;
-            msg.entry = ne;
-            msg.prefix = pe;
-            eigrp_fsm_event(&msg);
-            eigrp_send_siareply(nbr,pe);
-
-			eigrp_IPv4_InternalTLV_free(tlv);
-		}
-        if (type == EIGRP_TLV_IPv4_EXT) {
-            struct prefix dest_addr;
-
-            stream_set_getp(s, s->getp - sizeof(uint16_t));
-
-            etlv = eigrp_read_ipv4_external_tlv(s);
-
-            dest_addr.family = AF_INET;
-            dest_addr.u.prefix4 = etlv->destination;
-            dest_addr.prefixlen = etlv->prefix_length;
-            struct eigrp_prefix_entry *dest =
-                    eigrp_topology_table_lookup_ipv4(
-                            eigrp->topology_table, &dest_addr);
-            prefix2str(&dest_addr, pre_text, PREFIX2STR_BUFFER);
-            struct eigrp_prefix_entry *pe =
-                    eigrp_topology_table_lookup_ipv4(
-                            eigrp->topology_table, &dest_addr);
-
-            if (pe != NULL) {
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
-                /* remove received prefix from neighbor prefix list if in GR */
-
-                ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
-                if (!ne) {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s",
+                      pre_text, inet_ntoa(nbr->src));
                     ne = eigrp_nexthop_entry_new();
-                } else {
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src), pre_text);
                 }
-            } else {
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
-                pe = eigrp_prefix_entry_new();
-                eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-                                              EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-                                              EIGRP_MAX_FEASIBLE_DISTANCE);
 
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
-                eigrp_prefix_entry_add(eigrp, pe);
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Sending to SIAQuery to FSM");
 
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
-                ne = eigrp_nexthop_entry_new();
-            }
+                msg.packet_type = EIGRP_OPC_SIAQUERY;
+                msg.eigrp = eigrp;
+                msg.data_type = EIGRP_INT;
+                msg.adv_router = nbr;
+                msg.metrics = tlv->metric;
+                msg.entry = ne;
+                msg.prefix = pe;
+                eigrp_fsm_event(&msg);
+                eigrp_send_siareply(nbr, pe);
 
-            struct eigrp_fsm_action_message msg;
-            msg.packet_type = EIGRP_OPC_SIAQUERY;
-            msg.eigrp = eigrp;
-            msg.data_type = EIGRP_EXT;
-            msg.adv_router = nbr;
-            msg.metrics = etlv->metric;
-            msg.entry = ne;
-            msg.prefix = dest;
-            eigrp_fsm_event(&msg);
-            eigrp_send_siareply(nbr,dest);
+                eigrp_IPv4_InternalTLV_free(tlv);
+                break;
+            case EIGRP_TLV_IPv4_EXT:
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "External IPv4 Route");
 
-            eigrp_IPv4_ExternalTLV_free(etlv);
+                stream_set_getp(s, s->getp - sizeof(uint16_t));
+
+                etlv = eigrp_read_ipv4_external_tlv(s);
+
+                dest_addr.family = AF_INET;
+                dest_addr.u.prefix4 = etlv->destination;
+                dest_addr.prefixlen = etlv->prefix_length;
+
+                prefix2str(&dest_addr, pre_text, PREFIX2STR_BUFFER);
+                pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
+
+                if (pe != NULL) {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
+                    /* remove received prefix from neighbor prefix list if in GR */
+
+                    ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
+                    if (!ne) {
+                        ne = eigrp_nexthop_entry_new();
+                    } else {
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src),
+                          pre_text);
+                    }
+                } else {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
+                    pe = eigrp_prefix_entry_new();
+                    eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                                  EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC,
+                                                  EIGRP_MAX_FEASIBLE_DISTANCE,
+                                                  EIGRP_MAX_FEASIBLE_DISTANCE);
+
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text,
+                      eigrp->name);
+                    eigrp_prefix_entry_add(eigrp, pe);
+
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s",
+                      pre_text, inet_ntoa(nbr->src));
+                    ne = eigrp_nexthop_entry_new();
+                }
+
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Sending to SIAQuery to FSM");
+
+                msg.packet_type = EIGRP_OPC_SIAQUERY;
+                msg.eigrp = eigrp;
+                msg.data_type = EIGRP_EXT;
+                msg.adv_router = nbr;
+                msg.metrics = etlv->metric;
+                msg.entry = ne;
+                msg.prefix = pe;
+                eigrp_fsm_event(&msg);
+                eigrp_send_siareply(nbr, pe);
+
+                eigrp_IPv4_ExternalTLV_free(etlv);
+                break;
+            default:
+                L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "TLV Type not handled. Discarding");
+                eigrp_discard_tlv(s);
+                break;
         }
 	}
 }
@@ -199,7 +214,7 @@ void eigrp_send_siaquery(struct eigrp_neighbor *nbr,
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(nbr->ei->ifp->mtu), nbr);
 
 	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_SIAQUERY, nbr->ei->eigrp, ep->s, 0);
+	eigrp_packet_header_init(EIGRP_OPC_SIAQUERY, nbr->ei->eigrp, ep, 0);
 
 	// encode Authentication TLV, if needed
 	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
@@ -227,12 +242,7 @@ void eigrp_send_siaquery(struct eigrp_neighbor *nbr,
 	ep->dst.s_addr = nbr->src.s_addr;
 
 	if (nbr->state == EIGRP_NEIGHBOR_UP) {
-		/*Put packet to retransmission queue*/
-		eigrp_fifo_push(nbr->retrans_queue, ep);
-
-		if (nbr->retrans_queue->count == 1) {
-			eigrp_send_packet_reliably(nbr);
-		}
+        eigrp_place_on_nbr_queue(nbr, ep, length);
 	} else
 		eigrp_packet_free(ep);
 }

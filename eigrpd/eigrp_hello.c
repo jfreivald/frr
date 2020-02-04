@@ -701,7 +701,7 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 
 	if (ep) {
 		// encode common header fields
-		eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep->s, 0);
+		eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep, 0);
 
 		// encode Authentication TLV
 		if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)

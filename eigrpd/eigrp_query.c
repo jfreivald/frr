@@ -126,11 +126,12 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
-
+    L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_QUERY,"Process Query:");
 	while (s->endp > s->getp) {
 		type = stream_getw(s);
 		switch (type) {
 		case EIGRP_TLV_IPv4_INT:
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Internal IPv4 Route");
 			stream_set_getp(s, s->getp - sizeof(uint16_t));
 
 			tlv = eigrp_read_ipv4_tlv(s);
@@ -160,7 +161,9 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->flags = 0;
 				}
 
-				msg.packet_type = EIGRP_OPC_QUERY;
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);
+
+                msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_INT;
 				msg.adv_router = nbr;
@@ -168,12 +171,14 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				msg.entry = ne;
 				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
+			} else {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query for %s did not process to FSM", pbuf);
 			}
 			eigrp_IPv4_InternalTLV_free(tlv);
 			break;
 
 		case EIGRP_TLV_IPv4_EXT:
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External IPv4 Route");
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "External IPv4 Route");
 			stream_set_getp(s, s->getp - (sizeof(uint16_t)));
 
 			etlv = eigrp_read_ipv4_external_tlv(s);
@@ -211,7 +216,9 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
 				}
 
-				//Process the query for this prefix.
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);
+
+                //Process the query for this prefix.
 				msg.packet_type = EIGRP_OPC_QUERY;
 				msg.eigrp = eigrp;
 				msg.data_type = EIGRP_EXT;
@@ -225,16 +232,16 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
                 msg.data_type = EIGRP_FSM_ACK;
 
                 eigrp_fsm_event(&msg);
-			}
+			} else {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query for %s did not process to FSM", pbuf);
+            }
 			eigrp_IPv4_ExternalTLV_free(etlv);
 
 			break;
 		default:
-			length = stream_getw(s);
-			// -2 for type, -2 for len
-			for (length -= 4; length; length--) {
-				(void)stream_getc(s);
-			}
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "TLV Type not handled. Discarding");
+            eigrp_discard_tlv(s);
+            break;
 		}
 	}
 
@@ -270,7 +277,7 @@ void eigrp_send_query(struct eigrp_neighbor *nbr)
 			ep = eigrp_packet_new(eigrp_mtu, NULL);
 
 			/* Prepare EIGRP INIT UPDATE header */
-			eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp, ep->s, 0);
+			eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp, ep, 0);
 			new_packet = false;
 		}
 

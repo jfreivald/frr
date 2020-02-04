@@ -248,7 +248,7 @@ struct eigrp_neighbor {
 	uint32_t state; /* neigbor status. */
 
 	uint32_t recv_sequence_number; /* Last received sequence Number. */
-	uint32_t init_sequence_number;
+	uint32_t sent_sequence_number;
 
 	/*If packet is unacknowledged, we try to send it again 16 times*/
 	uint8_t retrans_counter;

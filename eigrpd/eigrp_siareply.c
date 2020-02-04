@@ -156,7 +156,7 @@ void eigrp_send_siareply(struct eigrp_neighbor *nbr,
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(nbr->ei->ifp->mtu), nbr);
 
 	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_SIAREPLY, nbr->ei->eigrp, ep->s, 0);
+	eigrp_packet_header_init(EIGRP_OPC_SIAREPLY, nbr->ei->eigrp, ep, 0);
 
 	// encode Authentication TLV, if needed
 	if (nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5
@@ -186,12 +186,7 @@ void eigrp_send_siareply(struct eigrp_neighbor *nbr,
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR | LOGGER_EIGRP_PACKET, "SENDING SIAREPLY to %s", inet_ntoa(nbr->src));
 
 	if (nbr->state == EIGRP_NEIGHBOR_UP) {
-		/*Put packet to retransmission queue*/
-		eigrp_fifo_push(nbr->retrans_queue, ep);
-
-		if (nbr->retrans_queue->count == 1) {
-			eigrp_send_packet_reliably(nbr);
-		}
+        eigrp_place_on_nbr_queue(nbr, ep, length);
 	} else
 		eigrp_packet_free(ep);
 }

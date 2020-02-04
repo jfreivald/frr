@@ -74,7 +74,7 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 
 	/* Set default values. */
 	nbr->recv_sequence_number = 0;
-	nbr->init_sequence_number = 0;
+	nbr->sent_sequence_number = 0;
 	nbr->retrans_counter = 0;
 
 	// K values

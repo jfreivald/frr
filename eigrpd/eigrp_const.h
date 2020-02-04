@@ -310,11 +310,14 @@ enum eigrp_packet_opcodes_t {
 #define EIGRP_TLV_INTERNAL              0x0002
 #define EIGRP_TLV_EXTERNAL              0x0003
 #define EIGRP_TLV_COMMUNITY             0x0004
+#define EIGRP_TLV_MULTITOP              0x00f0
 #define EIGRP_TLV_TYPEMASK              0x000f
 
 #define EIGRP_TLV_IPv4_REQ              (EIGRP_TLV_IPv4 | EIGRP_TLV_REQUEST)
 #define EIGRP_TLV_IPv4_INT              (EIGRP_TLV_IPv4 | EIGRP_TLV_INTERNAL)
 #define EIGRP_TLV_IPv4_EXT              (EIGRP_TLV_IPv4 | EIGRP_TLV_EXTERNAL)
+#define EIGRP_TLV_MTR_INT               (EIGRP_TLV_MULTITOP | EIGRP_TLV_INTERNAL)
+#define EIGRP_TLV_MTR_EXT               (EIGRP_TLV_MULTITOP | EIGRP_TLV_EXTERNAL)
 #define EIGRP_TLV_IPv4_COM              (EIGRP_TLV_IPv4 | EIGRP_TLV_COMMUNITY)
 
 #define EIGRP_TLV_IPV4_SIZE_GRT_24_BIT      0x001D
