@@ -703,8 +703,8 @@ int eigrp_fsm_event_q_fcn(struct eigrp_fsm_action_message *msg)
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
 	msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 3", pbuf);
-
-	if (eigrp_nbr_count_get()) {
+    int neighbor_count = eigrp_nbr_count_get();
+	if (neighbor_count > 1) {
 		eigrp_fsm_set_topology_flags(msg->eigrp->topology_changes_internalIPV4, msg->prefix, EIGRP_FSM_NEED_QUERY);
 	} else {
 		eigrp_fsm_event_lr(msg); // in the case that there are no more

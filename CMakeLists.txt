@@ -14,7 +14,7 @@ add_executable(eigrpd
         eigrpd/eigrp_filter.c  eigrpd/eigrp_main.c       eigrpd/eigrp_packet.c    eigrpd/eigrp_reply.c     eigrpd/eigrp_snmp.c      eigrpd/eigrp_zebra.c
         eigrpd/eigrp_fsm.c     eigrpd/eigrp_memory.c     eigrpd/eigrp_pkt_tlv1.c  eigrpd/eigrp_topology.c
         )
-target_link_libraries(eigrpd ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt)
+target_link_libraries(eigrpd ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt numa)
 
 add_executable(zebra
         zebra/connected.c          zebra/ipforward_sysctl.c  zebra/rtread_sysctl.c       zebra/zebra_mpls_openbsd.c      zebra/zebra_rnh.c
