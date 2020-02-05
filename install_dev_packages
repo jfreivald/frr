@@ -1,4 +1,4 @@
-sudo apt install bison flex libc-ares-dev libreadline-dev libsystemd-dev libjson-c-dev python-sphinx texinfo checkinstall
+sudo apt install bison flex libc-ares-dev libreadline-dev libsystemd-dev libjson-c-dev python-sphinx texinfo checkinstall install-info
 sudo add-apt-repository ppa:snaipewastaken/ppa
 sudo apt-get update
 sudo apt-get install criterion-dev
