@@ -69,7 +69,7 @@ extern struct list *eigrp_neighbor_prefixes_lookup(struct eigrp *,
 extern void eigrp_topology_update_all_node_flags(struct eigrp *);
 extern void eigrp_topology_update_node_flags(struct eigrp_prefix_entry *);
 extern enum metric_change
-eigrp_topology_update_distance(struct eigrp_fsm_action_message *);
+eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg, bool save_new_metrics);
 extern void eigrp_update_routing_table(struct eigrp_prefix_entry *);
 extern void eigrp_topology_neighbor_down(struct eigrp *,
 					 struct eigrp_neighbor *);

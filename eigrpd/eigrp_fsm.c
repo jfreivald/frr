@@ -396,7 +396,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	 * Calculate resultant metrics and insert to correct position
 	 * in entries list
 	 */
-	change = eigrp_topology_update_distance(msg);
+	change = eigrp_topology_update_distance(msg, false);
 
 	/* Store for display later */
 	msg->change = change;
@@ -414,120 +414,122 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 	}
 
 	switch (actual_state) {
-	case EIGRP_FSM_STATE_PASSIVE: {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s is PASSIVE", pbuf);
-			struct eigrp_nexthop_entry *ne = listnode_head(msg->prefix->entries);
-			if (msg->packet_type == EIGRP_OPC_QUERY && ne && msg->adv_router->src.s_addr == ne->adv_router->src.s_addr) {
-				/* Successor has sent us a query */
-				ret_state = EIGRP_FSM_EVENT_Q_FCN;
-			} else {
-				ret_state = eigrp_fsm_update_topology(msg);
-			}
-			break;
-	}
-	case EIGRP_FSM_STATE_ACTIVE_0: {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 0", pbuf);
-		if (msg->packet_type == EIGRP_OPC_REPLY) {
-			struct eigrp_nexthop_entry *head =
-					listnode_head(msg->prefix->entries);
-			if (msg->prefix->rij->count) {
-				ret_state = EIGRP_FSM_KEEP_STATE;
-				break;
-			}
-			L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All replies received");
-			if (head->distance < msg->prefix->fdistance) {
-				ret_state = EIGRP_FSM_EVENT_LR_FCS;
-				break;
-			}
-			return EIGRP_FSM_EVENT_LR_FCN;
-		} else if (msg->packet_type == EIGRP_OPC_QUERY
-				&& (msg->entry->flags
-						& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
-			ret_state = EIGRP_FSM_EVENT_QACT;
-			break;
-		}
+        case EIGRP_FSM_STATE_PASSIVE: {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s is PASSIVE", pbuf);
+                struct eigrp_nexthop_entry *ne = listnode_head(msg->prefix->entries);
+                if (msg->packet_type == EIGRP_OPC_QUERY && ne && msg->adv_router->src.s_addr == ne->adv_router->src.s_addr) {
+                    /* Successor has sent us a query */
+                    ret_state = EIGRP_FSM_EVENT_Q_FCN;
+                } else {
+                    ret_state = eigrp_fsm_update_topology(msg);
+                }
+                break;
+        }
+        case EIGRP_FSM_STATE_ACTIVE_0: {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 0", pbuf);
+            if (msg->packet_type == EIGRP_OPC_REPLY) {
+                struct eigrp_nexthop_entry *head =
+                        listnode_head(msg->prefix->entries);
+                if (msg->prefix->rij->count) {
+                    ret_state = EIGRP_FSM_KEEP_STATE;
+                    break;
+                }
+                L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All replies received");
+                if (head->distance < msg->prefix->fdistance) {
+                    ret_state = EIGRP_FSM_EVENT_LR_FCS;
+                    break;
+                }
+                return EIGRP_FSM_EVENT_LR_FCN;
+            } else if (msg->packet_type == EIGRP_OPC_QUERY
+                    && (msg->entry->flags
+                            & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+                ret_state = EIGRP_FSM_EVENT_QACT;
+                break;
+            }
 
-		ret_state = EIGRP_FSM_KEEP_STATE;
-		break;
-	}
-	case EIGRP_FSM_STATE_ACTIVE_1: {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 1", pbuf);
-		if (msg->packet_type == EIGRP_OPC_QUERY
-				&& (msg->entry->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
-			ret_state = EIGRP_FSM_EVENT_QACT;
-			break;
-		} else if (msg->packet_type == EIGRP_OPC_REPLY) {
-			if (change == METRIC_INCREASE
-					&& (msg->entry->flags
-							& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
-				ret_state = EIGRP_FSM_EVENT_DINC;
-				break;
-			} else if (msg->prefix->rij->count) {
-				ret_state = EIGRP_FSM_KEEP_STATE;
-				break;
-			} else {
-				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
-				ret_state = EIGRP_FSM_EVENT_LR;
-				break;
-			}
-		} else if (msg->packet_type == EIGRP_OPC_UPDATE
-				&& change == METRIC_INCREASE
-				&& (msg->entry->flags
-						& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
-			ret_state = EIGRP_FSM_EVENT_DINC;
-			break;
-		}
-		ret_state = EIGRP_FSM_KEEP_STATE;
-		break;
-	}
-	case EIGRP_FSM_STATE_ACTIVE_2: {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 2", pbuf);
-		if (msg->packet_type == EIGRP_OPC_REPLY) {
-			struct eigrp_nexthop_entry *head =
-					listnode_head(msg->prefix->entries);
-			if (msg->prefix->rij->count) {
-				ret_state = EIGRP_FSM_KEEP_STATE;
-				break;
-			} else {
-				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
-				if (head->distance < msg->prefix->fdistance) {
-					ret_state = EIGRP_FSM_EVENT_LR_FCS;
-					break;
-				}
+            ret_state = EIGRP_FSM_KEEP_STATE;
+            break;
+        }
+        case EIGRP_FSM_STATE_ACTIVE_1: {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 1", pbuf);
+            if (msg->packet_type == EIGRP_OPC_QUERY
+                    && (msg->entry->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+                ret_state = EIGRP_FSM_EVENT_QACT;
+                break;
+            } else if (msg->packet_type == EIGRP_OPC_REPLY) {
+                if (change == METRIC_INCREASE
+                        && (msg->entry->flags
+                                & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+                    ret_state = EIGRP_FSM_EVENT_DINC;
+                    break;
+                } else if (msg->prefix->rij->count) {
+                    ret_state = EIGRP_FSM_KEEP_STATE;
+                    break;
+                } else {
+                    L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
+                    ret_state = EIGRP_FSM_EVENT_LR;
+                    break;
+                }
+            } else if (msg->packet_type == EIGRP_OPC_UPDATE
+                    && change == METRIC_INCREASE
+                    && (msg->entry->flags
+                            & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+                ret_state = EIGRP_FSM_EVENT_DINC;
+                break;
+            }
+            ret_state = EIGRP_FSM_KEEP_STATE;
+            break;
+        }
+        case EIGRP_FSM_STATE_ACTIVE_2: {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 2", pbuf);
+            if (msg->packet_type == EIGRP_OPC_REPLY) {
+                struct eigrp_nexthop_entry *head =
+                        listnode_head(msg->prefix->entries);
+                if (msg->prefix->rij->count) {
+                    ret_state = EIGRP_FSM_KEEP_STATE;
+                    break;
+                } else {
+                    L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
+                    if (head->distance < msg->prefix->fdistance) {
+                        ret_state = EIGRP_FSM_EVENT_LR_FCS;
+                        break;
+                    }
 
-				ret_state = EIGRP_FSM_EVENT_LR_FCN;
-				break;
-			}
-		}
-		ret_state = EIGRP_FSM_KEEP_STATE;
-		break;
+                    ret_state = EIGRP_FSM_EVENT_LR_FCN;
+                    break;
+                }
+            }
+            ret_state = EIGRP_FSM_KEEP_STATE;
+            break;
+        }
+        case EIGRP_FSM_STATE_ACTIVE_3: {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 3", pbuf);
+            if (msg->packet_type == EIGRP_OPC_REPLY) {
+                if (change == METRIC_INCREASE
+                        && (msg->entry->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+                    ret_state = EIGRP_FSM_EVENT_DINC;
+                    break;
+                } else if (msg->prefix->rij->count) {
+                    ret_state = EIGRP_FSM_KEEP_STATE;
+                    break;
+                } else {
+                    L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
+                    ret_state = EIGRP_FSM_EVENT_LR;
+                    break;
+                }
+            } else if (msg->packet_type == EIGRP_OPC_UPDATE
+                    && change == METRIC_INCREASE
+                    && (msg->entry->flags
+                            & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
+                ret_state = EIGRP_FSM_EVENT_DINC;
+                break;
+            }
+            ret_state = EIGRP_FSM_KEEP_STATE;
+            break;
+        }
 	}
-	case EIGRP_FSM_STATE_ACTIVE_3: {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s ACTIVE 3", pbuf);
-		if (msg->packet_type == EIGRP_OPC_REPLY) {
-			if (change == METRIC_INCREASE
-					&& (msg->entry->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
-				ret_state = EIGRP_FSM_EVENT_DINC;
-				break;
-			} else if (msg->prefix->rij->count) {
-				ret_state = EIGRP_FSM_KEEP_STATE;
-				break;
-			} else {
-				L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_FSM,"All reply received");
-				ret_state = EIGRP_FSM_EVENT_LR;
-				break;
-			}
-		} else if (msg->packet_type == EIGRP_OPC_UPDATE
-				&& change == METRIC_INCREASE
-				&& (msg->entry->flags
-						& EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG)) {
-			ret_state = EIGRP_FSM_EVENT_DINC;
-			break;
-		}
-		ret_state = EIGRP_FSM_KEEP_STATE;
-		break;
-	}
-	}
+	
+    eigrp_topology_update_distance(msg, true);
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
 	return ret_state;

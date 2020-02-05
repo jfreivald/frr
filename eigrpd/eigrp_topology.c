@@ -526,7 +526,7 @@ struct list *eigrp_neighbor_prefixes_lookup(struct eigrp *eigrp,
 }
 
 enum metric_change
-eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
+eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg, bool save_new_metrics)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	enum metric_change change = METRIC_SAME;
@@ -548,9 +548,11 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 			break;
 		}
 
-		msg->entry->reported_metric = msg->metrics;
-		msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
-		msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
+        if (save_new_metrics) {
+            msg->entry->reported_metric = msg->metrics;
+            msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
+            msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
+        }
 
 		if (msg->prefix->rdistance < msg->entry->reported_distance) {
 			change = METRIC_INCREASE;
@@ -561,10 +563,11 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 	case EIGRP_EXT:
 		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL) {
 
-			msg->entry->reported_metric = msg->metrics;
-			msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
-			msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
-
+            if (save_new_metrics) {
+                msg->entry->reported_metric = msg->metrics;
+                msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
+                msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
+            }
 			if (msg->prefix->rdistance < msg->entry->reported_distance) {
 				change = METRIC_INCREASE;
 			} else
@@ -575,7 +578,7 @@ eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg)
 		}
 		break;
 	default:
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Unimplemented handler");
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Unimplemented TLV Type in FSM.");
 		break;
 	}
 
