@@ -399,40 +399,29 @@ int eigrp_network_unset(struct eigrp *eigrp, struct prefix *p)
 uint32_t eigrp_calculate_metrics(struct eigrp *eigrp,
 				 struct eigrp_metrics metric)
 {
-	uint64_t temp_metric;
+	uint32_t temp_metric;
 	temp_metric = 0;
 
 	if (metric.delay == EIGRP_MAX_METRIC)
 		return EIGRP_MAX_METRIC;
 
+    uint8_t K1 = eigrp->k_values[0];
+    uint8_t K2 = eigrp->k_values[1];
+    uint8_t K3 = eigrp->k_values[2];
+    uint8_t K4 = eigrp->k_values[3];
+    uint8_t K5 = eigrp->k_values[4];
+
+    // BW: Bandwidth is the inverse minimum bandwidth (in kbps) of the path scaled by a factor of 10^7
+    uint32_t BW = 10000000 / metric.bandwidth;
+    uint32_t LOAD = metric.load;
+    // DELAY: Delay is in 10's of uSec
+    uint32_t DELAY = metric.delay / 10;
+    uint32_t REL = metric.reliability;
 
 	/* From https://www.cisco.com/c/en/us/support/docs/ip/enhanced-interior-gateway-routing-protocol-eigrp/16406-eigrp-toc.html#anc7:
 	 * metric = ([K1 * bandwidth + (K2 * bandwidth) / (256 - load) + K3 * delay] * [K5 / (reliability + K4)]) * 256
 	 */
-//	temp_metric = (
-//			((eigrp->k_values[1] * metric.bandwidth) + (eigrp->k_values[0] * metric.bandwidth) / (256 - metric.load) + (eigrp->k_values[2] * metric.delay))
-//			*
-//			(eigrp->k_values[4] / (metric.reliability + eigrp->k_values[3]))
-//			) * 256;
-
-// 	EIGRP Metric =
-// 	{K1*BW+[(K2*BW)/(256-load)]+(K3*delay)}*{K5/(reliability+K4)}
-	if (eigrp->k_values[0])
-		temp_metric += (eigrp->k_values[0] * metric.bandwidth);
-	if (eigrp->k_values[1])
-		temp_metric += ((eigrp->k_values[1] * metric.bandwidth)
-				/ (256 - metric.load));
-	if (eigrp->k_values[2])
-		temp_metric += (eigrp->k_values[2] * metric.delay);
-	if (eigrp->k_values[3] && !eigrp->k_values[4])
-		temp_metric *= eigrp->k_values[3];
-	if (!eigrp->k_values[3] && eigrp->k_values[4])
-		temp_metric *= (eigrp->k_values[4] / metric.reliability);
-	if (eigrp->k_values[3] && eigrp->k_values[4])
-		temp_metric *= ((eigrp->k_values[4] / metric.reliability)
-				+ eigrp->k_values[3]);
-
-	assert(temp_metric == metric.bandwidth + metric.delay);
+	temp_metric = 256 * (((K1*BW) + ((K2*BW)/(256-LOAD)) + (K3*DELAY)) * (K5 ? (K5/(REL+K4)) : 1));
 
 	if (temp_metric <= EIGRP_INFINITE_DISTANCE)
 		return (uint32_t)temp_metric;

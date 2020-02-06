@@ -46,7 +46,7 @@ static uint32_t logger_eigrp_flags =
 		LOGGER_NO_EIGRP
 ;
 static uint32_t logger_zebra_flags = 0xFFFFFFFF;
-static uint32_t logger_lib_flags = 0x0;
+static uint32_t logger_lib_flags = 0xFFFFFFFF;
 
 static inline int _logger_check_flags(uint32_t module, uint32_t flags) {
 	int retval = 0;

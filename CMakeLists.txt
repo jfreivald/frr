@@ -32,4 +32,4 @@ target_link_libraries(zebra ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pth
 
 add_executable(eigrp_fsm_test eigrpd/test/eigrp_fsm_test.c)
 link_directories(eigrpd . lib/.libs)
-target_link_libraries(eigrp_fsm_test ${CMAKE_SOURCE_DIR}/eigrpd/libeigrp.a ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt)
+target_link_libraries(eigrp_fsm_test ${CMAKE_SOURCE_DIR}/eigrpd/libeigrp.a ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt numa)

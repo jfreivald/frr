@@ -136,287 +136,41 @@ struct option longopts[] = {{0}};
 /* Master of threads. */
 struct thread_master *master;
 
-int eigrpd_main()
-{
-	//eigrp_sw_version_initialize();
 
-	/* EIGRP master init. */
-	eigrp_master_init();
-	eigrp_om->master = frr_init();
-	master = eigrp_om->master;
 
-	//vrf_init(NULL, NULL, NULL, NULL);
-
-	/*EIGRPd init*/
-	eigrp_if_init();
-	//eigrp_zebra_init();
-	//eigrp_debug_init();
-
-	/* Get configuration file. */
-	/* EIGRP VTY inits */
-	//eigrp_vty_init();
-	//keychain_init();
-	//eigrp_vty_show_init();
-	//eigrp_vty_if_init();
-
-#ifdef HAVE_SNMP
-	//eigrp_snmp_init();
-#endif /* HAVE_SNMP */
-
-	/* Access list install. */
-	access_list_init();
-	access_list_add_hook(eigrp_distribute_update_all_wrapper);
-	access_list_delete_hook(eigrp_distribute_update_all_wrapper);
-
-	/* Prefix list initialize.*/
-	prefix_list_init();
-	prefix_list_add_hook(eigrp_distribute_update_all);
-	prefix_list_delete_hook(eigrp_distribute_update_all);
-
-	/*
-	 * XXX: This is just to get the CLI installed to suppress VTYSH errors.
-	 * Routemaps in EIGRP are not yet functional.
-	 */
-	route_map_init();
-	/*eigrp_route_map_init();
-	  route_map_add_hook (eigrp_rmap_update);
-	  route_map_delete_hook (eigrp_rmap_update);*/
-	/*if_rmap_init (EIGRP_NODE);
-	  if_rmap_hook_add (eigrp_if_rmap_update);
-	  if_rmap_hook_delete (eigrp_if_rmap_update);*/
-
-	/* Distribute list install. */
-	distribute_list_init(EIGRP_NODE);
-	distribute_list_add_hook(eigrp_distribute_update);
-	distribute_list_delete_hook(eigrp_distribute_update);
-
-}
-
-void init(void) {
-
-	if (!eigrp) {
-		eigrpd_main();
-	}
-
-	struct prefix dest_addr;
-	dest_addr.family = AF_INET;
-	dest_addr.u.prefix4.s_addr = 0x01a0a0a0;
-	dest_addr.prefixlen = 24;
-
-	pe = eigrp_prefix_entry_new();
-	eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-								  EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-								  EIGRP_MAX_FEASIBLE_DISTANCE);
-
-//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
-	eigrp_prefix_entry_add(eigrp, pe);
-
-//	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
-	ne = eigrp_nexthop_entry_new();
-
-//	if (!ei) {
-//		ei = eigrp_if_new(eigrp, eigrp->, pe)
-//	}
-
-//	if (!nbr) {
-//		nbr = eigrp_nbr_new()
-//	}
-
-	msg.packet_type = EIGRP_OPC_UPDATE;
-	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_INT;
-	msg.adv_router = nbr;
-	msg.metrics = EIGRP_INFINITE_METRIC;
-	msg.entry = ne;
-	msg.prefix = pe;
-}
-
-void cleanup(void) {
-	if (msg.entry) {
-		eigrp_nexthop_entry_free(msg.entry);
-		msg.entry = ne = 0;
-	}
-
-	if (msg.prefix) {
-		eigrp_prefix_entry_delete(msg.eigrp, msg.prefix);
-		free(msg.prefix);
-		msg.prefix = pe = 0;
-	}
-
-	if (msg.adv_router) {
-		free(msg.adv_router);
-		msg.adv_router = nbr = 0;
-	}
-}
-
-void sp_e0 (void) {
-	init();
-}
-
-void sp_e1 (void) {
-	init();
-}
-
-void sp_e2 (void) {
-	init();
-}
-
-void sp_e3 (void) {
-	init();
-}
-
-void sp_e4 (void) {
-	init();
-}
-
-void sp_e5 (void) {
-	init();
-}
-
-void sp_e6 (void) {
-	init();
-}
-
-void sp_e7 (void) {
-	init();
-}
-
-void sa0_e0 (void) {
-	init();
-}
-
-void sa0_e1 (void) {
-	init();
-}
-
-void sa0_e2 (void) {
-	init();
-}
-
-void sa0_e3 (void) {
-	init();
-}
-
-void sa0_e4 (void) {
-	init();
-}
-
-void sa0_e5 (void) {
-	init();
-}
-
-void sa0_e6 (void) {
-	init();
-}
-
-void sa0_e7 (void) {
-	init();
-}
-
-void sa1_e0 (void) {
-	init();
-}
-
-void sa1_e1 (void) {
-	init();
-}
-
-void sa1_e2 (void) {
-	init();
-}
-
-void sa1_e3 (void) {
-	init();
-}
-
-void sa1_e4 (void) {
-	init();
-}
-
-void sa1_e5 (void) {
-	init();
-}
-
-void sa1_e6 (void) {
-	init();
-}
-
-void sa1_e7 (void) {
-	init();
-}
-
-void sa2_e0 (void) {
-	init();
-}
-
-void sa2_e1 (void) {
-	init();
-}
-
-void sa2_e2 (void) {
-	init();
-}
-
-void sa2_e3 (void) {
-	init();
-}
-
-void sa2_e4 (void) {
-	init();
-}
-
-void sa2_e5 (void) {
-	init();
-}
-
-void sa2_e6 (void) {
-	init();
-}
-
-void sa2_e7 (void) {
-	init();
-}
-
-void sa3_e0 (void) {
-	init();
-}
-
-void sa3_e1 (void) {
-	init();
-}
-
-void sa3_e2 (void) {
-	init();
-}
-
-void sa3_e3 (void) {
-	init();
-}
-
-void sa3_e4 (void) {
-	init();
-}
-
-void sa3_e5 (void) {
-	init();
-}
-
-void sa3_e6 (void) {
-	init();
-}
-
-void sa3_e7 (void) {
-	init();
-}
-
-Test(eigrp_fsm_test, passive_event0, .init=sp_e0, .fini=cleanup) {
-	cr_expect(1);
-	cr_assert(1);
-}
-
-Test(eigrp_fsm_test, passive_event1, .init=sp_e1) {
-	cr_expect(1);
-	cr_assert(1);
+Test(eigrp_fsm_test, metric_calculation_check) {
+
+    struct eigrp e;
+    e.k_values[0] = 1;
+    e.k_values[1] = 0;
+    e.k_values[2] = 1;
+    e.k_values[3] = 0;
+    e.k_values[4] = 0;
+
+    struct eigrp_metrics m;
+
+    //Four 100 Mbps links between the source and destination
+    m.delay = 400;
+    m.load = 1;
+    m.bandwidth = 100000;
+    m.flags = 0;
+    m.hop_count = 1;
+    m.reliability = 1;
+    m.tag = 0;
+
+    cr_assert(eigrp_calculate_metrics(&e, m) == 35840);
+
+    //1 GB Ether + 1 x 1024 link between the source and destination
+    m.delay = 20010;
+    m.load = 1;
+    m.bandwidth = 1024;
+    m.flags = 0;
+    m.hop_count = 1;
+    m.reliability = 1;
+    m.tag = 0;
+
+    cr_assert(eigrp_calculate_metrics(&e, m) == 3012096);
+    
 }
 
 ReportHook(PRE_INIT)(struct criterion_test *test) {

@@ -528,7 +528,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
             break;
         }
 	}
-	
+
     eigrp_topology_update_distance(msg, true);
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "EXIT");
