@@ -129,8 +129,8 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 	//Create route for P-t-P neighbors
 	if (nbr->ei->type == EIGRP_IFTYPE_POINTOPOINT) {
 		/*Prepare metrics*/
-		metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
-		metric.delay = eigrp_delay_to_scaled(ei->params.delay);
+		metric.bandwidth = ei->params.bandwidth;
+		metric.delay = ei->params.delay;
 		metric.load = ei->params.load;
 		metric.reliability = ei->params.reliability;
 		MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
@@ -161,13 +161,12 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
 		ne = eigrp_nexthop_entry_new();
-		eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, ei->eigrp->neighbor_self, metric);
 
 		msg.packet_type = EIGRP_OPC_UPDATE;
 		msg.eigrp = ei->eigrp;
 		msg.data_type = EIGRP_INT;
 		msg.adv_router = nbr;
-		msg.metrics = metric;
+		msg.incoming_tlv_metrics = metric;
 		msg.entry = ne;
 		msg.prefix = pe;
 
@@ -351,7 +350,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 					else
 						msg.data_type = EIGRP_INT;
 					msg.adv_router = nbr;
-					msg.metrics = EIGRP_INFINITE_METRIC;
+					msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
 					msg.entry = ne;
 					msg.prefix = pe;
 
@@ -369,7 +368,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 				else
 					msg.data_type = EIGRP_INT;
 				msg.adv_router = nbr;
-				msg.metrics = EIGRP_INFINITE_METRIC;
+				msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
 				msg.entry = ne;
 				msg.prefix = pe;
 
@@ -394,9 +393,9 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 	//And then remove the node entry from the prefix.
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_FSM_ACK;
+	msg.data_type = EIGRP_FSM_DONE;
 	msg.adv_router = nbr;
-	msg.metrics = EIGRP_INFINITE_METRIC;
+	msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
 	msg.entry = ne;
 	msg.prefix = pe;
 

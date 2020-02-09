@@ -154,35 +154,56 @@ enum eigrp_fsm_states {
 
 /*EIGRP FSM events*/
 enum eigrp_fsm_events {
-	/*
-	 * Input event other than query from succ,
-	 * FC is not satisified
-	 */
-	EIGRP_FSM_EVENT_NQ_FCN,
+    /** Reworking this to match RFC 7868 **/
+    EIGRP_FSM_EVENT_INVALID = 0,
 
-	/* last reply, FD is reset */
-	EIGRP_FSM_EVENT_LR,
+    /** Query received from neighbor on passive route. Successor still exists. **/
+    EIGRP_FSM_EVENT_Q_SE = 1,
 
-	/* Query from succ, FC not satisfied */
-	EIGRP_FSM_EVENT_Q_FCN,
+    /** Event that affects a passive route. Successor still exists. **/
+    EIGRP_FSM_EVENT_NQE_SE = 2,
 
-	/* last reply, FC satisifed with current value of FDij */
-	EIGRP_FSM_EVENT_LR_FCS,
+    /** Query from neighbor on passive route. No Successor **/
+    EIGRP_FSM_EVENT_Q_SDNE = 3,
 
-	/* distance increase while in a active state */
-	EIGRP_FSM_EVENT_DINC,
+    /** Event that affects passive route. Successor no longer exist. **/
+    EIGRP_FSM_EVENT_NQE_SDNE = 4,
 
-	/* Query from succ while in active state */
-	EIGRP_FSM_EVENT_QACT,
+    /** Successor Query on already active route. **/
+    EIGRP_FSM_EVENT_SQ_AAR = 5,
 
-	/* last reply, FC not satisified */
-	EIGRP_FSM_EVENT_LR_FCN,
+    /** Non-successor Query on already active route **/
+    EIGRP_FSM_EVENT_NSQ_AAR = 6,
 
-	/*
-	 * state not changed
-	 * usually by receiving not last reply
-	 */
-	EIGRP_FSM_KEEP_STATE,
+    /** Event changes metric on already active route **/
+    EIGRP_FSM_EVENT_NS_NQE_AAR = 7,
+
+    /** Reply from neighbor OR NEIGHBOR GOES DOWN on already active route **/
+    EIGRP_FSM_EVENT_NR = 8,
+
+    /** Event affects communication with successor on already active route originated by this router**/
+    EIGRP_FSM_EVENT_SNQE_AAR_RO = 9,
+
+    /** Event affects communication with successor on already active route originated by this successor **/
+    EIGRP_FSM_EVENT_SNQE_AAR_SO = 10,
+
+    /** Event affects successor link on an already active route where all replies have been received and there is no FS **/
+    EIGRP_FSM_EVENT_SNQE_AAR_ARR_NFS = 11,
+
+    /** Successor Origin Query, Last reply received with no FS **/
+    EIGRP_FSM_EVENT_SO_LR_NFS = 12,
+
+    /** Successor Origin Query, Last reply received on Active 3 with FS **/
+    EIGRP_FSM_EVENT_SO_LR_FS_A3 = 13,
+
+    /** Last Reply when there was a Topology Change on Successor Origin Active Route with Feasible Successor **/
+    EIGRP_FSM_EVENT_SO_LR_TC = 14,
+
+    /** Last Reply on router originated Query. **/
+    EIGRP_FSM_EVENT_LR_RO = 15,
+
+    /** Last Reply on successor originated Query on Active 1 with FS. **/
+    EIGRP_FSM_EVENT_SO_LR_FS_A2 = 16
 };
 
 /**

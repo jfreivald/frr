@@ -152,13 +152,12 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 
 			ne = eigrp_nexthop_entry_new();
-			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, tlv->metric);
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;
 			msg.data_type = EIGRP_INT;
 			msg.adv_router = nbr;
-			msg.metrics = tlv->metric;
+			msg.incoming_tlv_metrics = tlv->metric;
 			msg.entry = ne;
 			msg.prefix = pe;
 			eigrp_fsm_event(&msg);
@@ -189,13 +188,12 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 
 			ne = eigrp_nexthop_entry_new();
-			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, etlv->metric);
 
 			msg.packet_type = EIGRP_OPC_REPLY;
 			msg.eigrp = eigrp;
 			msg.data_type = EIGRP_EXT;
 			msg.adv_router = nbr;
-			msg.metrics = etlv->metric;
+			msg.incoming_tlv_metrics = etlv->metric;
 			msg.entry = ne;
 			msg.prefix = pe;
 

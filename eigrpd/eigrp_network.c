@@ -396,14 +396,14 @@ int eigrp_network_unset(struct eigrp *eigrp, struct prefix *p)
 	return 1;
 }
 
-uint32_t eigrp_calculate_metrics(struct eigrp *eigrp,
-				 struct eigrp_metrics metric)
+uint32_t eigrp_calculate_distance(struct eigrp *eigrp,
+                                  struct eigrp_metrics metric)
 {
 	uint32_t temp_metric;
 	temp_metric = 0;
 
 	if (metric.delay == EIGRP_MAX_METRIC)
-		return EIGRP_MAX_METRIC;
+		return EIGRP_INFINITE_DISTANCE;
 
     uint8_t K1 = eigrp->k_values[0];
     uint8_t K2 = eigrp->k_values[1];
@@ -427,82 +427,6 @@ uint32_t eigrp_calculate_metrics(struct eigrp *eigrp,
 		return (uint32_t)temp_metric;
 	else
 		return EIGRP_INFINITE_DISTANCE;
-}
-
-uint32_t eigrp_calculate_total_metrics(struct eigrp *eigrp,
-				       struct eigrp_nexthop_entry *entry)
-{
-	struct eigrp_interface *ei = entry->ei;
-
-	entry->total_metric = entry->reported_metric;
-	uint64_t temp_delay =
-		(uint64_t)entry->total_metric.delay + entry->reported_metric.delay
-		+ (uint64_t)eigrp_delay_to_scaled(ei->params.delay);
-	entry->total_metric.delay = temp_delay > EIGRP_MAX_METRIC
-					    ? EIGRP_MAX_METRIC
-					    : (uint32_t)temp_delay;
-
-	uint32_t bw = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
-	entry->total_metric.bandwidth = entry->total_metric.bandwidth > bw
-						? bw
-						: entry->total_metric.bandwidth;
-
-	temp_delay = eigrp_calculate_metrics(eigrp, entry->total_metric);
-
-	return temp_delay;
-}
-
-void eigrp_prefix_nexthop_calculate_metrics(struct eigrp_prefix_entry* pe,
-		struct eigrp_nexthop_entry* ne, struct eigrp_interface *ei, struct eigrp_neighbor* nbr,
-		struct eigrp_metrics metric) {
-	ne->ei = ei;
-	ne->adv_router = nbr;
-	ne->reported_metric = metric;
-	ne->reported_metric.hop_count++;
-	ne->distance = eigrp_calculate_metrics(ei->eigrp, metric);
-	ne->reported_distance = eigrp_calculate_total_metrics(ei->eigrp, ne);
-
-	/*
-	 * Filtering
-	 */
-	if (eigrp_update_prefix_apply(ei->eigrp, ei, EIGRP_FILTER_IN, pe->destination)) {
-		ne->reported_metric = EIGRP_INFINITE_METRIC;
-		ne->distance = EIGRP_INFINITE_DISTANCE;
-	}
-}
-
-void eigrp_prefix_update_metrics(struct eigrp_prefix_entry *pe) {
-	struct list *successors = eigrp_topology_get_successor(pe);
-	struct eigrp_nexthop_entry *ne;
-
-	char pbuf[PREFIX2STR_BUFFER];
-
-	prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-
-	assert(successors);
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	ne = listnode_head(successors);
-
-	if (ne) {
-		pe->rdistance = pe->distance = ne->distance;
-		if (pe->distance < EIGRP_INFINITE_DISTANCE)
-			pe->fdistance = pe->rdistance;
-		else
-			pe->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
-		pe->reported_metric = ne->total_metric;
-		if (pe->extTLV) {
-			pe->extTLV->metric = ne->total_metric;
-		}
-	} else {
-		pe->rdistance = pe->distance = EIGRP_INFINITE_DISTANCE;
-		pe->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
-		pe->reported_metric = EIGRP_INFINITE_METRIC;
-	}
-
-	list_delete_and_null(&successors);
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
 
 uint8_t eigrp_metrics_is_same(struct eigrp_metrics metric1,

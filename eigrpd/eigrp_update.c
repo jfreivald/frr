@@ -148,9 +148,9 @@ static void eigrp_update_receive_GR_ask(struct eigrp *eigrp,
 			"GR receive: Neighbor not advertised %s",
 			prefix2str(prefix->destination, buffer, PREFIX_STRLEN));
 
-		fsm_msg.metrics = prefix->reported_metric;
+		fsm_msg.incoming_tlv_metrics = prefix->reported_metric;
 		/* set delay to MAX */
-		fsm_msg.metrics.delay = EIGRP_MAX_METRIC;
+		fsm_msg.incoming_tlv_metrics.delay = EIGRP_MAX_METRIC;
 
 		struct eigrp_nexthop_entry *entry =
 			eigrp_prefix_entry_lookup(prefix->entries, nbr);
@@ -238,7 +238,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 		/* Graceful restart Update received, routes also in next packet
 		 */
 
-		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is resync: peer graceful-restart",
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is resync: start peer graceful-restart",
 			  inet_ntoa(nbr->src),
 			  ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 
@@ -252,7 +252,11 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 		/* If there was INIT+RS Update packet before,
 		 *  consider this as GR EOT */
 
-		if (nbr->nbr_gr_prefixes != NULL) {
+        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is resync: finish graceful-restart",
+          inet_ntoa(nbr->src),
+          ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
+
+        if (nbr->nbr_gr_prefixes != NULL) {
 			/* this is final packet of GR */
 			nbr_prefixes = nbr->nbr_gr_prefixes;
 			nbr->nbr_gr_prefixes = NULL;
@@ -264,7 +268,11 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 		/* If there was INIT+RS Update packet before,
 		 *  consider this as GR not final packet */
 
-		if (nbr->nbr_gr_prefixes != NULL) {
+        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE | LOGGER_EIGRP_NEIGHBOR,"Neighbor %s (%s) is resync: continue graceful-restart",
+          inet_ntoa(nbr->src),
+          ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
+
+        if (nbr->nbr_gr_prefixes != NULL) {
 			/* this is GR not final route packet */
 			nbr_prefixes = nbr->nbr_gr_prefixes;
 
@@ -291,9 +299,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			/*if exists it comes to DUAL*/
 			if (pe != NULL) {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for %s", pre_text);
-				/* remove received prefix from neighbor prefix list if in GR */
-				if (graceful_restart)
-					remove_received_prefix_gr(nbr_prefixes, pe);
+//				/* remove received prefix from neighbor prefix list if in GR */
+//				if (graceful_restart)
+//					remove_received_prefix_gr(nbr_prefixes, pe);
 
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (!ne) {
@@ -315,8 +323,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				ne = eigrp_nexthop_entry_new();
 			}
 
-			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, tlv->metric);
-			ne->flags = 0;
+			//We don't want to update the nexthop metrics here. That alters the routing table, which should only be done in the FSM.
+			//eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, tlv->metric);
+			//ne->flags = 0;
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send Update [%s:%s] to FSM", inet_ntoa(nbr->src), pre_text);
 
@@ -324,7 +333,8 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			msg.eigrp = eigrp;
 			msg.data_type = EIGRP_INT;
 			msg.adv_router = nbr;
-			msg.metrics = tlv->metric;
+			msg.incoming_tlv_metrics = tlv->metric;
+			msg.etlv = NULL;
 			msg.entry = ne;
 			msg.prefix = pe;
 
@@ -365,9 +375,9 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			/*if exists it comes to DUAL*/
 			if (pe != NULL) {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Prefix entry already exists for External %s", pre_text);
-				/* remove received prefix from neighbor prefix list if in GR */
-				if (graceful_restart)
-					remove_received_prefix_gr(nbr_prefixes, pe);
+//				/* remove received prefix from neighbor prefix list if in GR */
+//				if (graceful_restart)
+//					remove_received_prefix_gr(nbr_prefixes, pe);
 
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (!ne) {
@@ -375,7 +385,6 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 					ne = eigrp_nexthop_entry_new();
 				}
 			} else {
-				/*Here comes topology information save*/
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
 				pe = eigrp_prefix_entry_new();
 				eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
@@ -389,13 +398,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				ne = eigrp_nexthop_entry_new();
 			}
 
-			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, etlv->metric);
 			ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
-
-			if (pe->extTLV) {
-				eigrp_IPv4_ExternalTLV_free(pe->extTLV);
-			}
-			pe->extTLV = etlv;
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send External Update [%s:%s] to FSM", inet_ntoa(nbr->src), pre_text);
 
@@ -403,7 +406,8 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			msg.eigrp = eigrp;
 			msg.data_type = EIGRP_EXT;
 			msg.adv_router = nbr;
-			msg.metrics = etlv->metric;
+			msg.incoming_tlv_metrics = etlv->metric;
+			msg.etlv = etlv;        //Note that the FSM has to attach this ETLV or delete it, as appropriate.
 			msg.entry = ne;
 			msg.prefix = pe;
 
@@ -432,22 +436,19 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 	if (nbr_prefixes)
 		list_delete_and_null(&nbr_prefixes);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send Update Ack [%s] to FSM", inet_ntoa(nbr->src));
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send Update Done [%s] to FSM", inet_ntoa(nbr->src));
 
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_FSM_ACK;
+	msg.data_type = EIGRP_FSM_DONE;
 	msg.adv_router = nbr;
-	msg.metrics = EIGRP_INFINITE_METRIC;
+	msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
 	msg.entry = NULL;
 	msg.prefix = NULL;
 
 	eigrp_fsm_event(&msg);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM ACK Complete [%s]", inet_ntoa(nbr->src));
-
-	//Cascade the update to all other neighbors. This should not be required, but I'm desperate to get this somewhat functions.
-	eigrp_update_send_all(eigrp, nbr);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM Actions Complete [%s]", inet_ntoa(nbr->src));
 
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
@@ -603,8 +604,8 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 
 }
 
-void eigrp_update_send_all(struct eigrp *eigrp,
-			   struct eigrp_neighbor *exception)
+void eigrp_update_send_changes_to_all(struct eigrp *eigrp,
+                                      struct eigrp_neighbor *exception)
 {
 	struct eigrp_interface *iface;
 	struct listnode *einode, *nbrnode, *node2, *nnode2;
@@ -614,7 +615,7 @@ void eigrp_update_send_all(struct eigrp *eigrp,
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
 		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
 			if (nbr->state == EIGRP_NEIGHBOR_UP && nbr != exception) {
-				eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
+				eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_CHANGED);
 			}
 		}
 	}
@@ -754,9 +755,9 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 			fsm_msg.eigrp = eigrp;
 			fsm_msg.data_type = EIGRP_INT;
 			fsm_msg.adv_router = nbr;
-			fsm_msg.metrics = pe->reported_metric;
+			fsm_msg.incoming_tlv_metrics = pe->reported_metric;
 			/* Set delay to MAX */
-			fsm_msg.metrics.delay = EIGRP_MAX_METRIC;
+			fsm_msg.incoming_tlv_metrics.delay = EIGRP_MAX_METRIC;
 			fsm_msg.entry = entry;
 			fsm_msg.prefix = pe;
 

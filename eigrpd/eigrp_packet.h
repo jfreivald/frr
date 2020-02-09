@@ -101,7 +101,7 @@ extern void eigrp_update_send_with_flags(struct eigrp_neighbor *, uint32_t);
 extern void eigrp_update_receive(struct eigrp *, struct ip *,
 				 struct eigrp_header *, struct stream *,
 				 struct eigrp_interface *, int);
-extern void eigrp_update_send_all(struct eigrp *, struct eigrp_neighbor *);
+extern void eigrp_update_send_changes_to_all(struct eigrp *eigrp, struct eigrp_neighbor *exception);
 extern void eigrp_update_send_init(struct eigrp_neighbor *);
 extern void eigrp_update_send_EOT(struct eigrp_neighbor *);
 extern int eigrp_update_send_GR_thread(struct thread *);
@@ -116,11 +116,12 @@ extern void eigrp_update_send_process_GR(struct eigrp *, enum GR_type,
  * These externs are found in eigrp_query.c
  */
 
-extern void eigrp_send_query(struct eigrp_neighbor *);
+extern void eigrp_send_query(struct eigrp_neighbor *, struct eigrp_prefix_entry *pe);
 extern void eigrp_query_receive(struct eigrp *, struct ip *,
 				struct eigrp_header *, struct stream *,
 				struct eigrp_interface *, int);
-extern uint32_t eigrp_query_send_all(struct eigrp *, struct eigrp_neighbor *);
+extern uint32_t
+eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_prefix_entry *pe, struct eigrp_neighbor *exception);
 
 /*
  * These externs are found in eigrp_reply.c

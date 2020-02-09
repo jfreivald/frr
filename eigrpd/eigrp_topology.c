@@ -76,6 +76,13 @@ struct route_table *eigrp_topology_new()
 	return p;
 }
 
+int compare_prefix_entry_distances(void *val1, void *val2) {
+    struct eigrp_prefix_entry *e1 = (struct eigrp_prefix_entry *)val1;
+    struct eigrp_prefix_entry *e2 = (struct eigrp_prefix_entry *)val2;
+
+    return e1->distance - e2->distance;
+}
+
 /*
  * Returns new created toplogy node
  * cmp - assigned function for comparing topology entry
@@ -87,10 +94,11 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
 	new = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
 			sizeof(struct eigrp_prefix_entry));
 	new->entries = prefix_entries_list_new();
+	new->entries->cmp = compare_prefix_entry_distances;
 	new->rij = list_new();
 	new->active_queries = list_new();
 	new->reply_entries = prefix_entries_list_new();
-	new->distance = new->fdistance = EIGRP_MAX_FEASIBLE_DISTANCE;
+	new->distance = new->fdistance = EIGRP_INFINITE_DISTANCE;
 	new->rdistance = EIGRP_INFINITE_DISTANCE;
 	new->destination = NULL;
 
@@ -191,6 +199,12 @@ struct eigrp_nexthop_entry *eigrp_nexthop_entry_new()
 			sizeof(struct eigrp_nexthop_entry));
 	new->reported_distance = EIGRP_INFINITE_DISTANCE;
 	new->distance = EIGRP_INFINITE_DISTANCE;
+	new->total_metric = EIGRP_INFINITE_METRIC;
+	new->reported_metric = EIGRP_INFINITE_METRIC;
+	new->adv_router = NULL;
+	new->flags = 0;
+	new->ei = NULL;
+	new->prefix = NULL;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return new;
@@ -243,7 +257,7 @@ void eigrp_prefix_entry_add(struct eigrp *eigrp, struct eigrp_prefix_entry *pe)
 /*
  * Adding nexthop to the prefix topology entry on the topology node
  */
-void eigrp_nexthop_entry_add(struct eigrp_prefix_entry *node, struct eigrp_nexthop_entry *entry)
+void eigrp_nexthop_entry_add_sort(struct eigrp_prefix_entry *node, struct eigrp_nexthop_entry *entry)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	char buf[PREFIX2STR_BUFFER];
@@ -413,7 +427,7 @@ eigrp_topology_table_lookup_ipv4_cf(struct route_table *table,
  * That way we can clean up all the list_new and list_delete's
  * that we are doing.  DBS
  */
-struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *table_node)
+struct list *eigrp_topology_get_feasible_successor_list(struct eigrp_prefix_entry *table_node)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	struct list *successors = list_new();
@@ -432,11 +446,8 @@ struct list *eigrp_topology_get_successor(struct eigrp_prefix_entry *table_node)
 		prefix2str(table_node->destination,buf,sizeof(buf));
 
 		for (ALL_LIST_ELEMENTS(table_node->entries, node1, node2, data)) {
-			if (data /* && (data->flags & EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG) */) {
+			if (data->reported_distance <= table_node->fdistance) {
 				listnode_add(successors, data);
-			} else if (data) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Skip entry %s for %s flags[%02x]", inet_ntoa(data->adv_router->src),
-						buf, data->flags);
 			}
 		}
 
@@ -455,7 +466,7 @@ eigrp_topology_get_successor_max(struct eigrp_prefix_entry *table_node,
 		unsigned int maxpaths)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	struct list *successors = eigrp_topology_get_successor(table_node);
+	struct list *successors = eigrp_topology_get_feasible_successor_list(table_node);
 	char buf[PREFIX2STR_BUFFER];
 
 	if (successors && successors->count > maxpaths) {
@@ -523,67 +534,6 @@ struct list *eigrp_neighbor_prefixes_lookup(struct eigrp *eigrp,
 	/* return list of prefixes from specified neighbor */
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return prefixes;
-}
-
-enum metric_change
-eigrp_topology_update_distance(struct eigrp_fsm_action_message *msg, bool save_new_metrics)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	enum metric_change change = METRIC_SAME;
-
-	assert(msg->entry);
-
-	switch (msg->data_type) {
-	case EIGRP_CONNECTED:
-		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_CONNECTED) {
-			if (msg->adv_router == msg->eigrp->neighbor_self) {
-				change = METRIC_DECREASE;
-			}
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-		}
-		break;
-	case EIGRP_INT:
-		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_CONNECTED) {
-			change = METRIC_INCREASE;
-			break;
-		}
-
-        if (save_new_metrics) {
-            msg->entry->reported_metric = msg->metrics;
-            msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
-            msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
-        }
-
-		if (msg->prefix->rdistance < msg->entry->reported_distance) {
-			change = METRIC_INCREASE;
-		} else
-			change = METRIC_DECREASE;
-
-		break;
-	case EIGRP_EXT:
-		if (msg->prefix->nt == EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL) {
-
-            if (save_new_metrics) {
-                msg->entry->reported_metric = msg->metrics;
-                msg->entry->distance = eigrp_calculate_metrics(msg->eigrp, msg->metrics);
-                msg->entry->reported_distance = eigrp_calculate_total_metrics(msg->eigrp, msg->entry);
-            }
-			if (msg->prefix->rdistance < msg->entry->reported_distance) {
-				change = METRIC_INCREASE;
-			} else
-				change = METRIC_DECREASE;
-
-		} else {
-			change = METRIC_INCREASE;
-		}
-		break;
-	default:
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Unimplemented TLV Type in FSM.");
-		break;
-	}
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-	return change;
 }
 
 void eigrp_topology_update_all_node_flags(struct eigrp *eigrp)
@@ -668,7 +618,7 @@ void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
 		return;
 	}
 
-	successors = eigrp_topology_get_successor(prefix);
+	successors = eigrp_topology_get_feasible_successor_list(prefix);
 
 	if (listnode_head(successors)) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Adding Route[%s]", buf);

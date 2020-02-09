@@ -59,8 +59,15 @@ struct eigrp_master {
 #define EIGRP_MASTER_SHUTDOWN (1 << 0) /* deferred-shutdown */
 };
 
-#define EIGRP_INFINITE_DISTANCE		(0xFFFFFFFF)
 #define EIGRP_MAX_FEASIBLE_DISTANCE (0xFFFFFFFE)
+
+#define EIGRP_INFINITE_DISTANCE		(0xFFFFFFFF)
+#define EIGRP_MAX_DELAY             (0xFFFFFFFF)
+#define EIGRP_MIN_BANDWIDTH         (0x0)
+#define EIGRP_MAX_BANDWIDTH         (0xFFFFFFFF)
+#define EIGRP_MAX_HOP_COUNT         (0xFF)
+#define EIGRP_MIN_RELIABILITY       (0x0)
+#define EIGRP_MAX_LOAD              (0xFF)
 
 struct eigrp_metrics {
 	uint32_t delay;
@@ -73,7 +80,7 @@ struct eigrp_metrics {
 	uint8_t flags;
 };
 
-#define MTU_TO_BYTES(mtu,bytes)		bytes[0]=(mtu & 0x000000FF);bytes[1]=((mtu & 0x0000FF00) >> 8);bytes[2]=((mtu & 0x00FF0000) >> 16);
+#define MTU_TO_BYTES(mtu,bytes)		bytes[0]=(mtu & 0x000000FF);bytes[1]=((mtu & 0x0000FF00) >> 8);bytes[2]=((mtu & 0x00FF0000) >> 16)
 
 extern const struct eigrp_metrics infinite_metrics;
 
@@ -250,8 +257,7 @@ struct eigrp_neighbor {
 	uint32_t recv_sequence_number; /* Last received sequence Number. */
 	uint32_t sent_sequence_number;
 
-	/*If packet is unacknowledged, we try to send it again 16 times*/
-	uint8_t retrans_counter;
+	bool waiting_for_reply;
 
 	struct in_addr src; /* Neighbor Src address. */
 
@@ -474,6 +480,7 @@ struct eigrp_prefix_entry {
 
 	uint8_t nt;	 // network type
 	uint8_t state;      // route fsm state
+	uint8_t oij;        // Query Origin Flags
 	uint8_t af;	 // address family
 	uint8_t req_action; // required action
 
@@ -497,6 +504,8 @@ struct eigrp_nexthop_entry {
 	struct eigrp_metrics reported_metric;
 	struct eigrp_metrics total_metric;
 
+	struct TLV_IPv4_External_type *extTLV;
+
 	struct eigrp_neighbor *adv_router; // ip address of advertising neighbor
 	uint8_t flags;			   // used for marking successor and FS
 
@@ -508,7 +517,7 @@ typedef enum {
 	EIGRP_CONNECTED,
 	EIGRP_INT,
 	EIGRP_EXT,
-	EIGRP_FSM_ACK
+	EIGRP_FSM_DONE
 } msg_data_t;
 
 /* EIGRP Finite State Machine */
@@ -520,7 +529,8 @@ struct eigrp_fsm_action_message {
 	struct eigrp_nexthop_entry *entry;
 	struct eigrp_prefix_entry *prefix;
 	msg_data_t data_type; // internal or external tlv type
-	struct eigrp_metrics metrics;
+	struct TLV_IPv4_External_type *etlv;
+	struct eigrp_metrics incoming_tlv_metrics;
 	enum metric_change change;
 };
 

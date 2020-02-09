@@ -133,7 +133,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
                 msg.eigrp = eigrp;
                 msg.data_type = EIGRP_INT;
                 msg.adv_router = nbr;
-                msg.metrics = tlv->metric;
+                msg.incoming_tlv_metrics = tlv->metric;
                 msg.entry = ne;
                 msg.prefix = pe;
                 eigrp_fsm_event(&msg);
@@ -189,7 +189,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
                 msg.eigrp = eigrp;
                 msg.data_type = EIGRP_EXT;
                 msg.adv_router = nbr;
-                msg.metrics = etlv->metric;
+                msg.incoming_tlv_metrics = etlv->metric;
                 msg.entry = ne;
                 msg.prefix = pe;
                 eigrp_fsm_event(&msg);

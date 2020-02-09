@@ -39,15 +39,7 @@
 #include "eigrpd/eigrp_fsm.h"
 #include "eigrpd/eigrp_topology.h"
 
-
-int eigrp_fsm_event_keep_state(struct eigrp_fsm_action_message *);
-int eigrp_fsm_event_nq_fcn(struct eigrp_fsm_action_message *);
-int eigrp_fsm_event_q_fcn(struct eigrp_fsm_action_message *);
-int eigrp_fsm_event_lr(struct eigrp_fsm_action_message *);
-int eigrp_fsm_event_dinc(struct eigrp_fsm_action_message *);
-int eigrp_fsm_event_lr_fcs(struct eigrp_fsm_action_message *);
-int eigrp_fsm_event_lr_fcn(struct eigrp_fsm_action_message *);
-int eigrp_fsm_event_qact(struct eigrp_fsm_action_message *);
+int eigrp_fsm_send_reply(struct eigrp_fsm_action_message *msg);
 
 struct eigrp *eigrp = 0;
 struct eigrp_fsm_action_message msg;
@@ -158,7 +150,7 @@ Test(eigrp_fsm_test, metric_calculation_check) {
     m.reliability = 1;
     m.tag = 0;
 
-    cr_assert(eigrp_calculate_metrics(&e, m) == 35840);
+    cr_assert(eigrp_calculate_distance(&e, m) == 35840);
 
     //1 GB Ether + 1 x 1024 link between the source and destination
     m.delay = 20010;
@@ -169,8 +161,8 @@ Test(eigrp_fsm_test, metric_calculation_check) {
     m.reliability = 1;
     m.tag = 0;
 
-    cr_assert(eigrp_calculate_metrics(&e, m) == 3012096);
-    
+    cr_assert(eigrp_calculate_distance(&e, m) == 3012096);
+
 }
 
 ReportHook(PRE_INIT)(struct criterion_test *test) {

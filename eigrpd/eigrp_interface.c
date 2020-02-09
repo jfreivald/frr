@@ -171,7 +171,16 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 		eigrp->neighbor_self->src = ei->connected->address->u.prefix4;
 	}
 
-	eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
+    if ((strncmp(ei->ifp->name, "dnsTun", 6) == 0 )) {
+        //TODO: Check the mmap interface and pull the bandwidth when this interface comes up and down."
+        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Found %s. Configure Delay and Bandwidth for T1.", ei->ifp->name);
+        ei->params.delay = 20000;
+        ei->params.bandwidth = 1536;
+        ei->params.reliability = 1;
+        ei->params.load = 0;
+    }
+
+    eigrp_adjust_sndbuflen(eigrp, ei->ifp->mtu);
 
 	eigrp_if_stream_set(ei);
 
@@ -184,8 +193,8 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Add EIGRP route for Interface %s", ei->ifp->name);
 
 	/*Prepare metrics*/
-	metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
-	metric.delay = eigrp_delay_to_scaled(ei->params.delay);
+	metric.bandwidth = ei->params.bandwidth;
+	metric.delay = ei->params.delay;
 	metric.load = ei->params.load;
 	metric.reliability = ei->params.reliability;
 	MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
@@ -217,14 +226,12 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(eigrp->neighbor_self->src));
 	ne = eigrp_nexthop_entry_new();
-	eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, eigrp->neighbor_self, metric);
-	ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
 
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;
 	msg.data_type = EIGRP_INT;
 	msg.adv_router = eigrp->neighbor_self;
-	msg.metrics = metric;
+	msg.incoming_tlv_metrics = metric;
 	msg.entry = ne;
 	msg.prefix = pe;
 
@@ -414,34 +421,4 @@ struct eigrp_interface *eigrp_if_lookup_by_name(struct eigrp *eigrp,
 	}
 
 	return NULL;
-}
-
-uint32_t eigrp_bandwidth_to_scaled(uint32_t bandwidth)
-{
-	uint64_t temp_bandwidth = (10000000 / bandwidth) * 256ull;
-
-	temp_bandwidth = temp_bandwidth < EIGRP_MAX_METRIC ? temp_bandwidth
-			: EIGRP_MAX_METRIC;
-
-	return (uint32_t)temp_bandwidth;
-}
-
-uint32_t eigrp_scaled_to_bandwidth(uint32_t scaled)
-{
-	uint64_t temp_scaled = scaled * (256ull * 10000000);
-
-	temp_scaled =
-			temp_scaled < EIGRP_MAX_METRIC ? temp_scaled : EIGRP_MAX_METRIC;
-
-	return (uint32_t)temp_scaled;
-}
-
-uint32_t eigrp_delay_to_scaled(uint32_t delay)
-{
-	return delay * 256;
-}
-
-uint32_t eigrp_scaled_to_delay(uint32_t scaled)
-{
-	return scaled / 256;
 }

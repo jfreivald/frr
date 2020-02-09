@@ -430,10 +430,10 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		pe = eigrp_topology_table_lookup_ipv4(eigrp->topology_table, &dest_addr);
 
 		/* Prepare metrics for route to neighbor host address */
-		metric.bandwidth = eigrp_bandwidth_to_scaled(ei->params.bandwidth);
-		metric.delay = eigrp_delay_to_scaled(ei->params.delay);
-		metric.load = ei->params.load;
-		metric.reliability = ei->params.reliability;
+		metric.bandwidth = EIGRP_MAX_BANDWIDTH;
+		metric.delay = 0;
+		metric.load = 0;
+		metric.reliability = 1;
 		MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
 		metric.hop_count = 0;
 		metric.flags = 0;
@@ -456,20 +456,21 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s",
 					pre_text, inet_ntoa(eigrp->neighbor_self->src));
 			ne = eigrp_nexthop_entry_new();
-			eigrp_prefix_nexthop_calculate_metrics(pe, ne, ei, nbr, metric);
-			ne->flags = EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-
-			msg.packet_type = EIGRP_OPC_UPDATE;
-			msg.eigrp = eigrp;
-			msg.data_type = EIGRP_INT;
-			msg.adv_router = nbr;
-			msg.metrics = metric;
-			msg.entry = ne;
-			msg.prefix = pe;
-
-			eigrp_fsm_event(&msg);
 		}
-	}
+
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR | LOGGER_EIGRP_NETWORK, "Creating connected route to neighbor through interface that received the HELLO packet");
+
+        msg.packet_type = EIGRP_OPC_UPDATE;
+        msg.eigrp = eigrp;
+        msg.data_type = EIGRP_CONNECTED;
+        msg.adv_router = nbr;
+        msg.incoming_tlv_metrics = metric;
+        msg.entry = ne;
+        msg.prefix = pe;
+
+        eigrp_fsm_event(&msg);
+
+    }
 }
 
 uint32_t FRR_MAJOR;
