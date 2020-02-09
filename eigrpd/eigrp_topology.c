@@ -352,9 +352,6 @@ void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *pe, struct eigrp_next
 		listnode_delete(pe->entries, ne);
 	}
 
-	eigrp_prefix_update_metrics(pe);
-	eigrp_topology_update_node_flags(pe);
-
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
 
