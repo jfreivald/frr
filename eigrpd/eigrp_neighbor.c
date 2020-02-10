@@ -285,7 +285,7 @@ static void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
 	THREAD_OFF(nbr->t_holddown);
 	if (nbr->ei && nbr->ei->nbrs) {
 		//Somebody called this on a live neighbor. Tear it down.
-		eigrp_topology_neighbor_down(nbr->ei->eigrp, nbr);
+        eigrp_topology_neighbor_down(nbr);
 	}
 	XFREE(MTYPE_EIGRP_NEIGHBOR, nbr);
 }
@@ -506,5 +506,5 @@ int eigrp_nbr_split_horizon_check(struct eigrp_nexthop_entry *ne,
 	if (ne->distance == EIGRP_INFINITE_DISTANCE)
 		return 0;
 
-	return ((ne->ei == ei) && (ne->prefix->nt != EIGRP_TOPOLOGY_TYPE_CONNECTED));
+	return ((ne->ei == ei));
 }

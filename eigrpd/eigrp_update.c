@@ -537,11 +537,9 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 		}
 
 		if ((length + (pe->extTLV ? pe->extTLV->length : EIGRP_TLV_MAX_IPV4_BYTE )) > eigrp_mtu) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send to %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
+			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send to %s on %s and reset for new packet.", inet_ntoa(nbr->src), nbr->ei->ifp->name);
 
 			eigrp_place_on_nbr_queue(nbr, ep, length);
-
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Reset for a new packet.");
 
 			length = EIGRP_HEADER_LEN;
 			ep = eigrp_packet_new(eigrp_mtu, nbr);

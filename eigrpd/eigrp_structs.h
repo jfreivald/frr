@@ -476,7 +476,7 @@ struct eigrp_prefix_entry {
 	uint32_t distance;		      // D
 	struct eigrp_metrics reported_metric; // RD for sending
 
-	uint8_t nt;	 // network type
+	uint8_t topology;	 // Connected/Internal/External
 	uint8_t state;      // route fsm state
 	uint8_t oij;        // Query Origin Flags
 	uint8_t af;	 // address family
@@ -508,7 +508,7 @@ struct eigrp_nexthop_entry {
 	uint8_t flags;			   // used for marking successor and FS
 
 	struct eigrp_interface *ei;
-	uint8_t route_type;         //Connected, Internal or External
+	uint8_t topology;         //Connected, Internal or External
 };
 
 //---------------------------------------------------------------------------------------------------------------------------------------------

@@ -515,6 +515,20 @@ eigrp_fsm_update_prefix_metrics(struct eigrp_prefix_entry *prefix)
         prefix->distance = entry->distance;
         prefix->fdistance = entry->distance;
         prefix->reported_metric = entry->reported_metric;
+        switch(entry->topology) {
+            case EIGRP_INT:
+                prefix->topology = EIGRP_TOPOLOGY_TYPE_REMOTE;
+                break;
+            case EIGRP_EXT:
+                prefix->topology = EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL;
+                break;
+            case EIGRP_CONNECTED:
+                prefix->topology = EIGRP_TOPOLOGY_TYPE_CONNECTED;
+                break;
+            default:
+                L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Invalid Entry Connection Type[%u]",entry->topology);
+                break;
+        }
 
         //nexthop entry manages the memory for the extTLV, so we don't have to delete it here.
         prefix->extTLV = entry->extTLV;
@@ -523,6 +537,7 @@ eigrp_fsm_update_prefix_metrics(struct eigrp_prefix_entry *prefix)
         prefix->distance = EIGRP_INFINITE_DISTANCE;
         prefix->fdistance = EIGRP_INFINITE_DISTANCE;
         prefix->reported_metric = EIGRP_INFINITE_METRIC;
+        prefix->topology = EIGRP_TOPOLOGY_TYPE_REMOTE;
         prefix->extTLV = NULL;
     }
 
@@ -825,7 +840,7 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
     } else {
         strncpy(nbr_str, "NO NBR", INET_ADDRSTRLEN);
     }
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM UPDATE: Prefix[%s], NBR[%s], MSG[%s], DATA[%s]",
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM MESSAGE: Prefix[%s], NBR[%s], MSG[%s], DATA[%s]",
             prefixbuf, nbr_str, packet_type2str(msg->packet_type), data_type2str(msg->data_type));
 
 	if (msg->data_type != EIGRP_FSM_DONE) {
@@ -995,7 +1010,7 @@ int eigrp_fsm_event_Q_SE(struct eigrp_fsm_action_message *msg){
     //Update the entry that received the query (not the successor)
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     struct eigrp_nexthop_entry *successor = listnode_head(msg->prefix->entries);
-    if (successor->route_type != EIGRP_CONNECTED || (successor->route_type == EIGRP_CONNECTED && msg->entry->route_type == EIGRP_CONNECTED) ) {
+    if (successor->topology != EIGRP_CONNECTED || (successor->topology == EIGRP_CONNECTED && msg->entry->topology == EIGRP_CONNECTED) ) {
         eigrp_nexthop_entry_add_sort(msg->prefix, msg->entry);
     }
 

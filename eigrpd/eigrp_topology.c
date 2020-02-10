@@ -159,6 +159,15 @@ static int eigrp_nexthop_entry_cmp(void *p1, void *p2)
 	struct eigrp_nexthop_entry *entry1 = (struct eigrp_nexthop_entry *)p1;
 	struct eigrp_nexthop_entry *entry2 = (struct eigrp_nexthop_entry *)p2;
 
+    ///Rank Connected higher than INT or EXT.
+
+    if (entry1->topology == EIGRP_CONNECTED && entry2->topology != EIGRP_CONNECTED)
+	    return 1;
+	else if (entry2->topology == EIGRP_CONNECTED && entry1->topology != EIGRP_CONNECTED)
+	    return -1;
+
+	///Otherwise go by distance.
+
 	ret = entry1->distance - entry2->distance;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
@@ -177,7 +186,7 @@ void eigrp_nexthop_entry_free(void *p1) {
  */
 
 struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *prefix,
-                                                    struct eigrp_interface *interface, uint8_t rt)
+                                                    struct eigrp_interface *interface, uint8_t t)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	struct eigrp_nexthop_entry *new;
@@ -197,7 +206,7 @@ struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(struct eigrp_neighbor *nbr, 
 	new->flags = 0;
 	new->ei = interface;
 	new->prefix = prefix;
-    new->route_type = rt;
+    new->topology = t;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return new;
@@ -262,8 +271,6 @@ void eigrp_nexthop_entry_add_sort(struct eigrp_prefix_entry *node, struct eigrp_
 	struct eigrp_nexthop_entry *ne;
 
 	for (ALL_LIST_ELEMENTS(node->entries, n, nn, ne)) {
-	    if (ne->adv_router == (struct eigrp_neighbor *)0x21| entry->adv_router == (struct eigrp_neighbor *)0x21)
-	        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "STOP HERE");
 		if (ne->adv_router->src.s_addr == entry->adv_router->src.s_addr) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,
 					"%s already has an entry on %s. Remove to sort.", inet_ntoa(entry->adv_router->src), buf);
@@ -316,6 +323,8 @@ void eigrp_prefix_entry_delete(struct eigrp *eigrp, struct eigrp_prefix_entry *p
 	list_delete_all_node(pe->entries);
 	assert(&pe->rij->del);		//Deleting lists without deleting their data is bad!
 	list_delete_all_node(pe->rij);
+	assert(&pe->active_queries->del);
+	list_delete_all_node(pe->active_queries);
 
 	eigrp_zebra_route_delete(pe->destination);
 
@@ -332,25 +341,6 @@ void eigrp_prefix_entry_delete(struct eigrp *eigrp, struct eigrp_prefix_entry *p
 		pe->extTLV->metric = EIGRP_INFINITE_METRIC;
 	pe->reported_metric = EIGRP_INFINITE_METRIC;
 	pe->distance = EIGRP_INFINITE_DISTANCE;
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-}
-
-/*
- * Deleting topology entry from topology node
- */
-void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *pe, struct eigrp_nexthop_entry *ne)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	char pbuf[PREFIX2STR_BUFFER];
-
-	assert(!(ne->flags & EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG));
-
-	prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-	if (listnode_lookup(pe->entries, ne) != NULL) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Remove nexthop entry %s for %s", inet_ntoa(ne->adv_router->src), pbuf);
-		listnode_delete(pe->entries, ne);
-	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
@@ -373,20 +363,6 @@ void eigrp_topology_delete_all(struct eigrp *eigrp)
 		eigrp_prefix_entry_delete(eigrp, pe);
 	}
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-}
-
-/*
- * Return 0 if topology is not empty
- * otherwise return 1
- */
-unsigned int eigrp_topology_table_isempty(struct list *topology)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-	if (topology->count)
-		return 1;
-	else
-		return 0;
 }
 
 struct eigrp_prefix_entry *
@@ -458,32 +434,6 @@ struct list *eigrp_topology_get_feasible_successor_list(struct eigrp_prefix_entr
 	return successors;
 }
 
-struct list *
-eigrp_topology_get_successor_max(struct eigrp_prefix_entry *table_node,
-		unsigned int maxpaths)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	struct list *successors = eigrp_topology_get_feasible_successor_list(table_node);
-	char buf[PREFIX2STR_BUFFER];
-
-	if (successors && successors->count > maxpaths) {
-		do {
-			struct listnode *node = listtail(successors);
-
-			list_delete_node(successors, node);
-
-		} while (successors->count > maxpaths);
-	} else {
-		if (!successors) {
-			prefix2str(table_node->destination,buf,PREFIX2STR_BUFFER);
-			L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "NO SUCCESSORS FOR [%s]",buf);
-		}
-	}
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-	return successors;
-}
-
 struct eigrp_nexthop_entry *
 eigrp_prefix_entry_lookup(struct list *entries, struct eigrp_neighbor *nbr)
 {
@@ -533,116 +483,7 @@ struct list *eigrp_neighbor_prefixes_lookup(struct eigrp *eigrp,
 	return prefixes;
 }
 
-void eigrp_topology_update_all_node_flags(struct eigrp *eigrp)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	struct eigrp_prefix_entry *pe;
-	struct route_node *rn;
-
-	if (!eigrp) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-		return;
-	}
-
-	for (rn = route_top(eigrp->topology_table); rn; rn = route_next(rn)) {
-		pe = rn->info;
-
-		if (!pe)
-			continue;
-
-		eigrp_topology_update_node_flags(pe);
-	}
-}
-
-void eigrp_topology_update_node_flags(struct eigrp_prefix_entry *dest)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	struct listnode *node;
-	struct eigrp_nexthop_entry *entry;
-	struct eigrp *eigrp = eigrp_lookup();
-
-	char pbuf[PREFIX2STR_BUFFER];
-	prefix2str(dest->destination, pbuf, PREFIX2STR_BUFFER);
-
-	if (!dest->entries->count) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "No nexthop entries for %s", pbuf);
-	}
-
-	for (ALL_LIST_ELEMENTS_RO(dest->entries, node, entry)) {
-		if (entry->distance <= dest->fdistance) {
-			// is feasible successor, can be successor
-			if (((uint64_t)entry->distance <= (uint64_t)dest->distance	* (uint64_t)eigrp->variance)
-					&& entry->distance != EIGRP_INFINITE_DISTANCE
-			) {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%s is a successor for %s", inet_ntoa(entry->adv_router->src),
-					prefix2str(dest->destination, pbuf, PREFIX2STR_BUFFER));
-				entry->flags |= EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-				entry->flags &= ~EIGRP_NEXTHOP_ENTRY_FSUCCESSOR_FLAG;
-			} else {
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%s is a feasible successor for %s", inet_ntoa(entry->adv_router->src),
-						prefix2str(dest->destination, pbuf, PREFIX2STR_BUFFER));
-				entry->flags |= EIGRP_NEXTHOP_ENTRY_FSUCCESSOR_FLAG;
-				entry->flags &= ~EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-			}
-		} else {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%s is not a successor for %s", inet_ntoa(entry->adv_router->src),
-					prefix2str(dest->destination, pbuf, PREFIX2STR_BUFFER));
-			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_FSUCCESSOR_FLAG;
-			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_SUCCESSOR_FLAG;
-		}
-	}
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-}
-
-void eigrp_update_routing_table(struct eigrp_prefix_entry *prefix)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	struct eigrp *eigrp = eigrp_lookup();
-	struct listnode *node, *nnode;
-	struct eigrp_nexthop_entry *entry;
-	struct list *successors;
-
-	char buf[PREFIX2STR_BUFFER];
-
-	if (prefix->destination)
-		prefix2str(prefix->destination, buf, PREFIX2STR_BUFFER);
-	else
-		strncpy(buf, "NO PREFIX DESTINATION", PREFIX2STR_BUFFER);
-
-	if (!eigrp) {
-		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "EIGRP Not Running.");
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-		return;
-	}
-
-	successors = eigrp_topology_get_feasible_successor_list(prefix);
-
-	if (listnode_head(successors)) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Adding Route[%s]", buf);
-		eigrp_zebra_route_add(prefix->destination, successors);
-		for (ALL_LIST_ELEMENTS(successors, node, nnode, entry)) {
-			entry->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
-		}
-	} else {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Removing Route[%s]", buf);
-		eigrp_zebra_route_delete(prefix->destination);
-	}
-
-	//Clear the INTABLE flags for everyone except the successors.
-	for (ALL_LIST_ELEMENTS(prefix->entries, node, nnode, entry)) {
-		if (!(listnode_lookup(successors, entry)) ) {
-			entry->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
-		}
-	}
-
-	if (successors)
-		list_delete_and_null(&successors);
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-}
-
-void eigrp_topology_neighbor_down(struct eigrp *eigrp,
-		struct eigrp_neighbor *nbr)
+void eigrp_topology_neighbor_down(struct eigrp_neighbor *nbr)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 
@@ -653,35 +494,6 @@ void eigrp_topology_neighbor_down(struct eigrp *eigrp,
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_NEIGHBOR, "Neighbor %s Down", abuf);
 
 	eigrp_nbr_down(nbr);
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
-}
-
-void eigrp_update_topology_table_prefix(struct eigrp *eigrp, struct eigrp_prefix_entry *prefix)
-{
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	struct listnode *node1, *node2;
-	struct eigrp_nexthop_entry *entry;
-
-	for (ALL_LIST_ELEMENTS(prefix->entries, node1, node2, entry)) {
-		if (entry && entry->distance == EIGRP_INFINITE_DISTANCE) {
-			if (entry->flags & EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG) {
-				/* This entry is in the routing table.
-				 * Remove before delete
-				 */
-				eigrp_zebra_route_delete(prefix->destination);
-				entry->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
-			}
-			eigrp_nexthop_entry_delete(prefix, entry);
-		} else {
-			if (entry && entry->distance <= prefix->distance) {
-				prefix->distance = entry->distance;
-				prefix->reported_metric = entry->reported_metric;
-			}
-		}
-	}
-
-	eigrp_update_routing_table(prefix);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
@@ -705,7 +517,7 @@ eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_
 	prefix_copy(pe->destination, &dest_addr);
 	pe->af = af;
 	pe->state = state;
-	pe->nt = network_topology_type;
+	pe->topology = network_topology_type;
 	pe->reported_metric = reported_metric;
 	pe->fdistance = distance;
 	pe->distance = pe->rdistance = fdistance;

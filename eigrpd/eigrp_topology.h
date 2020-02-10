@@ -72,8 +72,7 @@ struct list *eigrp_neighbor_prefixes_lookup(struct eigrp *,
 void eigrp_topology_update_all_node_flags(struct eigrp *);
 void eigrp_topology_update_node_flags(struct eigrp_prefix_entry *);
 void eigrp_update_routing_table(struct eigrp_prefix_entry *);
-void eigrp_topology_neighbor_down(struct eigrp *,
-					 struct eigrp_neighbor *);
+void eigrp_topology_neighbor_down(struct eigrp_neighbor *nbr);
 void eigrp_update_topology_table_prefix(struct eigrp *,
 					       struct eigrp_prefix_entry *pe);
 

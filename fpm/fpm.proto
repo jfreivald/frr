@@ -64,7 +64,7 @@ message AddRoute {
   required qpb.SubAddressFamily sub_address_family = 3;
   required RouteKey key = 4;
 
-  optional RouteType route_type = 5;
+  optional RouteType topology = 5;
 
   required qpb.Protocol protocol = 6;
 
