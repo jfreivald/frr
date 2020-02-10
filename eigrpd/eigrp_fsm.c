@@ -415,6 +415,11 @@ eigrp_fsm_reroute_traffic(struct eigrp_prefix_entry *prefix, struct eigrp_nextho
         new_successor->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
         send_flags |= EIGRP_FSM_NEED_UPDATE;
         prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
+        if (new_successor->extTLV) {
+            listnode_add(new_successor->ei->eigrp->topology_changes_externalIPV4, prefix);
+        } else {
+            listnode_add(new_successor->ei->eigrp->topology_changes_internalIPV4, prefix);
+        }
     }
 
     listnode_delete(nexthop_list, new_successor);
@@ -1012,6 +1017,11 @@ int eigrp_fsm_event_NQE_SE(struct eigrp_fsm_action_message *msg){
             //Successor didn't change, but the metric did. Send an update with the new metric.
             send_flags |= EIGRP_FSM_NEED_UPDATE;
             msg->prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
+            if (msg->entry->extTLV) {
+                listnode_add(msg->entry->ei->eigrp->topology_changes_externalIPV4, msg->prefix);
+            } else {
+                listnode_add(msg->entry->ei->eigrp->topology_changes_internalIPV4, msg->prefix);
+            }
         }
     }
     return 0;
