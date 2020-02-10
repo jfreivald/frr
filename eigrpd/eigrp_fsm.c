@@ -583,7 +583,8 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
             //Valid Events are 1,2,3,4
             switch (msg->packet_type) {
                 case EIGRP_OPC_QUERY:
-                    if (msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
+                    if (listnode_head(msg->prefix->entries) == NULL ||
+                        msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
                         //Not from Successor - Event 1
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from non-successor");
                         return 1;
@@ -601,7 +602,8 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                     return 3;
 
                 case EIGRP_OPC_UPDATE:
-                    if (msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
+                    if (listnode_head(msg->prefix->entries) == NULL ||
+                        msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
                         //Update from non-successor. Event 2.
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update from non-successor.");
                         return 2;
