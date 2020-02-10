@@ -128,10 +128,10 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 	//Create route for P-t-P neighbors
 	if (nbr->ei->type == EIGRP_IFTYPE_POINTOPOINT) {
 		/*Prepare metrics*/
-		metric.bandwidth = ei->params.bandwidth;
-		metric.delay = ei->params.delay;
-		metric.load = ei->params.load;
-		metric.reliability = ei->params.reliability;
+		metric.bandwidth = 1;
+		metric.delay = EIGRP_MAX_DELAY - 1;
+		metric.load = EIGRP_MAX_LOAD - 1;
+		metric.reliability = 1;
 		MTU_TO_BYTES(ei->ifp->mtu, metric.mtu);
 		metric.hop_count = 0;
 		metric.flags = 0;
@@ -156,7 +156,6 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Add prefix entry for %s into %s", addr_buf, ei->eigrp->name);
 			eigrp_prefix_entry_add(ei->eigrp, pe);
-
 		}
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
