@@ -418,7 +418,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 	}
 
 	if (nbr_prefixes)
-		list_delete_and_null(&nbr_prefixes);
+		list_delete_and_null_leave_data(&nbr_prefixes);
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send Update Done [%s] to FSM", inet_ntoa(nbr->src));
 
@@ -572,7 +572,7 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 		}
 	}
 
-	list_delete_and_null(&route_nodes);
+	list_delete_and_null_leave_data(&route_nodes);
 
 	if (!has_tlv) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet has no route information. Discard.");

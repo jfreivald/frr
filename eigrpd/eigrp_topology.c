@@ -415,7 +415,7 @@ struct list *eigrp_topology_get_feasible_successor_list(struct eigrp_prefix_entr
 
 	//eigrp_topology_update_node_flags(table_node);
 
-	if (table_node->destination) {
+	if (table_node && table_node->destination) {
 		prefix2str(table_node->destination,buf,sizeof(buf));
 
 		for (ALL_LIST_ELEMENTS(table_node->entries, node1, node2, data)) {

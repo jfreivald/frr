@@ -422,8 +422,7 @@ eigrp_fsm_reroute_traffic(struct eigrp_prefix_entry *prefix, struct eigrp_nextho
         }
     }
 
-    listnode_delete(nexthop_list, new_successor);
-    list_delete_and_null(&nexthop_list);
+    list_delete_and_null_leave_data(&nexthop_list);
 
 }
 
@@ -602,27 +601,29 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                     return 3;
 
                 case EIGRP_OPC_UPDATE:
-                    if (listnode_head(msg->prefix->entries) == NULL ||
-                        msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
-                        //Update from non-successor. Event 2.
-                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update from non-successor[S:%s][U:%s].", inet_ntoa(((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src), inet_ntoa(msg->adv_router->src));
+                    if (msg->entry == listnode_head(msg->prefix->entries)) {
+                        //Update from successor
+                        if (eigrp_calculate_distance(msg->eigrp, msg->incoming_tlv_metrics) > msg->prefix->rdistance) {
+                            if (msg->prefix->entries->count > 1) {
+                                //FS Exists - Event 2
+                                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM,
+                                  "PASSIVE: Update INCREASE from successor. FS Exists.");
+                                return 2;
+                            }
+                            //Metric increase from successor - Event 4
+                            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM,
+                              "PASSIVE: Update INCREASE from successor. No FS Exists.");
+                            return 4;
+                        }
+                        //Metric did not increase - Event 2
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update no increase from successor.");
                         return 2;
                     }
-                    //Update from successor
-                    if (eigrp_calculate_distance(msg->eigrp, msg->incoming_tlv_metrics) > msg->prefix->rdistance) {
-                        if (msg->prefix->entries->count > 1) {
-                            //FS Exists - Event 2
-                            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update INCREASE from successor. FS Exists.");
-                            return 2;
-                        }
-                        //Metric increase from successor - Event 4
-                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update INCREASE from successor. No FS Exists.");
-                        return 4;
-                    }
-                    //Metric did not increase - Event 2
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update no increase from successor.");
+                    //Update from non-successor. Event 2.
+                    if (msg->prefix->entries->count)
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update from non-successor[S:%s][U:%s].", inet_ntoa(((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src), inet_ntoa(msg->adv_router->src));
                     return 2;
-
+                    //Update from successor
                 default:
                     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Only QUERY/UPDATE packets allowed for passive route: %s received", packet_type2str(msg->packet_type));
                     break;
@@ -1117,6 +1118,11 @@ int eigrp_fsm_event_NQE_SDNE(struct eigrp_fsm_action_message *msg){
     //Send the queries, skipping the split horizon
     queries = eigrp_query_send_all(msg->eigrp, NULL, msg->adv_router);
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%d queries sent", queries);
+    if (queries == 0) {
+        //We don't have any neighbors to query. Return to passive state.
+        eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
+        eigrp_fsm_transition_to_passive(msg->prefix);
+    }
     return 0;
 }
 

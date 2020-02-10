@@ -296,6 +296,17 @@ CPP_NOTICE("list_delete without double pointer is deprecated, please fixup")
 extern void list_delete_and_null(struct list **plist);
 
 /*
+ * Delete a list and NULL its pointer but leave all the data..
+ *
+ * This is useful for secondary/temporary or sub-lists, where you are tracking the data with another master list.
+ *
+ * plist
+ *    pointer to list pointer; this will be set to NULL after the list has been
+ *    deleted
+ */
+extern void list_delete_and_null_leave_data(struct list **plist);
+
+/*
  * Delete a list.
  *
  * If non-null, list->del is called with each data element.

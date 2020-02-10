@@ -290,7 +290,10 @@ void show_ip_eigrp_topology_header(struct vty *vty, struct eigrp *eigrp)
 
 void show_ip_eigrp_prefix_entry(struct vty *vty, struct eigrp_prefix_entry *tn)
 {
-	struct list *successors = eigrp_topology_get_feasible_successor_list(tn);
+	if(!tn || !tn->destination)
+	    return;
+
+    struct list *successors = eigrp_topology_get_feasible_successor_list(tn);
 	char buffer[PREFIX_STRLEN];
 
 	vty_out(vty, "%-3c", (tn->state > 0) ? 'A' : 'P');
@@ -302,7 +305,7 @@ void show_ip_eigrp_prefix_entry(struct vty *vty, struct eigrp_prefix_entry *tn)
 		tn->serno);
 
 	if (successors)
-		list_delete_and_null(&successors);
+		list_delete_and_null_leave_data(&successors);
 }
 
 void show_ip_eigrp_nexthop_entry(struct vty *vty, struct eigrp *eigrp,

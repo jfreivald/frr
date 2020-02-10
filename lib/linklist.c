@@ -400,6 +400,17 @@ void list_delete_and_null(struct list **list)
 	*list = NULL;
 }
 
+extern void list_delete_and_null_leave_data(struct list **list) {
+    if (! (*list)) {
+        LBT(zlog_warn, LOGGER_LIB, LOGGER_LIB_LIST,"NULL passed as argument **list");
+        return;
+    }
+    (*list)->del = NULL;
+    list_delete_all_node(*list);
+    list_free_internal(*list);
+    *list = NULL;
+}
+
 void list_delete_original(struct list *list)
 {
 	list_delete_and_null(&list);
