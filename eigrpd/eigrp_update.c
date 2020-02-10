@@ -531,10 +531,10 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 	for (ALL_LIST_ELEMENTS_RO(route_nodes, pen, pe)) {
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 
-		if (listnode_head(pe->entries) && eigrp_nbr_split_horizon_check(listnode_head(pe->entries), ei)) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Split Horizon %s.", pbuf);
-			continue;
-		}
+//		if (listnode_head(pe->entries) && eigrp_nbr_split_horizon_check(listnode_head(pe->entries), ei)) {
+//			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Split Horizon %s.", pbuf);
+//			continue;
+//		}
 
 		if ((length + (pe->extTLV ? pe->extTLV->length : EIGRP_TLV_MAX_IPV4_BYTE )) > eigrp_mtu) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send to %s on %s and reset for new packet.", inet_ntoa(nbr->src), nbr->ei->ifp->name);
