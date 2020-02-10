@@ -58,7 +58,6 @@
 #include "eigrpd/eigrp_memory.h"
 
 static int eigrp_nexthop_entry_cmp(void *, void *);
-static struct list * prefix_entries_list_new(void);
 static void eigrp_nexthop_entry_debug(list_debug_stage_t, struct list *, struct listnode*, void *, const char *, const char *, int);
 
 
@@ -76,13 +75,6 @@ struct route_table *eigrp_topology_new()
 	return p;
 }
 
-int compare_prefix_entry_distances(void *val1, void *val2) {
-    struct eigrp_prefix_entry *e1 = (struct eigrp_prefix_entry *)val1;
-    struct eigrp_prefix_entry *e2 = (struct eigrp_prefix_entry *)val2;
-
-    return e1->distance - e2->distance;
-}
-
 /*
  * Returns new created toplogy node
  * cmp - assigned function for comparing topology entry
@@ -94,7 +86,6 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
 	new = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
 			sizeof(struct eigrp_prefix_entry));
 	new->entries = prefix_entries_list_new();
-	new->entries->cmp = compare_prefix_entry_distances;
 	new->rij = list_new();
 	new->active_queries = list_new();
 	new->reply_entries = prefix_entries_list_new();
@@ -110,7 +101,7 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
  * New prefix entries list creation
  */
 
-static struct list * prefix_entries_list_new(void){
+struct list * prefix_entries_list_new(void) {
 	struct list *newlist = list_new_cb(eigrp_nexthop_entry_cmp, eigrp_nexthop_entry_free, eigrp_nexthop_entry_debug, 0);
 
 	return newlist;
@@ -168,13 +159,8 @@ static int eigrp_nexthop_entry_cmp(void *p1, void *p2)
 	struct eigrp_nexthop_entry *entry1 = (struct eigrp_nexthop_entry *)p1;
 	struct eigrp_nexthop_entry *entry2 = (struct eigrp_nexthop_entry *)p2;
 
-	if (entry1->distance < entry2->distance) {
-		ret = -1;
-	} else if (entry1->distance > entry2->distance) {
-		ret = 1;
-	} else {
-		ret = 0;
-	}
+	ret = entry1->distance - entry2->distance;
+
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return ret;
 }
@@ -275,9 +261,13 @@ void eigrp_nexthop_entry_add_sort(struct eigrp_prefix_entry *node, struct eigrp_
 		}
 	}
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,"Adding nexthop entry to prefix %s.", buf);
-	listnode_add_sort(node->entries, entry);
-	entry->prefix = node;
+	if (entry->distance != EIGRP_INFINITE_DISTANCE || entry->distance < node->rdistance) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Adding nexthop entry to prefix %s.", buf);
+        listnode_add_sort(node->entries, entry);
+        entry->prefix = node;
+    } else {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Prefix %s nexthop to %s is not a FS. Dropping.", buf);
+    }
 
 	if (node->entries->count > 5) {
 		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "%d entries for %s", node->entries->count, buf);

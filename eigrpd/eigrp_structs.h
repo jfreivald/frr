@@ -257,8 +257,6 @@ struct eigrp_neighbor {
 	uint32_t recv_sequence_number; /* Last received sequence Number. */
 	uint32_t sent_sequence_number;
 
-	bool waiting_for_reply;
-
 	struct in_addr src; /* Neighbor Src address. */
 
 	uint8_t os_rel_major;  // system version - just for show

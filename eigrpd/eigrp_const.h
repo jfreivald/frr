@@ -136,7 +136,7 @@ enum metric_change { METRIC_DECREASE, METRIC_SAME, METRIC_INCREASE };
 
 /*EIGRP FSM state count, event count*/
 #define EIGRP_FSM_STATE_MAX                  5
-#define EIGRP_FSM_EVENT_MAX                  16
+#define EIGRP_FSM_EVENT_MAX                  17
 
 /*EEGRP FSM states*/
 enum eigrp_fsm_states {
@@ -187,23 +187,8 @@ enum eigrp_fsm_events {
     /** Event affects communication with successor on already active route originated by this successor **/
     EIGRP_FSM_EVENT_SNQE_AAR_SO = 10,
 
-    /** Event affects successor link on an already active route where all replies have been received and there is no FS **/
-    EIGRP_FSM_EVENT_SNQE_AAR_ARR_NFS = 11,
-
-    /** Successor Origin Query, Last reply received with no FS **/
-    EIGRP_FSM_EVENT_SO_LR_NFS = 12,
-
-    /** Successor Origin Query, Last reply received on Active 3 with FS **/
-    EIGRP_FSM_EVENT_SO_LR_FS_A3 = 13,
-
-    /** Last Reply when there was a Topology Change on Successor Origin Active Route with Feasible Successor **/
-    EIGRP_FSM_EVENT_SO_LR_TC = 14,
-
-    /** Last Reply on router originated Query. **/
-    EIGRP_FSM_EVENT_LR_RO = 15,
-
-    /** Last Reply on successor originated Query on Active 1 with FS. **/
-    EIGRP_FSM_EVENT_SO_LR_FS_A2 = 16
+    /** Events 11-16 are all Last Reply events. They are bundled here. **/
+    EIGRP_FSM_EVENT_LR
 };
 
 /**

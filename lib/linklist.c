@@ -149,7 +149,7 @@ void listnode_add_sort_cf(struct list *list, void *val, const char *file, const 
 		}
 	}
 
-	//No sort function. Add unsorted.
+	//No sort function or rolled of the end of the list. Tack on the bottom.
 
 	new->prev = list->tail;
 
