@@ -507,7 +507,8 @@ struct eigrp_nexthop_entry {
 	struct eigrp_neighbor *adv_router; // ip address of advertising neighbor
 	uint8_t flags;			   // used for marking successor and FS
 
-	struct eigrp_interface *ei; // pointer for case of connected entry
+	struct eigrp_interface *ei;
+	uint8_t route_type;         //Connected, Internal or External
 };
 
 //---------------------------------------------------------------------------------------------------------------------------------------------

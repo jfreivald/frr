@@ -160,7 +160,7 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 		}
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
-		ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+		ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_CONNECTED);
 
         eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, ei->eigrp, ne->ei->eigrp->neighbor_self, ne, pe, EIGRP_CONNECTED, metric, NULL);
 

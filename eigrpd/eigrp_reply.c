@@ -151,7 +151,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				continue;
 			}
 
-			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_INT);
 
 			eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_REPLY, eigrp, nbr, ne, pe, EIGRP_INT, tlv->metric, NULL);
 
@@ -182,7 +182,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 				continue;
 			}
 
-			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_EXT);
 
             eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_REPLY, eigrp, nbr, ne, pe, EIGRP_EXT, etlv->metric, etlv);
 

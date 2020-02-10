@@ -40,7 +40,7 @@ void eigrp_topology_init(struct route_table *table);
 struct list * list_new_nexthop_entries(void);
 struct eigrp_prefix_entry *eigrp_prefix_entry_new(void);
 struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *prefix,
-                                                    struct eigrp_interface *interface);
+                                                    struct eigrp_interface *interface, uint8_t rt);
 void eigrp_topology_free(struct eigrp *);
 void eigrp_topology_cleanup(struct eigrp *);
 void eigrp_prefix_entry_add(struct eigrp *, struct eigrp_prefix_entry *);

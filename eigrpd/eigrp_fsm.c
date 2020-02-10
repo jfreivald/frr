@@ -994,7 +994,10 @@ int eigrp_fsm_event_Q_SE(struct eigrp_fsm_action_message *msg){
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 1");
     //Update the entry that received the query (not the successor)
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
-    eigrp_nexthop_entry_add_sort(msg->prefix, msg->entry);
+    struct eigrp_nexthop_entry *successor = listnode_head(msg->prefix->entries);
+    if (successor->route_type != EIGRP_CONNECTED || (successor->route_type == EIGRP_CONNECTED && msg->entry->route_type == EIGRP_CONNECTED) ) {
+        eigrp_nexthop_entry_add_sort(msg->prefix, msg->entry);
+    }
 
     //Ensure all the metrics are up to date and reply to the neighbor.
     eigrp_fsm_update_prefix_metrics(msg->prefix);

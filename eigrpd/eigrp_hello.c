@@ -456,7 +456,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		if (!ne) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s",
 					pre_text, inet_ntoa(eigrp->neighbor_self->src));
-			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_CONNECTED);
 		}
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR | LOGGER_EIGRP_NETWORK, "Creating connected route to neighbor through interface that received the HELLO packet");

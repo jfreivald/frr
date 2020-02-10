@@ -225,7 +225,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(eigrp->neighbor_self->src));
-	ne = eigrp_nexthop_entry_new(eigrp->neighbor_self, pe, ei);
+	ne = eigrp_nexthop_entry_new(eigrp->neighbor_self, pe, ei, EIGRP_CONNECTED);
 
     eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, eigrp->neighbor_self, ne, pe, EIGRP_CONNECTED, metric, NULL);
 

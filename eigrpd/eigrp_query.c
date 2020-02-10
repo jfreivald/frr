@@ -132,7 +132,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 				if (!ne) {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
-					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_INT);
 				}
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);
@@ -175,7 +175,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 				if (!ne) {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
-					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_EXT);
 				}
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);

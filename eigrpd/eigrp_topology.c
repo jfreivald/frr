@@ -177,7 +177,7 @@ void eigrp_nexthop_entry_free(void *p1) {
  */
 
 struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *prefix,
-                                                    struct eigrp_interface *interface)
+                                                    struct eigrp_interface *interface, uint8_t rt)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	struct eigrp_nexthop_entry *new;
@@ -197,6 +197,7 @@ struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(struct eigrp_neighbor *nbr, 
 	new->flags = 0;
 	new->ei = interface;
 	new->prefix = prefix;
+    new->route_type = rt;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return new;

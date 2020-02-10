@@ -301,7 +301,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (!ne) {
-					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_INT);
 				} else {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src), pre_text);
 				}
@@ -317,7 +317,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				eigrp_prefix_entry_add(eigrp, pe);
 
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
-				ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+				ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_INT);
 			}
 
 			//We don't want to update the nexthop metrics here. That alters the routing table, which should only be done in the FSM.
@@ -372,7 +372,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (!ne) {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pre_text);
-					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_EXT);
 				}
 			} else {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
@@ -386,7 +386,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				eigrp_prefix_entry_add(eigrp, pe);
 
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
-				ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
+				ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei, EIGRP_EXT);
 			}
 
 			ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
