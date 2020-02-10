@@ -216,16 +216,16 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	if (pe == NULL) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "Create topology entry for %s", addr_buf);
 		pe = eigrp_prefix_entry_new();
-		eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-				EIGRP_TOPOLOGY_TYPE_CONNECTED, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-				EIGRP_MAX_FEASIBLE_DISTANCE);
+        eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                      EIGRP_TOPOLOGY_TYPE_CONNECTED, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
+                                      EIGRP_MAX_FEASIBLE_DISTANCE, NULL);
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", addr_buf, eigrp->name);
 		eigrp_prefix_entry_add(eigrp, pe);
 	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(eigrp->neighbor_self->src));
-	ne = eigrp_nexthop_entry_new();
+	ne = eigrp_nexthop_entry_new(eigrp->neighbor_self, pe, ei);
 
 	msg.packet_type = EIGRP_OPC_UPDATE;
 	msg.eigrp = eigrp;

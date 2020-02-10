@@ -400,7 +400,6 @@ uint32_t eigrp_calculate_distance(struct eigrp *eigrp,
                                   struct eigrp_metrics metric)
 {
 	uint32_t temp_metric;
-	temp_metric = 0;
 
 	if (metric.delay == EIGRP_MAX_METRIC)
 		return EIGRP_INFINITE_DISTANCE;
@@ -412,7 +411,7 @@ uint32_t eigrp_calculate_distance(struct eigrp *eigrp,
     uint8_t K5 = eigrp->k_values[4];
 
     // BW: Bandwidth is the inverse minimum bandwidth (in kbps) of the path scaled by a factor of 10^7
-    uint32_t BW = 10000000 / metric.bandwidth;
+    uint32_t BW = 10000000 / (metric.bandwidth ? metric.bandwidth : EIGRP_MIN_BANDWIDTH);
     uint32_t LOAD = metric.load;
     // DELAY: Delay is in 10's of uSec
     uint32_t DELAY = metric.delay / 10;

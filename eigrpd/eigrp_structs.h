@@ -63,7 +63,7 @@ struct eigrp_master {
 
 #define EIGRP_INFINITE_DISTANCE		(0xFFFFFFFF)
 #define EIGRP_MAX_DELAY             (0xFFFFFFFF)
-#define EIGRP_MIN_BANDWIDTH         (0x0)
+#define EIGRP_MIN_BANDWIDTH         (0x1)
 #define EIGRP_MAX_BANDWIDTH         (0xFFFFFFFF)
 #define EIGRP_MAX_HOP_COUNT         (0xFF)
 #define EIGRP_MIN_RELIABILITY       (0x0)
@@ -470,7 +470,7 @@ enum GR_type { EIGRP_GR_MANUAL, EIGRP_GR_FILTER };
 
 /* EIGRP Topology table node structure */
 struct eigrp_prefix_entry {
-	struct list *entries, *rij, *active_queries, *reply_entries;
+	struct list *entries, *rij, *active_queries;
 	uint32_t fdistance;		      // FD
 	uint32_t rdistance;		      // RD
 	uint32_t distance;		      // D

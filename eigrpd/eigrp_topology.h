@@ -37,9 +37,10 @@
 /* EIGRP Topology table related functions. */
 struct route_table *eigrp_topology_new(void);
 void eigrp_topology_init(struct route_table *table);
-struct list * prefix_entries_list_new(void);
+struct list * list_new_nexthop_entries(void);
 struct eigrp_prefix_entry *eigrp_prefix_entry_new(void);
-struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(void);
+struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *prefix,
+                                                    struct eigrp_interface *interface);
 void eigrp_topology_free(struct eigrp *);
 void eigrp_topology_cleanup(struct eigrp *);
 void eigrp_prefix_entry_add(struct eigrp *, struct eigrp_prefix_entry *);
@@ -50,9 +51,10 @@ void eigrp_prefix_entry_delete(struct eigrp *,
 void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *,
 				       struct eigrp_nexthop_entry *);
 void eigrp_nexthop_entry_free(void *);
-void eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *, struct prefix,
-		struct eigrp *, uint8_t, uint8_t, uint8_t,
-		struct eigrp_metrics, uint32_t, uint32_t);
+void
+eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_addr, struct eigrp *eigrp, uint8_t af,
+                              uint8_t state, uint8_t network_topology_type, struct eigrp_metrics reported_metric,
+                              uint32_t distance, uint32_t fdistance, struct TLV_IPv4_External_type *etlv);
 void eigrp_topology_delete_all(struct eigrp *);
 unsigned int eigrp_topology_table_isempty(struct list *);
 

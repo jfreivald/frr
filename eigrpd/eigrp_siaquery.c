@@ -105,7 +105,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 
                     ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
                     if (!ne) {
-                        ne = eigrp_nexthop_entry_new();
+                        ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
                     } else {
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src),
                           pre_text);
@@ -116,7 +116,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
                     eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
                                                   EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC,
                                                   EIGRP_MAX_FEASIBLE_DISTANCE,
-                                                  EIGRP_MAX_FEASIBLE_DISTANCE);
+                                                  EIGRP_MAX_FEASIBLE_DISTANCE, NULL);
 
                     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text,
                       eigrp->name);
@@ -124,7 +124,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 
                     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s",
                       pre_text, inet_ntoa(nbr->src));
-                    ne = eigrp_nexthop_entry_new();
+                    ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
                 }
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Sending to SIAQuery to FSM");
@@ -161,7 +161,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 
                     ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
                     if (!ne) {
-                        ne = eigrp_nexthop_entry_new();
+                        ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
                     } else {
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src),
                           pre_text);
@@ -172,7 +172,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
                     eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
                                                   EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC,
                                                   EIGRP_MAX_FEASIBLE_DISTANCE,
-                                                  EIGRP_MAX_FEASIBLE_DISTANCE);
+                                                  EIGRP_MAX_FEASIBLE_DISTANCE, NULL);
 
                     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text,
                       eigrp->name);
@@ -180,7 +180,7 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 
                     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s",
                       pre_text, inet_ntoa(nbr->src));
-                    ne = eigrp_nexthop_entry_new();
+                    ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
                 }
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Sending to SIAQuery to FSM");

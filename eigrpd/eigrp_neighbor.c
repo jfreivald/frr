@@ -149,9 +149,10 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 		if (pe == NULL) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create topology entry for %s", addr_buf);
 			pe = eigrp_prefix_entry_new();
-			eigrp_prefix_entry_initialize(pe, dest_addr, ei->eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-					EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-					EIGRP_MAX_FEASIBLE_DISTANCE);
+            eigrp_prefix_entry_initialize(pe, dest_addr, ei->eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                          EIGRP_TOPOLOGY_TYPE_CONNECTED, EIGRP_INFINITE_METRIC,
+                                          EIGRP_MAX_FEASIBLE_DISTANCE,
+                                          EIGRP_MAX_FEASIBLE_DISTANCE, NULL);
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Add prefix entry for %s into %s", addr_buf, ei->eigrp->name);
 			eigrp_prefix_entry_add(ei->eigrp, pe);
@@ -159,15 +160,16 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 		}
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
-		ne = eigrp_nexthop_entry_new();
+		ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 
 		msg.packet_type = EIGRP_OPC_UPDATE;
 		msg.eigrp = ei->eigrp;
-		msg.data_type = EIGRP_INT;
-		msg.adv_router = nbr;
+		msg.data_type = EIGRP_CONNECTED;
+		msg.adv_router = ne->ei->eigrp->neighbor_self;
 		msg.incoming_tlv_metrics = metric;
 		msg.entry = ne;
 		msg.prefix = pe;
+		msg.etlv = NULL;
 
 		eigrp_fsm_event(&msg);
 	}

@@ -442,9 +442,10 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		if (!pe) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY | LOGGER_EIGRP_INTERFACE, "Create topology entry for %s", pre_text);
 			pe = eigrp_prefix_entry_new();
-			eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-									EIGRP_TOPOLOGY_TYPE_CONNECTED, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-									EIGRP_MAX_FEASIBLE_DISTANCE);
+            eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                          EIGRP_TOPOLOGY_TYPE_CONNECTED, EIGRP_INFINITE_METRIC,
+                                          EIGRP_MAX_FEASIBLE_DISTANCE,
+                                          EIGRP_MAX_FEASIBLE_DISTANCE, NULL);
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 			eigrp_prefix_entry_add(eigrp, pe);
@@ -455,7 +456,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 		if (!ne) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s",
 					pre_text, inet_ntoa(eigrp->neighbor_self->src));
-			ne = eigrp_nexthop_entry_new();
+			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 		}
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR | LOGGER_EIGRP_NETWORK, "Creating connected route to neighbor through interface that received the HELLO packet");

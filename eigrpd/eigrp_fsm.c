@@ -375,7 +375,7 @@ static uint8_t send_flags = EIGRP_FSM_NEED_UPDATE;
 static void
 eigrp_fsm_reroute_traffic(struct eigrp_prefix_entry *prefix, struct eigrp_nexthop_entry *previous_successor) {
 
-    struct list *nexthop_list = prefix_entries_list_new();
+    struct list *nexthop_list = list_new_nexthop_entries();
     struct eigrp_nexthop_entry *new_successor = listnode_head(prefix->entries);
 
     listnode_add(nexthop_list, new_successor);
@@ -386,13 +386,14 @@ eigrp_fsm_reroute_traffic(struct eigrp_prefix_entry *prefix, struct eigrp_nextho
         previous_successor->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 
     //Add the new successor, if it exists.
-    if (new_successor->distance < EIGRP_MAX_METRIC) {
+    if (new_successor && new_successor->distance < EIGRP_MAX_METRIC) {
         eigrp_zebra_route_add(prefix->destination, nexthop_list);
         new_successor->flags |= EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
         send_flags |= EIGRP_FSM_NEED_UPDATE;
         prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
     }
 
+    listnode_delete(nexthop_list, new_successor);
     list_delete_and_null(&nexthop_list);
 
 }
@@ -429,7 +430,7 @@ eigrp_fsm_calculate_nexthop_entry_total_metric(struct eigrp_nexthop_entry *entry
         entry->reported_distance = eigrp_calculate_distance(nbr->ei->eigrp, *new_metrics);
         entry->total_metric = new_total_metric;
         entry->distance = new_distance;
-        if (entry->extTLV) {
+        if (entry->extTLV && entry->extTLV != etlv) {
             eigrp_IPv4_ExternalTLV_free(entry->extTLV);
         }
         entry->extTLV = etlv;
@@ -442,13 +443,15 @@ int eigrp_fsm_sort_prefix_entries(struct eigrp_prefix_entry *prefix) {
     struct listnode *node1, *node2;
     struct eigrp_nexthop_entry *entry;
 
-    //Steal the entries list from the prefix.
-    struct list *unsorted_entries = prefix->entries;
-    prefix->entries = prefix_entries_list_new();
+    if (prefix->entries->count > 1) {
+        //Steal the entries list from the prefix.
+        struct list *unsorted_entries = prefix->entries;
+        prefix->entries = list_new_nexthop_entries();
 
-    //Sort each entry back into the prefix.
-    for (ALL_LIST_ELEMENTS(unsorted_entries, node1, node2, entry)) {
-        eigrp_nexthop_entry_add_sort(prefix, entry);
+        //Sort each entry back into the prefix.
+        for (ALL_LIST_ELEMENTS(unsorted_entries, node1, node2, entry)) {
+            eigrp_nexthop_entry_add_sort(prefix, entry);
+        }
     }
 }
 
@@ -734,8 +737,8 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 {
 
-    struct listnode *node1, *node2;
-    struct eigrp_nexthop_entry *ne;
+    struct listnode *node1 = NULL, *node2 = NULL;
+    struct eigrp_nexthop_entry *ne = NULL;
     bool entry_in_prefix = false;
     char   prefixbuf[PREFIX2STR_BUFFER];
     char   nbr_str[PREFIX2STR_BUFFER];
@@ -778,6 +781,10 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
     }
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "END QUERY PRE ACTION AUDIT");
 #endif
+
+    if (msg->prefix && msg->prefix->extTLV != NULL)
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External Update");
+
 
     if (msg->prefix) {
         prefix2str(msg->prefix->destination, prefixbuf, PREFIX2STR_BUFFER);
@@ -846,18 +853,19 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 		}
 	}
 
-    for (ALL_LIST_ELEMENTS(msg->prefix->entries, node1, node2, ne)) {
-        if (ne == msg->entry) {
-            entry_in_prefix = true;
-            break;
+    if (msg->entry && msg->prefix) {
+        for (ALL_LIST_ELEMENTS(msg->prefix->entries, node1, node2, ne)) {
+            if (ne == msg->entry) {
+                entry_in_prefix = true;
+                break;
+            }
+        }
+
+        //This entry didn't make the cut. Delete it.
+        if (!entry_in_prefix) {
+            eigrp_nexthop_entry_free(msg->entry);
         }
     }
-
-    //This entry didn't make the cut. Delete it.
-    if (!entry_in_prefix) {
-        eigrp_nexthop_entry_free(msg->entry);
-    }
-
 #ifdef EIGRP_QUERY_AUDITING_ENABLED
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "BEGIN QUERY POST ACTION AUDIT");
     /* iterate over all prefixes in topology table */
@@ -929,10 +937,16 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
     prefix->oij = -1;
 
     struct eigrp_nexthop_entry *old_successor = listnode_head(prefix->entries);
+    struct eigrp_nexthop_entry *new_successor;
     eigrp_fsm_sort_prefix_entries(prefix);
     eigrp_fsm_update_prefix_metrics(prefix);
-    if (listnode_head(prefix->entries) != old_successor) {
+    new_successor = listnode_head(prefix->entries);
+    if (new_successor != old_successor) {
         eigrp_fsm_reroute_traffic(prefix, old_successor);
+        if (prefix->extTLV)
+            listnode_add(new_successor->ei->eigrp->topology_changes_externalIPV4, prefix);
+        else
+            listnode_add(new_successor->ei->eigrp->topology_changes_internalIPV4, prefix);
     }
 
     //Send any outstanding replies

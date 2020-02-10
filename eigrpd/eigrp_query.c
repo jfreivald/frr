@@ -132,14 +132,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 				if (!ne) {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
-					ne = eigrp_nexthop_entry_new();
-					ne->ei = ei;
-					ne->adv_router = nbr;
-					ne->reported_metric = EIGRP_INFINITE_METRIC;
-					ne->reported_distance = EIGRP_INFINITE_DISTANCE;
-					ne->distance = EIGRP_INFINITE_DISTANCE;
-					ne->prefix = pe;
-					ne->flags = 0;
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 				}
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);
@@ -187,14 +180,7 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
 				if (!ne) {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pbuf);
-					ne = eigrp_nexthop_entry_new();
-					ne->ei = ei;
-					ne->adv_router = nbr;
-					ne->reported_metric = EIGRP_INFINITE_METRIC;
-					ne->reported_distance = EIGRP_INFINITE_DISTANCE;
-					ne->distance = EIGRP_INFINITE_DISTANCE;
-					ne->prefix = pe;
-					ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 				}
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);
@@ -216,7 +202,6 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			} else {
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query for %s did not process to FSM", pbuf);
             }
-			eigrp_IPv4_ExternalTLV_free(etlv);
 
 			break;
 		default:

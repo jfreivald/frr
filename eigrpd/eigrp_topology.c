@@ -85,13 +85,15 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
 	struct eigrp_prefix_entry *new;
 	new = XCALLOC(MTYPE_EIGRP_PREFIX_ENTRY,
 			sizeof(struct eigrp_prefix_entry));
-	new->entries = prefix_entries_list_new();
+	new->entries = list_new_nexthop_entries();
 	new->rij = list_new();
 	new->active_queries = list_new();
-	new->reply_entries = prefix_entries_list_new();
 	new->distance = new->fdistance = EIGRP_INFINITE_DISTANCE;
 	new->rdistance = EIGRP_INFINITE_DISTANCE;
 	new->destination = NULL;
+    new->extTLV = NULL;
+    new->oij = -1;
+    new->req_action = 0;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return new;
@@ -101,10 +103,8 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
  * New prefix entries list creation
  */
 
-struct list * prefix_entries_list_new(void) {
-	struct list *newlist = list_new_cb(eigrp_nexthop_entry_cmp, eigrp_nexthop_entry_free, eigrp_nexthop_entry_debug, 0);
-
-	return newlist;
+struct list * list_new_nexthop_entries(void) {
+	return list_new_cb(eigrp_nexthop_entry_cmp, eigrp_nexthop_entry_free, eigrp_nexthop_entry_debug, 0);
 }
 
 
@@ -176,10 +176,15 @@ void eigrp_nexthop_entry_free(void *p1) {
  * Returns new topology entry
  */
 
-struct eigrp_nexthop_entry *eigrp_nexthop_entry_new()
+struct eigrp_nexthop_entry *eigrp_nexthop_entry_new(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *prefix,
+                                                    struct eigrp_interface *interface)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 	struct eigrp_nexthop_entry *new;
+
+	assert(nbr);
+	assert(prefix);
+	assert(interface);
 
 	new = XCALLOC(MTYPE_EIGRP_NEXTHOP_ENTRY,
 			sizeof(struct eigrp_nexthop_entry));
@@ -187,10 +192,11 @@ struct eigrp_nexthop_entry *eigrp_nexthop_entry_new()
 	new->distance = EIGRP_INFINITE_DISTANCE;
 	new->total_metric = EIGRP_INFINITE_METRIC;
 	new->reported_metric = EIGRP_INFINITE_METRIC;
-	new->adv_router = NULL;
+    new->extTLV = NULL;
+	new->adv_router = nbr;
 	new->flags = 0;
-	new->ei = NULL;
-	new->prefix = NULL;
+	new->ei = interface;
+	new->prefix = prefix;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return new;
@@ -230,6 +236,7 @@ void eigrp_prefix_entry_add(struct eigrp *eigrp, struct eigrp_prefix_entry *pe)
 
 	if (!rn) {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Route node not found for %s in %s", buf, eigrp->name);
+		return;
 	}
 
 	prefix2str(&(rn->p), buf2, PREFIX2STR_BUFFER);
@@ -254,6 +261,8 @@ void eigrp_nexthop_entry_add_sort(struct eigrp_prefix_entry *node, struct eigrp_
 	struct eigrp_nexthop_entry *ne;
 
 	for (ALL_LIST_ELEMENTS(node->entries, n, nn, ne)) {
+	    if (ne->adv_router == (struct eigrp_neighbor *)0x21| entry->adv_router == (struct eigrp_neighbor *)0x21)
+	        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "STOP HERE");
 		if (ne->adv_router->src.s_addr == entry->adv_router->src.s_addr) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,
 					"%s already has an entry on %s. Remove to sort.", inet_ntoa(entry->adv_router->src), buf);
@@ -417,7 +426,7 @@ eigrp_topology_table_lookup_ipv4_cf(struct route_table *table,
 struct list *eigrp_topology_get_feasible_successor_list(struct eigrp_prefix_entry *table_node)
 {
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
-	struct list *successors = list_new();
+	struct list *successors = list_new_nexthop_entries();
 	struct eigrp_nexthop_entry *data;
 	struct listnode *node1, *node2;
 	char buf[PREFIX2STR_BUFFER];
@@ -434,7 +443,7 @@ struct list *eigrp_topology_get_feasible_successor_list(struct eigrp_prefix_entr
 
 		for (ALL_LIST_ELEMENTS(table_node->entries, node1, node2, data)) {
 			if (data->reported_distance <= table_node->fdistance) {
-				listnode_add(successors, data);
+				listnode_add_sort(successors, data);
 			}
 		}
 
@@ -664,7 +673,7 @@ void eigrp_update_topology_table_prefix(struct eigrp *eigrp, struct eigrp_prefix
 			}
 			eigrp_nexthop_entry_delete(prefix, entry);
 		} else {
-			if (entry->distance <= prefix->distance) {
+			if (entry && entry->distance <= prefix->distance) {
 				prefix->distance = entry->distance;
 				prefix->reported_metric = entry->reported_metric;
 			}
@@ -676,9 +685,10 @@ void eigrp_update_topology_table_prefix(struct eigrp *eigrp, struct eigrp_prefix
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }
 
-void eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_addr,
-		struct eigrp *eigrp, uint8_t af, uint8_t state, uint8_t network_topology_type,
-		struct eigrp_metrics reported_metric, uint32_t distance, uint32_t fdistance) {
+void
+eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_addr, struct eigrp *eigrp, uint8_t af,
+                              uint8_t state, uint8_t network_topology_type, struct eigrp_metrics reported_metric,
+                              uint32_t distance, uint32_t fdistance, struct TLV_IPv4_External_type *etlv) {
 
 	char pbuf[PREFIX2STR_BUFFER];
 
@@ -698,5 +708,7 @@ void eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix 
 	pe->reported_metric = reported_metric;
 	pe->fdistance = distance;
 	pe->distance = pe->rdistance = fdistance;
+	pe->extTLV = etlv;
+
 }
 

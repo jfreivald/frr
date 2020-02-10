@@ -174,11 +174,11 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 			  struct eigrp_header *eigrph, struct stream *s,
 			  struct eigrp_interface *ei, int size)
 {
-	struct eigrp_neighbor *nbr;
-	struct TLV_IPv4_Internal_type *tlv;
-	struct TLV_IPv4_External_type *etlv;
-	struct eigrp_prefix_entry *pe;
-	struct eigrp_nexthop_entry *ne;
+	struct eigrp_neighbor *nbr = NULL;
+	struct TLV_IPv4_Internal_type *tlv = NULL;
+	struct TLV_IPv4_External_type *etlv = NULL;
+	struct eigrp_prefix_entry *pe = NULL;
+	struct eigrp_nexthop_entry *ne = NULL;
 	uint32_t flags;
 	uint16_t type;
 	uint16_t length;
@@ -305,22 +305,23 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (!ne) {
-					ne = eigrp_nexthop_entry_new();
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 				} else {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "%s has entry for %s", inet_ntoa(nbr->src), pre_text);
 				}
 			} else {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
 				pe = eigrp_prefix_entry_new();
-				eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-						EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-						EIGRP_MAX_FEASIBLE_DISTANCE);
+                eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                              EIGRP_TOPOLOGY_TYPE_REMOTE, EIGRP_INFINITE_METRIC,
+                                              EIGRP_MAX_FEASIBLE_DISTANCE,
+                                              EIGRP_MAX_FEASIBLE_DISTANCE, NULL);
 
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 				eigrp_prefix_entry_add(eigrp, pe);
 
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
-				ne = eigrp_nexthop_entry_new();
+				ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 			}
 
 			//We don't want to update the nexthop metrics here. That alters the routing table, which should only be done in the FSM.
@@ -382,20 +383,21 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 				ne = eigrp_prefix_entry_lookup(pe->entries, nbr);
 				if (!ne) {
 					L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create route node for %s", pre_text);
-					ne = eigrp_nexthop_entry_new();
+					ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 				}
 			} else {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create topology entry for %s", pre_text);
 				pe = eigrp_prefix_entry_new();
-				eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
-										EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL, EIGRP_INFINITE_METRIC, EIGRP_MAX_FEASIBLE_DISTANCE,
-										EIGRP_MAX_FEASIBLE_DISTANCE);
+                eigrp_prefix_entry_initialize(pe, dest_addr, eigrp, AF_INET, EIGRP_FSM_STATE_PASSIVE,
+                                              EIGRP_TOPOLOGY_TYPE_REMOTE_EXTERNAL, EIGRP_INFINITE_METRIC,
+                                              EIGRP_MAX_FEASIBLE_DISTANCE,
+                                              EIGRP_MAX_FEASIBLE_DISTANCE, NULL);
 
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add prefix entry for %s into %s", pre_text, eigrp->name);
 				eigrp_prefix_entry_add(eigrp, pe);
 
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Create nexthop entry %s for neighbor %s", pre_text, inet_ntoa(nbr->src));
-				ne = eigrp_nexthop_entry_new();
+				ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 			}
 
 			ne->flags = EIGRP_NEXTHOP_ENTRY_EXTERNAL_FLAG;
@@ -524,24 +526,37 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 				continue;
 			}
 
+			if (pe->extTLV != NULL)
+			    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External Update");
+
 			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 
 			if (!(pe->req_action & EIGRP_FSM_NEED_UPDATE)) {
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip %s. No UPDATE required.", pbuf);
 				continue;
 			}
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add %s to UPDATE.", pbuf);
 			listnode_add(route_nodes, pe);
 		}
+        for (ALL_LIST_ELEMENTS_RO(eigrp->topology_changes_externalIPV4, pen, pe)) {
+            if (NULL == pe) {
+                continue;
+            }
+
+            prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+
+            if (!(pe->req_action & EIGRP_FSM_NEED_UPDATE)) {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip %s. No UPDATE required.", pbuf);
+                continue;
+            }
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add %s to UPDATE.", pbuf);
+            listnode_add(route_nodes, pe);
+        }
 	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Construct UPDATE update packet for %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
 	for (ALL_LIST_ELEMENTS_RO(route_nodes, pen, pe)) {
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-
-		if (pe->state != EIGRP_FSM_STATE_PASSIVE) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Active Route %s.", pbuf);
-			continue;
-		}
 
 		if (listnode_head(pe->entries) && eigrp_nbr_split_horizon_check(listnode_head(pe->entries), ei)) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Split Horizon %s.", pbuf);
