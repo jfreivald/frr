@@ -80,7 +80,7 @@ struct eigrp_metrics {
 	uint8_t flags;
 };
 
-#define MTU_TO_BYTES(mtu,bytes)		bytes[0]=(mtu & 0x000000FF);bytes[1]=((mtu & 0x0000FF00) >> 8);bytes[2]=((mtu & 0x00FF0000) >> 16)
+#define MTU_TO_BYTES(mtu,bytes)		bytes[2]=(mtu & 0x000000FF);bytes[1]=((mtu & 0x0000FF00) >> 8);bytes[0]=((mtu & 0x00FF0000) >> 16)
 
 extern const struct eigrp_metrics infinite_metrics;
 
