@@ -382,7 +382,8 @@ eigrp_fsm_reroute_traffic(struct eigrp_prefix_entry *prefix, struct eigrp_nextho
 
     //Remove the old successor from the routing table
     eigrp_zebra_route_delete(prefix->destination);
-    previous_successor->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
+    if (previous_successor)
+        previous_successor->flags &= ~EIGRP_NEXTHOP_ENTRY_INTABLE_FLAG;
 
     //Add the new successor, if it exists.
     if (new_successor->distance < EIGRP_MAX_METRIC) {
