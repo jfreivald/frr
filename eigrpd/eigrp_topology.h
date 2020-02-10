@@ -53,7 +53,7 @@ void eigrp_nexthop_entry_delete(struct eigrp_prefix_entry *,
 void eigrp_nexthop_entry_free(void *);
 void
 eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_addr, struct eigrp *eigrp, uint8_t af,
-                              uint8_t state, uint8_t network_topology_type, struct eigrp_metrics reported_metric,
+                              uint8_t state, uint8_t network_topology_type, struct eigrp_metrics total_metric,
                               uint32_t distance, uint32_t fdistance, struct TLV_IPv4_External_type *etlv);
 void eigrp_topology_delete_all(struct eigrp *);
 unsigned int eigrp_topology_table_isempty(struct list *);

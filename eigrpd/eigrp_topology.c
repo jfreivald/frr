@@ -339,7 +339,7 @@ void eigrp_prefix_entry_delete(struct eigrp *eigrp, struct eigrp_prefix_entry *p
 	/* TODO: Change a prefix from external to internal if we receive an Update message with it as an internal route. */
 	if (pe->extTLV)
 		pe->extTLV->metric = EIGRP_INFINITE_METRIC;
-	pe->reported_metric = EIGRP_INFINITE_METRIC;
+	pe->total_metric = EIGRP_INFINITE_METRIC;
 	pe->distance = EIGRP_INFINITE_DISTANCE;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
@@ -500,7 +500,7 @@ void eigrp_topology_neighbor_down(struct eigrp_neighbor *nbr)
 
 void
 eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_addr, struct eigrp *eigrp, uint8_t af,
-                              uint8_t state, uint8_t network_topology_type, struct eigrp_metrics reported_metric,
+                              uint8_t state, uint8_t network_topology_type, struct eigrp_metrics total_metric,
                               uint32_t distance, uint32_t fdistance, struct TLV_IPv4_External_type *etlv) {
 
 	char pbuf[PREFIX2STR_BUFFER];
@@ -508,8 +508,8 @@ eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY,
 			"Initialize Prefix Entry: SERIAL[%u] DEST[%s] AF[%s] STATE[%u] NT[%u] METRICS[D[%u]BW[%u]MTU[%u:%u:%u]HC[%u]R[%u]L[%u]T[%u]F[%u]] D[%u] FD[%u]",
 			pe->serno,prefix2str(&dest_addr, pbuf, PREFIX2STR_BUFFER), af==AF_INET ? "AF_INET" : "NOT AF_INET", state, network_topology_type,
-					reported_metric.delay, reported_metric.bandwidth, reported_metric.mtu[0], reported_metric.mtu[1], reported_metric.mtu[2],
-					reported_metric.hop_count, reported_metric.reliability, reported_metric.load, reported_metric.tag, reported_metric.flags,
+					total_metric.delay, total_metric.bandwidth, total_metric.mtu[0], total_metric.mtu[1], total_metric.mtu[2],
+					total_metric.hop_count, total_metric.reliability, total_metric.load, total_metric.tag, total_metric.flags,
 					distance, fdistance
 			);
 	pe->serno = eigrp->serno;
@@ -518,7 +518,7 @@ eigrp_prefix_entry_initialize(struct eigrp_prefix_entry *pe, struct prefix dest_
 	pe->af = af;
 	pe->state = state;
 	pe->topology = network_topology_type;
-	pe->reported_metric = reported_metric;
+	pe->total_metric = total_metric;
 	pe->fdistance = distance;
 	pe->distance = pe->rdistance = fdistance;
 	pe->extTLV = etlv;

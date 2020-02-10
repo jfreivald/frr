@@ -514,7 +514,7 @@ eigrp_fsm_update_prefix_metrics(struct eigrp_prefix_entry *prefix)
         prefix->rdistance = entry->reported_distance;
         prefix->distance = entry->distance;
         prefix->fdistance = entry->distance;
-        prefix->reported_metric = entry->reported_metric;
+        prefix->total_metric = entry->total_metric;
         switch(entry->topology) {
             case EIGRP_INT:
                 prefix->topology = EIGRP_TOPOLOGY_TYPE_REMOTE;
@@ -536,7 +536,7 @@ eigrp_fsm_update_prefix_metrics(struct eigrp_prefix_entry *prefix)
         prefix->rdistance = EIGRP_INFINITE_DISTANCE;
         prefix->distance = EIGRP_INFINITE_DISTANCE;
         prefix->fdistance = EIGRP_INFINITE_DISTANCE;
-        prefix->reported_metric = EIGRP_INFINITE_METRIC;
+        prefix->total_metric = EIGRP_INFINITE_METRIC;
         prefix->topology = EIGRP_TOPOLOGY_TYPE_REMOTE;
         prefix->extTLV = NULL;
     }

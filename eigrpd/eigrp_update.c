@@ -152,7 +152,7 @@ static void eigrp_update_receive_GR_ask(struct eigrp *eigrp,
         struct eigrp_nexthop_entry *entry =
                 eigrp_prefix_entry_lookup(prefix->entries, nbr);
 
-        metrics = prefix->reported_metric;
+        metrics = prefix->total_metric;
 		/* set delay to MAX */
         metrics.delay = EIGRP_MAX_METRIC;
 
@@ -737,7 +737,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 
 			struct eigrp_metrics metrics;
 
-            metrics = pe->reported_metric;
+            metrics = pe->total_metric;
             metrics.delay = EIGRP_MAX_METRIC;
             eigrp_fsm_initialize_action_message(&fsm_msg, EIGRP_OPC_UPDATE, eigrp, nbr, entry, pe, EIGRP_INT, metrics, NULL);
 

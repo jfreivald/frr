@@ -474,7 +474,7 @@ struct eigrp_prefix_entry {
 	uint32_t fdistance;		      // FD
 	uint32_t rdistance;		      // RD
 	uint32_t distance;		      // D
-	struct eigrp_metrics reported_metric; // RD for sending
+	struct eigrp_metrics total_metric; // Metric for sending out
 
 	uint8_t topology;	 // Connected/Internal/External
 	uint8_t state;      // route fsm state

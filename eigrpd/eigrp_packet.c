@@ -1477,16 +1477,16 @@ uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
 		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
 		stream_putc(s, EIGRP_INFINITE_METRIC.flags);
 	} else {
-		stream_putl(s, pe->reported_metric.delay);
-		stream_putl(s, pe->reported_metric.bandwidth);
-		stream_putc(s, pe->reported_metric.mtu[0]);
-		stream_putc(s, pe->reported_metric.mtu[1]);
-		stream_putc(s, pe->reported_metric.mtu[2]);
-		stream_putc(s, pe->reported_metric.hop_count+1);
-		stream_putc(s, pe->reported_metric.reliability);
-		stream_putc(s, pe->reported_metric.load);
-		stream_putc(s, pe->reported_metric.tag);
-		stream_putc(s, pe->reported_metric.flags);
+		stream_putl(s, pe->total_metric.delay);
+		stream_putl(s, pe->total_metric.bandwidth);
+		stream_putc(s, pe->total_metric.mtu[0]);
+		stream_putc(s, pe->total_metric.mtu[1]);
+		stream_putc(s, pe->total_metric.mtu[2]);
+		stream_putc(s, pe->total_metric.hop_count+1);
+		stream_putc(s, pe->total_metric.reliability);
+		stream_putc(s, pe->total_metric.load);
+		stream_putc(s, pe->total_metric.tag);
+		stream_putc(s, pe->total_metric.flags);
 	}
 
 	stream_putc(s, pe->destination->prefixlen);
@@ -1533,16 +1533,16 @@ uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
 		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
 		stream_putc(s, EIGRP_INFINITE_METRIC.flags);
 	} else {
-		stream_putl(s, pe->reported_metric.delay);
-		stream_putl(s, pe->reported_metric.bandwidth);
-		stream_putc(s, pe->reported_metric.mtu[0]);
-		stream_putc(s, pe->reported_metric.mtu[1]);
-		stream_putc(s, pe->reported_metric.mtu[2]);
-		stream_putc(s, pe->reported_metric.hop_count+1);
-		stream_putc(s, pe->reported_metric.reliability);
-		stream_putc(s, pe->reported_metric.load);
-		stream_putc(s, pe->reported_metric.tag);
-		stream_putc(s, pe->reported_metric.flags);
+		stream_putl(s, pe->total_metric.delay);
+		stream_putl(s, pe->total_metric.bandwidth);
+		stream_putc(s, pe->total_metric.mtu[0]);
+		stream_putc(s, pe->total_metric.mtu[1]);
+		stream_putc(s, pe->total_metric.mtu[2]);
+		stream_putc(s, pe->total_metric.hop_count+1);
+		stream_putc(s, pe->total_metric.reliability);
+		stream_putc(s, pe->total_metric.load);
+		stream_putc(s, pe->total_metric.tag);
+		stream_putc(s, pe->total_metric.flags);
 	}
 	stream_putc(s, pe->extTLV->prefix_length);
 
