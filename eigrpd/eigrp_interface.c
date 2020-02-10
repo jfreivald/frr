@@ -323,7 +323,12 @@ void eigrp_if_down(struct eigrp_interface *ei, int source)
 	if (ei->t_hello)
 		THREAD_OFF(ei->t_hello);
 
-	//Interface doesn't exist if killed by Zebra, so skip packet
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Terminate neighbors", ei->ifp->name);
+    for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
+        eigrp_nbr_down(nbr);
+    }
+
+    //Interface doesn't exist if killed by Zebra, so skip packet
 	if (source == INTERFACE_DOWN_BY_VTY) {
 		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
 		sleep(1);
@@ -340,11 +345,6 @@ void eigrp_if_down(struct eigrp_interface *ei, int source)
 	if (pe)
 		eigrp_prefix_entry_delete(ei->eigrp, pe);
 
-
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Terminate neighbors", ei->ifp->name);
-	for (ALL_LIST_ELEMENTS(ei->nbrs, node, nnode, nbr)) {
-		eigrp_nbr_down(nbr);
-	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "INTERFACE %s Free neighbor list", ei->ifp->name);
 	list_delete_and_null(&(ei->nbrs));

@@ -495,7 +495,7 @@ eigrp_fsm_update_prefix_metrics(struct eigrp_prefix_entry *prefix)
      *  The Reported Distance (RD) is the distance the neighbor reports WITHOUT our distance to the neighbor
      *  The Feasible Condition (FC) is if the RD < FD because this means that the neighbor is closer than we are,
      *      even if the link TO that neighbor causes the distance through that router to be greater than the current FD
-     *      so they are a feasible successor becuase there cannot be a loop if they are closer than us.
+     *      so they are a feasible successor because there cannot be a loop if they are closer than us.
      */
 
     /** NOTE: When a new prefix is received eigrp_update_receive() will create a new prefix entry and a route node for
@@ -583,7 +583,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
             //Valid Events are 1,2,3,4
             switch (msg->packet_type) {
                 case EIGRP_OPC_QUERY:
-                    if (msg->adv_router != listnode_head(msg->prefix->entries)) {
+                    if (msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
                         //Not from Successor - Event 1
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from non-successor");
                         return 1;
@@ -601,7 +601,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                     return 3;
 
                 case EIGRP_OPC_UPDATE:
-                    if (msg->adv_router != listnode_head(msg->prefix->entries)) {
+                    if (msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
                         //Update from non-successor. Event 2.
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update from non-successor.");
                         return 2;
@@ -631,7 +631,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
             //Valid events: 5,6,7,8,11,14
             switch(msg->packet_type) {
                 case EIGRP_OPC_QUERY:
-                    if (msg->adv_router == listnode_head(msg->prefix->entries)) {
+                    if (msg->adv_router->src.s_addr == ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
                         //Query from successor - Event 5
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 0: Query from successor");
                         return 5;
@@ -1063,22 +1063,25 @@ int eigrp_fsm_event_NQE_SE(struct eigrp_fsm_action_message *msg){
     struct eigrp_nexthop_entry *previous_successor = listnode_head(msg->prefix->entries);
     struct eigrp_prefix_entry previous_prefix_values = *(msg->prefix);
 
-    if (METRIC_SAME != eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true) ) {
-        eigrp_nexthop_entry_add_sort(msg->prefix, msg->entry);
-        eigrp_fsm_update_prefix_metrics(msg->prefix);
+    eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
+    eigrp_nexthop_entry_add_sort(msg->prefix, msg->entry);
+    eigrp_fsm_update_prefix_metrics(msg->prefix);
 
-        if (listnode_head(msg->prefix->entries) != previous_successor) {
-            eigrp_fsm_reroute_traffic(msg->prefix, previous_successor);
-        } else if ((listnode_head(msg->prefix->entries) == msg->entry) && (previous_prefix_values.distance != msg->prefix->distance) ) {
-            //Successor didn't change, but the metric did. Send an update with the new metric.
-            send_flags |= EIGRP_FSM_NEED_UPDATE;
-            msg->prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
-            if (msg->entry->extTLV) {
-                listnode_add(msg->entry->ei->eigrp->topology_changes_externalIPV4, msg->prefix);
-            } else {
-                listnode_add(msg->entry->ei->eigrp->topology_changes_internalIPV4, msg->prefix);
-            }
+    if (listnode_head(msg->prefix->entries) != previous_successor) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "EVENT 2: New successor");
+        eigrp_fsm_reroute_traffic(msg->prefix, previous_successor);
+    } else if ((listnode_head(msg->prefix->entries) == msg->entry) && (previous_prefix_values.distance != msg->prefix->distance) ) {
+        //Successor didn't change, but the metric did. Send an update with the new metric.
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "EVENT 2: Same successor. Updated Metrics[%u->%u].", previous_prefix_values.distance, msg->prefix->distance);
+        send_flags |= EIGRP_FSM_NEED_UPDATE;
+        msg->prefix->req_action |= EIGRP_FSM_NEED_UPDATE;
+        if (msg->entry->extTLV) {
+            listnode_add(msg->entry->ei->eigrp->topology_changes_externalIPV4, msg->prefix);
+        } else {
+            listnode_add(msg->entry->ei->eigrp->topology_changes_internalIPV4, msg->prefix);
         }
+    } else {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "EVENT 2: No change to successor.");
     }
     return 0;
 }
