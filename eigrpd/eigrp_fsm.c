@@ -571,7 +571,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 {
     char pbuf[PREFIX2STR_BUFFER];
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM | LOGGER_EIGRP_TRACE, "ENTER");
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
 
     assert(msg->entry);
     assert(msg->prefix);
@@ -585,33 +585,40 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                 case EIGRP_OPC_QUERY:
                     if (msg->adv_router != listnode_head(msg->prefix->entries)) {
                         //Not from Successor - Event 1
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from non-successor");
                         return 1;
                     }
 
                     //Query is from successor
                     if (msg->prefix->entries->count > 1) {
                         //FS Exists. Event 2
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. FS Exists.");
                         return 2;
                     }
 
                     //No FS. Event 3
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. No FS Exists.");
                     return 3;
 
                 case EIGRP_OPC_UPDATE:
                     if (msg->adv_router != listnode_head(msg->prefix->entries)) {
                         //Update from non-successor. Event 2.
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update from non-successor.");
                         return 2;
                     }
                     //Update from successor
                     if (eigrp_calculate_distance(msg->eigrp, msg->incoming_tlv_metrics) > msg->prefix->rdistance) {
                         if (msg->prefix->entries->count > 1) {
                             //FS Exists - Event 2
+                            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update INCREASE from successor. FS Exists.");
                             return 2;
                         }
                         //Metric increase from successor - Event 4
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update INCREASE from successor. No FS Exists.");
                         return 4;
                     }
                     //Metric did not increase - Event 2
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update no increase from successor.");
                     return 2;
 
                 default:
@@ -626,26 +633,32 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                 case EIGRP_OPC_QUERY:
                     if (msg->adv_router == listnode_head(msg->prefix->entries)) {
                         //Query from successor - Event 5
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 0: Query from successor");
                         return 5;
                     }
                     //Not from successor - Event 6
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 0: Query from non-successor");
                     return 6;
                 case EIGRP_OPC_UPDATE:
                     ///NOTE: The RFC qualifies this as a non-successor update, but does not give actions for a successor update.
                     ///      Guessing that's because this active state should only happen with the successor's topology already changed?
                     if (msg->adv_router->state == EIGRP_NEIGHBOR_DOWN) {
                         //Neighbor link failed - Event 8
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 0: Neighbor link down");
                         return 8;
                     }
                     //Update while active - Event 7
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 0: Update while active");
                     return 7;
 
                 case EIGRP_OPC_REPLY:
                     if (msg->prefix->rij->count == 1 && listnode_head(msg->prefix->rij) == msg->adv_router) {
                         //Last Reply Event
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 0: Last reply received");
                         return EIGRP_FSM_EVENT_LR;
                     }
                     //Not last reply - event 8
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 0: Reply received");
                     return 8;
                 default:
                     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Only QUERY/UPDATE/REPLY packets allowed for active 0 route: %s received", packet_type2str(msg->packet_type));
@@ -659,33 +672,41 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                 case EIGRP_OPC_QUERY:
                     if (msg->adv_router == listnode_head(msg->prefix->entries)) {
                         //Query from successor - Event 5
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Query from successor");
                         return 5;
                     }
                     //Not from successor - Event 6
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Query from non-successor");
                     return 6;
                 case EIGRP_OPC_UPDATE:
                     if (msg->adv_router == listnode_head(msg->prefix->entries)) {
                         //From the successor. Is increase or down?
                         if (eigrp_calculate_distance(msg->eigrp, msg->incoming_tlv_metrics) > msg->prefix->rdistance || msg->adv_router->state == EIGRP_NEIGHBOR_DOWN) {
                             //Successor metric increase or neighbor down. Event 9
+                            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Update from successor INCREASE or Neighbor Down");
                             return 9;
                         }
                         //Not an increase or down. Record the values?
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Update from non-successor or not metric increase/neighbor down");
                         return 7;
                     }
                     if (msg->adv_router->state == EIGRP_NEIGHBOR_DOWN) {
                         //Neighbor link failed - Event 8
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Non-successor neighbor down.");
                         return 8;
                     }
                     //Update while active - Event 7
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Update while active");
                     return 7;
 
                 case EIGRP_OPC_REPLY:
                     if (msg->prefix->rij->count == 1 && listnode_head(msg->prefix->rij) == msg->adv_router) {
                         //Last Reply Event
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Last reply received");
                         return EIGRP_FSM_EVENT_LR;
                     }
                     //Not last reply - event 8
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 1: Reply received");
                     return 8;
                 default:
                     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Only QUERY/UPDATE/REPLY packets allowed for active 1 route: %s received", packet_type2str(msg->packet_type));
@@ -702,30 +723,37 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                         return 5;  //This is invalid, but shouldn't happen!
                     }
                     //Not from successor - Event 6
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 2: Query from non-successor.");
                     return 6;
                 case EIGRP_OPC_UPDATE:
                     if (msg->adv_router == listnode_head(msg->prefix->entries)) {
                         //From the successor. Is increase or down?
                         if (eigrp_calculate_distance(msg->eigrp, msg->incoming_tlv_metrics) > msg->prefix->rdistance || msg->adv_router->state == EIGRP_NEIGHBOR_DOWN) {
                             //Successor metric increase or neighbor down. Event 10
+                            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 2: Update successor INCREASE or neighbor down");
                             return 10;
                         }
                         //Not an increase or down. Record the values?
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 2: Update not increase or down.");
                         return 7;
                     }
                     if (msg->adv_router->state == EIGRP_NEIGHBOR_DOWN) {
                         //Neighbor link failed - Event 8
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 2: Non-successor neighbor down");
                         return 8;
                     }
                     //Update while active - Event 7
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 2: Update while active");
                     return 7;
 
                 case EIGRP_OPC_REPLY:
                     if (msg->prefix->rij->count == 1 && listnode_head(msg->prefix->rij) == msg->adv_router) {
                         //Last Reply Event
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 2: Last reply received");
                         return EIGRP_FSM_EVENT_LR;
                     }
                     //Not last reply - event 8
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 2: Reply received");
                     return 8;
                 default:
                     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Only QUERY/UPDATE/REPLY packets allowed for active 1 route: %s received", packet_type2str(msg->packet_type));
@@ -742,30 +770,37 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                         return 5; //This is invalid, but shouldn't happen!
                     }
                     //Not from successor - Event 6
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 3: Query from non-successor");
                     return 6;
                 case EIGRP_OPC_UPDATE:
                     if (msg->adv_router == listnode_head(msg->prefix->entries)) {
                         //From the successor. Is increase or down?
                         if (eigrp_calculate_distance(msg->eigrp, msg->incoming_tlv_metrics) > msg->prefix->rdistance || msg->adv_router->state == EIGRP_NEIGHBOR_DOWN) {
                             //Successor metric increase or neighbor down. Event 10
+                            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 3: Update successor INCREASE or neighbor down");
                             return 10;
                         }
                         //Not an increase or down. Record the values?
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 3: Update no increase");
                         return 7;
                     }
                     if (msg->adv_router->state == EIGRP_NEIGHBOR_DOWN) {
                         //Neighbor link failed - Event 8
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 3: Non-successor neighbor down.");
                         return 8;
                     }
                     //Update while active - Event 7
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 3: Update while active");
                     return 7;
 
                 case EIGRP_OPC_REPLY:
                     if (msg->prefix->rij->count == 1 && listnode_head(msg->prefix->rij) == msg->adv_router) {
                         //Last Reply Event
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 3: Last reply received");
                         return EIGRP_FSM_EVENT_LR;
                     }
                     //Not last reply - event 8
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "ACTIVE 3: Reply received");
                     return 8;
                 default:
                     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "Only QUERY/UPDATE/REPLY packets allowed for active 1 route: %s received", packet_type2str(msg->packet_type));
