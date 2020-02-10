@@ -991,7 +991,7 @@ int eigrp_fsm_event_INVALID(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_Q_SE(struct eigrp_fsm_action_message *msg){
     ///Event 1
-
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 1");
     //Update the entry that received the query (not the successor)
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     eigrp_nexthop_entry_add_sort(msg->prefix, msg->entry);
@@ -1004,6 +1004,7 @@ int eigrp_fsm_event_Q_SE(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_NQE_SE(struct eigrp_fsm_action_message *msg){
     ///Event 2
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 2");
     struct eigrp_nexthop_entry *previous_successor = listnode_head(msg->prefix->entries);
     struct eigrp_prefix_entry previous_prefix_values = *(msg->prefix);
 
@@ -1029,6 +1030,7 @@ int eigrp_fsm_event_NQE_SE(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_Q_SDNE(struct eigrp_fsm_action_message *msg){
     ///Event 3
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 3");
     int queries;
 
     //Go Active 3 (oij = 3)
@@ -1044,6 +1046,7 @@ int eigrp_fsm_event_Q_SDNE(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_NQE_SDNE(struct eigrp_fsm_action_message *msg){
     ///Event 4
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 4");
 
     int queries;
 
@@ -1059,6 +1062,7 @@ int eigrp_fsm_event_NQE_SDNE(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_SQ_AAR(struct eigrp_fsm_action_message *msg){
     ///Event 5
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 5");
 
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_2;
     msg->prefix->oij = 2;
@@ -1069,6 +1073,7 @@ int eigrp_fsm_event_SQ_AAR(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_NSQ_AAR(struct eigrp_fsm_action_message *msg){
     ///Event 6
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 6");
 
     eigrp_fsm_send_reply(msg);
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
@@ -1077,12 +1082,14 @@ int eigrp_fsm_event_NSQ_AAR(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_NS_NQE_AAR(struct eigrp_fsm_action_message *msg){
     ///Event 7
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 7");
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     return 0;
 }
 
 int eigrp_fsm_event_NR(struct eigrp_fsm_action_message *msg){
     ///Event 8
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 8");
     listnode_delete(msg->prefix->rij, msg->adv_router);
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     return 0;
@@ -1090,6 +1097,7 @@ int eigrp_fsm_event_NR(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_SNQE_AAR_RO(struct eigrp_fsm_action_message *msg){
     ///Event 9
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 9");
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_0;
     msg->prefix->oij = 0;
     listnode_delete(msg->prefix->rij, msg->adv_router);
@@ -1099,6 +1107,7 @@ int eigrp_fsm_event_SNQE_AAR_RO(struct eigrp_fsm_action_message *msg){
 
 int eigrp_fsm_event_SNQE_AAR_SO(struct eigrp_fsm_action_message *msg){
     ///Event 10
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 10");
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_2;
     msg->prefix->oij = 2;
     listnode_delete(msg->prefix->rij, msg->adv_router);
@@ -1112,14 +1121,17 @@ int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg){
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     eigrp_fsm_sort_prefix_entries(msg->prefix);
     if (msg->prefix->entries->count == 0 && msg->prefix->state == EIGRP_FSM_STATE_ACTIVE_2) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT LR 11");
         msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
         msg->prefix->oij = 3;
         eigrp_query_send_all(msg->eigrp, msg->prefix, NULL);
     } else if (msg->prefix->entries->count == 0 && msg->prefix->state == EIGRP_FSM_STATE_ACTIVE_0) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT LR 12");
         msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_1;
         msg->prefix->oij = 1;
         eigrp_query_send_all(msg->eigrp, msg->prefix, NULL);
     } else {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT LR 13-16");
         eigrp_fsm_transition_to_passive(msg->prefix);
     }
 

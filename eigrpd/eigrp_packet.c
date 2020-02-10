@@ -1468,9 +1468,9 @@ uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
 	if (flags) {
 		stream_putl(s, EIGRP_INFINITE_METRIC.delay);
 		stream_putl(s, EIGRP_INFINITE_METRIC.bandwidth);
-		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
-		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
 		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
 		stream_putc(s, EIGRP_INFINITE_METRIC.load);
@@ -1479,9 +1479,9 @@ uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
 	} else {
 		stream_putl(s, pe->reported_metric.delay);
 		stream_putl(s, pe->reported_metric.bandwidth);
-		stream_putc(s, pe->reported_metric.mtu[2]);
-		stream_putc(s, pe->reported_metric.mtu[1]);
 		stream_putc(s, pe->reported_metric.mtu[0]);
+		stream_putc(s, pe->reported_metric.mtu[1]);
+		stream_putc(s, pe->reported_metric.mtu[2]);
 		stream_putc(s, pe->reported_metric.hop_count+1);
 		stream_putc(s, pe->reported_metric.reliability);
 		stream_putc(s, pe->reported_metric.load);
@@ -1524,9 +1524,9 @@ uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
 	if (flags) {
 		stream_putl(s, EIGRP_INFINITE_METRIC.delay);
 		stream_putl(s, EIGRP_INFINITE_METRIC.bandwidth);
-		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
-		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
+		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
 		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
 		stream_putc(s, EIGRP_INFINITE_METRIC.load);
@@ -1535,9 +1535,9 @@ uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
 	} else {
 		stream_putl(s, pe->reported_metric.delay);
 		stream_putl(s, pe->reported_metric.bandwidth);
-		stream_putc(s, pe->reported_metric.mtu[2]);
-		stream_putc(s, pe->reported_metric.mtu[1]);
 		stream_putc(s, pe->reported_metric.mtu[0]);
+		stream_putc(s, pe->reported_metric.mtu[1]);
+		stream_putc(s, pe->reported_metric.mtu[2]);
 		stream_putc(s, pe->reported_metric.hop_count+1);
 		stream_putc(s, pe->reported_metric.reliability);
 		stream_putc(s, pe->reported_metric.load);

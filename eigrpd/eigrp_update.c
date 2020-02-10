@@ -502,9 +502,6 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 				continue;
 			}
 
-			if (pe->extTLV != NULL)
-			    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External Update");
-
 			prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 
 			if (!(pe->req_action & EIGRP_FSM_NEED_UPDATE)) {
@@ -563,14 +560,12 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 		if (eigrp_update_prefix_apply(eigrp, ei, EIGRP_FILTER_OUT, dest_addr)) {
 			continue;
 		} else {
-		    if (pe->reported_metric.delay < EIGRP_INFINITE_METRIC.delay) {
-                if (pe->extTLV) {
-                    length += eigrp_add_externalTLV_to_stream(ep->s, pe);
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route added [%d:%s]", length, pbuf);
-                } else {
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route added [%d:%s]", length, pbuf);
-                    length += eigrp_add_internalTLV_to_stream(ep->s, pe);
-                }
+            if (pe->extTLV) {
+                length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route added [%d:%s]", length, pbuf);
+            } else {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route added [%d:%s]", length, pbuf);
+                length += eigrp_add_internalTLV_to_stream(ep->s, pe);
             }
 			has_tlv = 1;
 		}
