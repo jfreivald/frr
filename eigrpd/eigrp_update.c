@@ -536,7 +536,7 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 			continue;
 		}
 
-		if ((length + EIGRP_TLV_MAX_IPV4_BYTE) > eigrp_mtu) {
+		if ((length + (pe->extTLV ? pe->extTLV->length : EIGRP_TLV_MAX_IPV4_BYTE )) > eigrp_mtu) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send to %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
 
 			eigrp_place_on_nbr_queue(nbr, ep, length);
@@ -564,8 +564,8 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
                 length += eigrp_add_externalTLV_to_stream(ep->s, pe);
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route added [%d:%s]", length, pbuf);
             } else {
-                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route added [%d:%s]", length, pbuf);
                 length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route added [%d:%s]", length, pbuf);
             }
 			has_tlv = 1;
 		}

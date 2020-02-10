@@ -360,7 +360,8 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 			if (qnbr && nbr->src.s_addr == qnbr->src.s_addr) {
 			    //We send replies to this neighbor, even though we don't know they are there
                 eigrp_send_reply(nbr, pe);
-				listnode_delete(msg.prefix->active_queries, qnbr);
+				if (msg.prefix->active_queries)
+				    listnode_delete(msg.prefix->active_queries, qnbr);
 			}
 		}
 	}
@@ -377,7 +378,8 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
 	//Remove nbr from all interfaces
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
-		listnode_delete(tei->nbrs, nbr);
+	    if (tei->nbrs)
+		    listnode_delete(tei->nbrs, nbr);
 	}
 
 	if (nbr->multicast_queue) {
@@ -395,8 +397,10 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
 	nbr->crypt_seqnum = 0;
 
-	listnode_delete(nbr->ei->nbrs, nbr);
-	nbr->ei = NULL;
+	if (nbr && nbr->ei && nbr->ei->nbrs) {
+        listnode_delete(nbr->ei->nbrs, nbr);
+        nbr->ei = NULL;
+    }
 
 	L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
