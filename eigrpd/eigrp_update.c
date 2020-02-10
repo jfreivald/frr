@@ -469,6 +469,11 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 	if (ei->nbrs->count == 0)
 		return;
 
+	if(nbr->state != EIGRP_NEIGHBOR_UP) {
+	    //Neighbor not up yet/anymore. Don't send.
+	    return;
+	}
+
 	uint16_t length = EIGRP_HEADER_LEN;
 
 	ep = eigrp_packet_new(eigrp_mtu, nbr);
@@ -508,7 +513,6 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip %s. No UPDATE required.", pbuf);
 				continue;
 			}
-            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add %s to UPDATE.", pbuf);
 			listnode_add(route_nodes, pe);
 		}
         for (ALL_LIST_ELEMENTS_RO(eigrp->topology_changes_externalIPV4, pen, pe)) {
@@ -522,7 +526,6 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip %s. No UPDATE required.", pbuf);
                 continue;
             }
-            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Add %s to UPDATE.", pbuf);
             listnode_add(route_nodes, pe);
         }
 	}

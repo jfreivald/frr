@@ -283,7 +283,7 @@ uint8_t eigrp_nbr_state_get(struct eigrp_neighbor *nbr)
 static void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
 {
 	THREAD_OFF(nbr->t_holddown);
-	if (nbr->ei && nbr->ei->nbrs) {
+	if (nbr->ei && listnode_lookup(nbr->ei->nbrs, nbr)) {
 		//Somebody called this on a live neighbor. Tear it down.
         eigrp_topology_neighbor_down(nbr);
 	}
@@ -314,8 +314,9 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 		return;
 
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
+    THREAD_OFF(nbr->t_holddown);
 
-	L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
+    L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ( (rn = route_table_iter_next(&it)) ) {
@@ -358,7 +359,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 		for (ALL_LIST_ELEMENTS(pe->active_queries, n, nn, qnbr)) {
 			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has pending query for %s", pbuf, inet_ntoa(nbr->src));
 			if (qnbr && nbr->src.s_addr == qnbr->src.s_addr) {
-			    //We send replies to this neighbor, even though we don't know they are there
+			    //We send replies to this neighbor even though they are there down now?
                 eigrp_send_reply(nbr, pe);
 				if (msg.prefix->active_queries)
 				    listnode_delete(msg.prefix->active_queries, qnbr);
@@ -370,8 +371,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
     eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
 
 	eigrp_fsm_event(&msg);
-
- 	THREAD_OFF(nbr->t_holddown);
 
 	/* Cancel all events. */ /* Thread lookup cost would be negligible. */
 	thread_cancel_event(master, nbr);

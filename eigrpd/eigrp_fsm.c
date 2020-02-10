@@ -460,6 +460,8 @@ eigrp_fsm_calculate_nexthop_entry_total_metric(struct eigrp_nexthop_entry *entry
         entry->total_metric = new_total_metric;
         entry->distance = new_distance;
         if (entry->extTLV && entry->extTLV != etlv) {
+            if(entry->prefix->extTLV == entry->extTLV)
+                entry->prefix->extTLV = etlv;
             eigrp_IPv4_ExternalTLV_free(entry->extTLV);
         }
         entry->extTLV = etlv;
