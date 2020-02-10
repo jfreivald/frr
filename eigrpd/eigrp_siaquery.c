@@ -129,13 +129,8 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Sending to SIAQuery to FSM");
 
-                msg.packet_type = EIGRP_OPC_SIAQUERY;
-                msg.eigrp = eigrp;
-                msg.data_type = EIGRP_INT;
-                msg.adv_router = nbr;
-                msg.incoming_tlv_metrics = tlv->metric;
-                msg.entry = ne;
-                msg.prefix = pe;
+                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_SIAQUERY, eigrp, nbr, ne, pe, EIGRP_INT, tlv->metric, NULL);
+
                 eigrp_fsm_event(&msg);
                 eigrp_send_siareply(nbr, pe);
 
@@ -185,13 +180,8 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Sending to SIAQuery to FSM");
 
-                msg.packet_type = EIGRP_OPC_SIAQUERY;
-                msg.eigrp = eigrp;
-                msg.data_type = EIGRP_EXT;
-                msg.adv_router = nbr;
-                msg.incoming_tlv_metrics = etlv->metric;
-                msg.entry = ne;
-                msg.prefix = pe;
+                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_SIAQUERY, eigrp, nbr, ne, pe, EIGRP_EXT, etlv->metric, etlv);
+
                 eigrp_fsm_event(&msg);
                 eigrp_send_siareply(nbr, pe);
 
@@ -203,6 +193,11 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
                 break;
         }
 	}
+
+    eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_SIAQUERY, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
+
+    eigrp_fsm_event(&msg);
+
 }
 
 void eigrp_send_siaquery(struct eigrp_neighbor *nbr,

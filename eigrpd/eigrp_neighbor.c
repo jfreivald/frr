@@ -162,14 +162,7 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Create nexthop entry %s for neighbor %s", addr_buf, inet_ntoa(nbr->src));
 		ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 
-		msg.packet_type = EIGRP_OPC_UPDATE;
-		msg.eigrp = ei->eigrp;
-		msg.data_type = EIGRP_CONNECTED;
-		msg.adv_router = ne->ei->eigrp->neighbor_self;
-		msg.incoming_tlv_metrics = metric;
-		msg.entry = ne;
-		msg.prefix = pe;
-		msg.etlv = NULL;
+        eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, ei->eigrp, ne->ei->eigrp->neighbor_self, ne, pe, EIGRP_CONNECTED, metric, NULL);
 
 		eigrp_fsm_event(&msg);
 	}
@@ -344,16 +337,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 				if (rijnbr->src.s_addr == nbr->src.s_addr) {
 					L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has reply waiting from %s ", pbuf, inet_ntoa(nbr->src));
 
-					msg.packet_type = EIGRP_OPC_REPLY;
-					msg.eigrp = eigrp;
-					if (pe->extTLV)
-						msg.data_type = EIGRP_EXT;
-					else
-						msg.data_type = EIGRP_INT;
-					msg.adv_router = nbr;
-					msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
-					msg.entry = ne;
-					msg.prefix = pe;
+                    eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_REPLY, eigrp, nbr, ne, pe, pe->extTLV ? EIGRP_EXT : EIGRP_INT, EIGRP_INFINITE_METRIC, pe->extTLV ? pe->extTLV : NULL);
 
 					eigrp_fsm_event(&msg);
 				}
@@ -361,17 +345,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
 			if (ne->adv_router->src.s_addr == nbr->src.s_addr) {
 				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has route node for %s ", pbuf, inet_ntoa(nbr->src));
-
-				msg.packet_type = EIGRP_OPC_UPDATE;
-				msg.eigrp = eigrp;
-				if (pe->extTLV)
-					msg.data_type = EIGRP_EXT;
-				else
-					msg.data_type = EIGRP_INT;
-				msg.adv_router = nbr;
-				msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
-				msg.entry = ne;
-				msg.prefix = pe;
+                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, ne, pe, pe->extTLV ? EIGRP_EXT : EIGRP_INT, EIGRP_INFINITE_METRIC, pe->extTLV ? pe->extTLV : NULL);
 
 				eigrp_fsm_event(&msg);
 
@@ -391,14 +365,8 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 		}
 	}
 
-	//And then remove the node entry from the prefix.
-	msg.packet_type = EIGRP_OPC_UPDATE;
-	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_FSM_DONE;
-	msg.adv_router = nbr;
-	msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
-	msg.entry = ne;
-	msg.prefix = pe;
+	//Finish this sequence.
+    eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
 
 	eigrp_fsm_event(&msg);
 

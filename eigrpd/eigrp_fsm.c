@@ -226,6 +226,8 @@ int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg);
 
 const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_DELAY,EIGRP_MIN_BANDWIDTH,{0,0,0},EIGRP_MAX_HOP_COUNT,EIGRP_MIN_RELIABILITY,EIGRP_MAX_LOAD,0,0};
 
+
+
 /*
  * This is the lookup table for events by state.
  */
@@ -331,6 +333,28 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
 		},
 };
+
+void eigrp_fsm_initialize_action_message(struct eigrp_fsm_action_message *msg,
+                                         enum eigrp_packet_opcodes_t pt,
+                                         struct eigrp *e,
+                                         struct eigrp_neighbor *ar,
+                                         struct eigrp_nexthop_entry *en,
+                                         struct eigrp_prefix_entry *pe,
+                                         msg_data_t dt,
+                                         struct eigrp_metrics met,
+                                         struct TLV_IPv4_External_type *etlvp
+) {
+    msg->packet_type = pt;
+    msg->eigrp = e;
+    msg->adv_router = ar;
+    msg->entry = en;
+    msg->prefix = pe;
+    msg->data_type = dt;
+    msg->etlv = etlvp;
+    msg->incoming_tlv_metrics = met;
+    msg->change = METRIC_SAME;
+    msg->initialized = true;
+}
 
 static const char *packet_type2str(uint8_t packet_type)
 {
@@ -782,9 +806,7 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "END QUERY PRE ACTION AUDIT");
 #endif
 
-    if (msg->prefix && msg->prefix->extTLV != NULL)
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External Update");
-
+    assert(msg->initialized);
 
     if (msg->prefix) {
         prefix2str(msg->prefix->destination, prefixbuf, PREFIX2STR_BUFFER);

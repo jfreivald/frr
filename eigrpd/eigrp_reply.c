@@ -153,13 +153,8 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 
 			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 
-			msg.packet_type = EIGRP_OPC_REPLY;
-			msg.eigrp = eigrp;
-			msg.data_type = EIGRP_INT;
-			msg.adv_router = nbr;
-			msg.incoming_tlv_metrics = tlv->metric;
-			msg.entry = ne;
-			msg.prefix = pe;
+			eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_REPLY, eigrp, nbr, ne, pe, EIGRP_INT, tlv->metric, NULL);
+
 			eigrp_fsm_event(&msg);
 
 			eigrp_IPv4_InternalTLV_free(tlv);
@@ -189,13 +184,7 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 
 			ne = eigrp_nexthop_entry_new(nbr, pe, nbr->ei);
 
-			msg.packet_type = EIGRP_OPC_REPLY;
-			msg.eigrp = eigrp;
-			msg.data_type = EIGRP_EXT;
-			msg.adv_router = nbr;
-			msg.incoming_tlv_metrics = etlv->metric;
-			msg.entry = ne;
-			msg.prefix = pe;
+            eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_REPLY, eigrp, nbr, ne, pe, EIGRP_EXT, etlv->metric, etlv);
 
 			eigrp_fsm_event(&msg);
 			break;
@@ -207,5 +196,8 @@ void eigrp_reply_receive(struct eigrp *eigrp, struct ip *iph,
 			}
 			break;
 		}
+        eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_REPLY, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
+
+        eigrp_fsm_event(&msg);
 	}
 }

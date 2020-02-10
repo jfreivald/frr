@@ -511,7 +511,7 @@ struct eigrp_nexthop_entry {
 };
 
 //---------------------------------------------------------------------------------------------------------------------------------------------
-typedef enum {
+typedef enum eigrp_fsm_data_type {
 	EIGRP_CONNECTED,
 	EIGRP_INT,
 	EIGRP_EXT,
@@ -530,6 +530,7 @@ struct eigrp_fsm_action_message {
 	struct TLV_IPv4_External_type *etlv;
 	struct eigrp_metrics incoming_tlv_metrics;
 	enum metric_change change;
+	bool initialized;
 };
 
 #endif /* _ZEBRA_EIGRP_STRUCTURES_H_ */

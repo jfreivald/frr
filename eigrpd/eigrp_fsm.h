@@ -69,8 +69,19 @@
 
 #ifndef _ZEBRA_EIGRP_FSM_H
 #define _ZEBRA_EIGRP_FSM_H
+#include "eigrp_structs.h"
 
 extern int eigrp_fsm_event(struct eigrp_fsm_action_message *msg);
+extern void eigrp_fsm_initialize_action_message(struct eigrp_fsm_action_message *msg,
+            enum eigrp_packet_opcodes_t pt,
+            struct eigrp *e,
+            struct eigrp_neighbor *ar,
+            struct eigrp_nexthop_entry *en,
+            struct eigrp_prefix_entry *pe,
+            msg_data_t dt,
+            struct eigrp_metrics met,
+            struct TLV_IPv4_External_type *etlvp
+        );
 
 
 #endif /* _ZEBRA_EIGRP_DUAL_H */

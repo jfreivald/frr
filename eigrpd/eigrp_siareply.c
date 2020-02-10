@@ -99,13 +99,8 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
                 struct eigrp_nexthop_entry *entry =
                         eigrp_prefix_entry_lookup(dest->entries,
                                                   nbr);
-                msg.packet_type = EIGRP_OPC_SIAREPLY;
-                msg.eigrp = eigrp;
-                msg.data_type = EIGRP_INT;
-                msg.adv_router = nbr;
-                msg.incoming_tlv_metrics = tlv->metric;
-                msg.entry = entry;
-                msg.prefix = dest;
+                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_SIAREPLY, eigrp, nbr, entry, dest, EIGRP_INT, tlv->metric, NULL);
+
                 eigrp_fsm_event(&msg);
             }
             eigrp_IPv4_InternalTLV_free(tlv);
@@ -131,13 +126,8 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
                 struct eigrp_nexthop_entry *entry =
                         eigrp_prefix_entry_lookup(dest->entries,
                                                   nbr);
-                msg.packet_type = EIGRP_OPC_SIAREPLY;
-                msg.eigrp = eigrp;
-                msg.data_type = EIGRP_EXT;
-                msg.adv_router = nbr;
-                msg.incoming_tlv_metrics = etlv->metric;
-                msg.entry = entry;
-                msg.prefix = dest;
+                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_SIAREPLY, eigrp, nbr, entry, dest, EIGRP_EXT, etlv->metric, etlv);
+
                 eigrp_fsm_event(&msg);
             }
             eigrp_IPv4_ExternalTLV_free(etlv);

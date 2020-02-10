@@ -140,6 +140,7 @@ static void eigrp_update_receive_GR_ask(struct eigrp *eigrp,
 	struct listnode *node1;
 	struct eigrp_prefix_entry *prefix;
 	struct eigrp_fsm_action_message fsm_msg;
+	struct eigrp_metrics metrics;
 
 	/* iterate over all prefixes which weren't advertised by neighbor */
 	for (ALL_LIST_ELEMENTS_RO(nbr_prefixes, node1, prefix)) {
@@ -148,19 +149,14 @@ static void eigrp_update_receive_GR_ask(struct eigrp *eigrp,
 			"GR receive: Neighbor not advertised %s",
 			prefix2str(prefix->destination, buffer, PREFIX_STRLEN));
 
-		fsm_msg.incoming_tlv_metrics = prefix->reported_metric;
+        struct eigrp_nexthop_entry *entry =
+                eigrp_prefix_entry_lookup(prefix->entries, nbr);
+
+        metrics = prefix->reported_metric;
 		/* set delay to MAX */
-		fsm_msg.incoming_tlv_metrics.delay = EIGRP_MAX_METRIC;
+        metrics.delay = EIGRP_MAX_METRIC;
 
-		struct eigrp_nexthop_entry *entry =
-			eigrp_prefix_entry_lookup(prefix->entries, nbr);
-
-		fsm_msg.packet_type = EIGRP_OPC_UPDATE;
-		fsm_msg.eigrp = eigrp;
-		fsm_msg.data_type = EIGRP_INT;
-		fsm_msg.adv_router = nbr;
-		fsm_msg.entry = entry;
-		fsm_msg.prefix = prefix;
+        eigrp_fsm_initialize_action_message(&fsm_msg, EIGRP_OPC_UPDATE, eigrp, nbr, entry, prefix, EIGRP_INT, metrics, NULL);
 
 		/* send message to FSM */
 		eigrp_fsm_event(&fsm_msg);
@@ -330,14 +326,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send Update [%s:%s] to FSM", inet_ntoa(nbr->src), pre_text);
 
-			msg.packet_type = EIGRP_OPC_UPDATE;
-			msg.eigrp = eigrp;
-			msg.data_type = EIGRP_INT;
-			msg.adv_router = nbr;
-			msg.incoming_tlv_metrics = tlv->metric;
-			msg.etlv = NULL;
-			msg.entry = ne;
-			msg.prefix = pe;
+            eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, ne, pe, EIGRP_INT, tlv->metric, NULL);
 
 			eigrp_fsm_event(&msg);
 			route_count++;
@@ -404,14 +393,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send External Update [%s:%s] to FSM", inet_ntoa(nbr->src), pre_text);
 
-			msg.packet_type = EIGRP_OPC_UPDATE;
-			msg.eigrp = eigrp;
-			msg.data_type = EIGRP_EXT;
-			msg.adv_router = nbr;
-			msg.incoming_tlv_metrics = etlv->metric;
-			msg.etlv = etlv;        //Note that the FSM has to attach this ETLV or delete it, as appropriate.
-			msg.entry = ne;
-			msg.prefix = pe;
+            eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, ne, pe, EIGRP_EXT, etlv->metric, etlv);
 
 			eigrp_fsm_event(&msg);
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM Complete [%s:%s]", inet_ntoa(nbr->src), pre_text);
@@ -440,13 +422,7 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Send Update Done [%s] to FSM", inet_ntoa(nbr->src));
 
-	msg.packet_type = EIGRP_OPC_UPDATE;
-	msg.eigrp = eigrp;
-	msg.data_type = EIGRP_FSM_DONE;
-	msg.adv_router = nbr;
-	msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
-	msg.entry = NULL;
-	msg.prefix = NULL;
+    eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
 
 	eigrp_fsm_event(&msg);
 
@@ -766,15 +742,11 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 			struct eigrp_nexthop_entry *entry =
 				eigrp_prefix_entry_lookup(pe->entries, nbr);
 
-			fsm_msg.packet_type = EIGRP_OPC_UPDATE;
-			fsm_msg.eigrp = eigrp;
-			fsm_msg.data_type = EIGRP_INT;
-			fsm_msg.adv_router = nbr;
-			fsm_msg.incoming_tlv_metrics = pe->reported_metric;
-			/* Set delay to MAX */
-			fsm_msg.incoming_tlv_metrics.delay = EIGRP_MAX_METRIC;
-			fsm_msg.entry = entry;
-			fsm_msg.prefix = pe;
+			struct eigrp_metrics metrics;
+
+            metrics = pe->reported_metric;
+            metrics.delay = EIGRP_MAX_METRIC;
+            eigrp_fsm_initialize_action_message(&fsm_msg, EIGRP_OPC_UPDATE, eigrp, nbr, entry, pe, EIGRP_INT, metrics, NULL);
 
 			/* send message to FSM */
 			eigrp_fsm_event(&fsm_msg);

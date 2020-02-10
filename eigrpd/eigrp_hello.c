@@ -461,13 +461,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR | LOGGER_EIGRP_NETWORK, "Creating connected route to neighbor through interface that received the HELLO packet");
 
-        msg.packet_type = EIGRP_OPC_UPDATE;
-        msg.eigrp = eigrp;
-        msg.data_type = EIGRP_CONNECTED;
-        msg.adv_router = nbr;
-        msg.incoming_tlv_metrics = metric;
-        msg.entry = ne;
-        msg.prefix = pe;
+		eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, ne, pe, EIGRP_CONNECTED, metric, NULL);
 
         eigrp_fsm_event(&msg);
 

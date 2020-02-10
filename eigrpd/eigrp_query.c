@@ -137,13 +137,8 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);
 
-                msg.packet_type = EIGRP_OPC_QUERY;
-				msg.eigrp = eigrp;
-				msg.data_type = EIGRP_INT;
-				msg.adv_router = nbr;
-				msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
-				msg.entry = ne;
-				msg.prefix = pe;
+                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_QUERY, eigrp, nbr, ne, pe, EIGRP_INT, tlv->metric, NULL);
+
 				eigrp_fsm_event(&msg);
 			} else {
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query for %s did not process to FSM", pbuf);
@@ -184,21 +179,10 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 				}
 
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Send %s to FSM", pbuf);
+                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_QUERY, eigrp, nbr, ne, pe, EIGRP_EXT, etlv->metric, etlv);
 
-                //Process the query for this prefix.
-				msg.packet_type = EIGRP_OPC_QUERY;
-				msg.eigrp = eigrp;
-				msg.data_type = EIGRP_EXT;
-				msg.adv_router = nbr;
-				msg.incoming_tlv_metrics = EIGRP_INFINITE_METRIC;
-				msg.entry = ne;
-				msg.prefix = pe;
 				eigrp_fsm_event(&msg);
 
-				//Send our queries and/or replies for this prefix.
-                msg.data_type = EIGRP_FSM_DONE;
-
-                eigrp_fsm_event(&msg);
 			} else {
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query for %s did not process to FSM", pbuf);
             }
@@ -210,7 +194,10 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
             break;
 		}
 	}
+    //Send our queries and/or replies for this prefix.
+    eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_QUERY, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
 
+    eigrp_fsm_event(&msg);
 }
 
 void eigrp_send_query(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
