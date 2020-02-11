@@ -402,7 +402,8 @@ eigrp_fsm_reroute_traffic(struct eigrp_prefix_entry *prefix, struct eigrp_nextho
     struct list *nexthop_list = list_new_nexthop_entries();
     struct eigrp_nexthop_entry *new_successor = listnode_head(prefix->entries);
 
-    listnode_add(nexthop_list, new_successor);
+    if (new_successor)
+        listnode_add(nexthop_list, new_successor);
 
     //Remove the old successor from the routing table
     eigrp_zebra_route_delete(prefix->destination);
@@ -434,15 +435,19 @@ eigrp_fsm_calculate_nexthop_entry_total_metric(struct eigrp_nexthop_entry *entry
     u_int32_t old_distance, new_distance;
     enum metric_change change = METRIC_SAME;
 
-    new_total_metric = new_metrics ? *new_metrics : entry->reported_metric;
-    new_total_metric.delay += nbr->ei->params.delay;
-    if (new_total_metric.bandwidth > nbr->ei->params.bandwidth)
-        new_total_metric.bandwidth = nbr->ei->params.bandwidth;
-    if (new_total_metric.reliability < nbr->ei->params.reliability)
-        new_total_metric.reliability = nbr->ei->params.reliability;
-    if (new_total_metric.load > nbr->ei->params.load)
-        new_total_metric.load = nbr->ei->params.load;
-    new_total_metric.hop_count++;
+    if (new_metrics && new_metrics->delay < EIGRP_MAX_DELAY) {
+        new_total_metric = *new_metrics;
+        new_total_metric.delay += nbr->ei->params.delay;
+        if (new_total_metric.bandwidth > nbr->ei->params.bandwidth)
+            new_total_metric.bandwidth = nbr->ei->params.bandwidth;
+        if (new_total_metric.reliability < nbr->ei->params.reliability)
+            new_total_metric.reliability = nbr->ei->params.reliability;
+        if (new_total_metric.load > nbr->ei->params.load)
+            new_total_metric.load = nbr->ei->params.load;
+        new_total_metric.hop_count++;
+    } else {
+        new_total_metric = EIGRP_INFINITE_METRIC;
+    }
 
     old_distance = eigrp_calculate_distance(nbr->ei->eigrp, entry->total_metric);
     new_distance = eigrp_calculate_distance(nbr->ei->eigrp, new_total_metric);
@@ -582,24 +587,21 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
             //Valid Events are 1,2,3,4
             switch (msg->packet_type) {
                 case EIGRP_OPC_QUERY:
-                    if (listnode_head(msg->prefix->entries) == NULL ||
-                        msg->adv_router->src.s_addr != ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src.s_addr) {
-                        //Not from Successor - Event 1
-                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from non-successor");
-                        return 1;
+                    if (listnode_head(msg->prefix->entries) == msg->entry) {
+                        //Query is from successor
+                        if (msg->prefix->entries->count > 1) {
+                            //FS Exists. Event 2
+                            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. FS Exists.");
+                            return 2;
+                        }
+
+                        //No FS. Event 3
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. No FS Exists.");
+                        return 3;
                     }
-
-                    //Query is from successor
-                    if (msg->prefix->entries->count > 1) {
-                        //FS Exists. Event 2
-                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. FS Exists.");
-                        return 2;
-                    }
-
-                    //No FS. Event 3
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. No FS Exists.");
-                    return 3;
-
+                    //Not from Successor - Event 1
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from non-successor");
+                    return 1;
                 case EIGRP_OPC_UPDATE:
                     if (msg->entry == listnode_head(msg->prefix->entries)) {
                         //Update from successor
@@ -1023,12 +1025,13 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
     eigrp_fsm_sort_prefix_entries(prefix);
     eigrp_fsm_update_prefix_metrics(prefix);
     new_successor = listnode_head(prefix->entries);
-    if (new_successor != old_successor) {
+    while (new_successor && new_successor->distance == EIGRP_MAX_METRIC) {
+        listnode_delete(prefix->entries, new_successor);
+        new_successor = listnode_head(prefix->entries);
+    }
+
+    if (new_successor != old_successor || new_successor->distance == EIGRP_MAX_METRIC) {
         eigrp_fsm_reroute_traffic(prefix, old_successor);
-        if (prefix->extTLV)
-            listnode_add(new_successor->ei->eigrp->topology_changes_externalIPV4, prefix);
-        else
-            listnode_add(new_successor->ei->eigrp->topology_changes_internalIPV4, prefix);
     }
 
     //Send any outstanding replies
@@ -1036,7 +1039,6 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
         eigrp_send_reply(data, prefix);
     }
     list_delete_all_node(prefix->active_queries);
-
 }
 
 int eigrp_fsm_event_INVALID(struct eigrp_fsm_action_message *msg){
@@ -1050,7 +1052,7 @@ int eigrp_fsm_event_Q_SE(struct eigrp_fsm_action_message *msg){
     //Update the entry that received the query (not the successor)
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     struct eigrp_nexthop_entry *successor = listnode_head(msg->prefix->entries);
-    if (successor->topology != EIGRP_CONNECTED || (successor->topology == EIGRP_CONNECTED && msg->entry->topology == EIGRP_CONNECTED) ) {
+    if (successor && (successor->topology != EIGRP_CONNECTED || (successor->topology == EIGRP_CONNECTED && msg->entry->topology == EIGRP_CONNECTED) ) ) {
         eigrp_nexthop_entry_add_sort(msg->prefix, msg->entry);
     }
 
@@ -1099,9 +1101,14 @@ int eigrp_fsm_event_Q_SDNE(struct eigrp_fsm_action_message *msg){
     msg->prefix->oij = 3;
     listnode_add(msg->prefix->active_queries, msg->adv_router);
 
+    eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     //Send the queries, skipping the split horizon
     queries = eigrp_query_send_all(msg->eigrp, NULL, msg->adv_router);
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%d queries sent", queries);
+    if (queries == 0) {
+        //We don't have any neighbors to query. Return to passive state.
+        eigrp_fsm_transition_to_passive(msg->prefix);
+    }
     return 0;
 }
 
@@ -1115,12 +1122,12 @@ int eigrp_fsm_event_NQE_SDNE(struct eigrp_fsm_action_message *msg){
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_1;
     msg->prefix->oij = 1;
 
+    eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     //Send the queries, skipping the split horizon
     queries = eigrp_query_send_all(msg->eigrp, NULL, msg->adv_router);
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%d queries sent", queries);
     if (queries == 0) {
         //We don't have any neighbors to query. Return to passive state.
-        eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
         eigrp_fsm_transition_to_passive(msg->prefix);
     }
     return 0;

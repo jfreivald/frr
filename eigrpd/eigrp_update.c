@@ -184,7 +184,6 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 	uint8_t graceful_restart_final;
 	struct list *nbr_prefixes = NULL;
 	struct eigrp_fsm_action_message msg;
-	int route_count = 0;
 
 	char pre_text[PREFIX2STR_BUFFER];
 	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "ENTER");
@@ -329,14 +328,6 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
             eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, ne, pe, EIGRP_INT, tlv->metric, NULL);
 
 			eigrp_fsm_event(&msg);
-			route_count++;
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM Complete [%s:%s]", inet_ntoa(nbr->src), pre_text);
-
-			if ((listnode_lookup(pe->entries, ne) == NULL)) {
-				/* Nexthop entry not added to prefix. Delete it. */
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Nexthop entry %s not added to %s", inet_ntoa(nbr->src), pre_text);
-				eigrp_nexthop_entry_free(ne);
-			}
 
 			eigrp_IPv4_InternalTLV_free(tlv);
 
@@ -397,12 +388,6 @@ void eigrp_update_receive(struct eigrp *eigrp, struct ip *iph,
 
 			eigrp_fsm_event(&msg);
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "FSM Complete [%s:%s]", inet_ntoa(nbr->src), pre_text);
-
-			if ((listnode_lookup(pe->entries, ne) == NULL)) {
-				/* Nexthop entry not added to prefix. Delete it. */
-				L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Nexthop entry %s not added to %s", inet_ntoa(nbr->src), pre_text);
-				eigrp_nexthop_entry_free(ne);
-			}
 
 			break;
 		default:
