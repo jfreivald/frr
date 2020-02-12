@@ -1124,7 +1124,7 @@ int eigrp_fsm_event_NQE_SDNE(struct eigrp_fsm_action_message *msg){
 
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     //Send the queries, skipping the split horizon
-    queries = eigrp_query_send_all(msg->eigrp, NULL, msg->adv_router);
+    queries = eigrp_query_send_all(msg->eigrp, msg->prefix, msg->adv_router);
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%d queries sent", queries);
     if (queries == 0) {
         //We don't have any neighbors to query. Return to passive state.
