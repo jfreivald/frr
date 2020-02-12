@@ -63,12 +63,12 @@ extern void eigrp_send_packet_reliably(struct eigrp_neighbor *);
 extern struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *);
 struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s);
 void eigrp_discard_tlv(struct stream *s);
-#define eigrp_add_internalTLV_to_stream(s,i)	eigrp_add_internalTLV_to_stream_extended(s,i,0)
-extern uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *,
-						struct eigrp_prefix_entry *, int flags);
-#define eigrp_add_externalTLV_to_stream(s,i)	eigrp_add_externalTLV_to_stream_extended(s,i,0)
-extern uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *,
-						struct eigrp_prefix_entry *, int flags);
+#define eigrp_add_internalTLV_to_stream(s,i,f)	eigrp_add_internalTLV_to_stream_extended(s,i,f)
+extern uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
+                                                         struct eigrp_prefix_entry *pe, bool split_horizon_flag);
+#define eigrp_add_externalTLV_to_stream(s,i,f)	eigrp_add_externalTLV_to_stream_extended(s,i,f)
+extern uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
+                                                         struct eigrp_prefix_entry *pe, bool split_horizon_flag);
 extern uint16_t eigrp_add_authTLV_MD5_to_stream(struct stream *,
 						struct eigrp_interface *);
 extern uint16_t eigrp_add_authTLV_SHA256_to_stream(struct stream *,
@@ -96,8 +96,7 @@ extern int eigrp_hello_timer(struct thread *);
 extern bool eigrp_update_prefix_apply(struct eigrp *eigrp,
 				      struct eigrp_interface *ei, int in,
 				      struct prefix *prefix);
-#define eigrp_update_send(n)	eigrp_update_send_with_flags(n,0);
-extern void eigrp_update_send_with_flags(struct eigrp_neighbor *, uint32_t);
+extern void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_routes);
 extern void eigrp_update_receive(struct eigrp *, struct ip *,
 				 struct eigrp_header *, struct stream *,
 				 struct eigrp_interface *, int);
