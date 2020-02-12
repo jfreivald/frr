@@ -446,7 +446,6 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 	struct eigrp *eigrp = nbr->ei->eigrp;
 	struct prefix *dest_addr;
 	uint16_t eigrp_mtu = EIGRP_PACKET_MTU(ei->ifp->mtu);
-	bool split_horizon;
 
 	struct list *route_nodes;
 
@@ -520,13 +519,6 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 	for (ALL_LIST_ELEMENTS_RO(route_nodes, pen, pe)) {
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 
-		if (listnode_head(pe->entries) && eigrp_nbr_split_horizon_check(listnode_head(pe->entries), ei)) {
-			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Skip Split Horizon %s.", pbuf);
-            split_horizon = true;
-		} else {
-            split_horizon = false;
-		}
-
 		if ((length + (pe->extTLV ? pe->extTLV->length : EIGRP_TLV_MAX_IPV4_BYTE )) > eigrp_mtu) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet is full. Send to %s on %s and reset for new packet.", inet_ntoa(nbr->src), nbr->ei->ifp->name);
 
@@ -550,10 +542,10 @@ void eigrp_update_send_with_flags(struct eigrp_neighbor *nbr, uint32_t all_route
 			continue;
 		} else {
             if (pe->extTLV) {
-                length += eigrp_add_externalTLV_to_stream(ep->s, pe, split_horizon);
+                length += eigrp_add_externalTLV_to_stream(ep->s, pe, eigrp_nbr_split_horizon_check(pe, nbr));
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route added [%d:%s]", length, pbuf);
             } else {
-                length += eigrp_add_internalTLV_to_stream(ep->s, pe, split_horizon);
+                length += eigrp_add_internalTLV_to_stream(ep->s, pe, eigrp_nbr_split_horizon_check(pe, nbr));
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route added [%d:%s]", length, pbuf);
             }
 			has_tlv = 1;
@@ -706,7 +698,7 @@ static void eigrp_update_send_GR_part(struct eigrp_neighbor *nbr)
 				  inet_ntoa(dest_addr->u.prefix4));
 		} else {
 			/* sending route which wasn't filtered */
-			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+			length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
 			send_prefixes++;
 		}
 

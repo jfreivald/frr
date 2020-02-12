@@ -156,9 +156,9 @@ void eigrp_send_siareply(struct eigrp_neighbor *nbr,
 
 	if (pe) {
         if (pe->extTLV) {
-            length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+            length += eigrp_add_externalTLV_to_stream(ep->s, pe, false);
         } else {
-            length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+            length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
         }
     }
 

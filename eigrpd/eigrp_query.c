@@ -231,10 +231,10 @@ void eigrp_send_query(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 
     if (pe->extTLV) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route [%s].", pbuf);
-        length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+        length += eigrp_add_externalTLV_to_stream(ep->s, pe, false);
     } else {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route [%s].", pbuf);
-        length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+        length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
     }
 
     listnode_add(pe->rij, nbr);

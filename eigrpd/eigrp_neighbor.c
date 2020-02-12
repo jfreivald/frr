@@ -498,11 +498,14 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 	eigrp_nbr_down(nbr);
 }
 
-int eigrp_nbr_split_horizon_check(struct eigrp_nexthop_entry *ne,
-		struct eigrp_interface *ei)
+bool eigrp_nbr_split_horizon_check(struct eigrp_prefix_entry *pe,
+                                   struct eigrp_neighbor *nbr)
 {
-	if (ne->distance == EIGRP_INFINITE_DISTANCE)
-		return 0;
-
-	return ((ne->ei == ei));
+	if (pe->distance == EIGRP_INFINITE_DISTANCE)
+		return false;
+	struct eigrp_nexthop_entry *successor = listnode_head(pe->entries);
+    if (successor)
+	    return ((successor->adv_router->ei == nbr->ei));
+    else
+        return false;
 }

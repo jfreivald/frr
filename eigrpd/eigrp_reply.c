@@ -86,10 +86,10 @@ void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 		if (pe->extTLV) {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "Constructing reply for %s. Using external TLV [%d:%s].", inet_ntoa(nbr->src), pe->extTLV->length, pbuf);
-			length += eigrp_add_externalTLV_to_stream(ep->s, pe);
+			length += eigrp_add_externalTLV_to_stream(ep->s, pe, false);
 		} else {
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "Constructing reply for %s. Using internal TLV data for %s", inet_ntoa(nbr->src), pbuf);
-			length += eigrp_add_internalTLV_to_stream(ep->s, pe);
+			length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
 		}
 	} else {
 		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET | LOGGER_EIGRP_REPLY, "No prefix to reply to.");
