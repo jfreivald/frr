@@ -768,9 +768,10 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
  *  updated to the neighbor's sequence number to acknolodge any
  *  outstanding packets
  */
-void eigrp_hello_send_ack(struct eigrp_neighbor *nbr)
+void eigrp_hello_send_ack(struct eigrp_neighbor *nbr, uint32_t sequence_number)
 {
 	struct eigrp_packet *ep;
+	struct eigrp_header *hdr;
 
 	/* if packet successfully created, add it to the interface queue */
 	ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_NORMAL, NULL);
@@ -778,9 +779,10 @@ void eigrp_hello_send_ack(struct eigrp_neighbor *nbr)
 	if (ep) {
 		if (IS_DEBUG_EIGRP_PACKET(0, SEND))
 			L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Queueing [Hello] Ack Seq [%u] nbr [%s]",
-					nbr->recv_sequence_number,
+					sequence_number ? sequence_number : nbr->recv_sequence_number,
 					inet_ntoa(nbr->src));
-
+        hdr = (struct eigrp_header *)STREAM_DATA(ep->s);
+        hdr->ack = htonl(sequence_number ? sequence_number : nbr->recv_sequence_number);
 		ep->nbr = nbr;
 
 		/* Add packet to the top of the interface output queue*/

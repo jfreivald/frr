@@ -150,7 +150,8 @@ enum eigrp_fsm_states {
 /*EIGRP FSM events return values*/
 #define EIGRP_FSM_NEED_UPDATE				1
 #define EIGRP_FSM_NEED_QUERY				2
-#define EIGRP_FSM_NEED_REPLY				4
+#define EIGRP_FSM_NEED_REPLY                4
+#define EIGRP_FSM_QUERY_SKIP_SPLIT_HORIZON  8
 
 /*EIGRP FSM events*/
 enum eigrp_fsm_events {

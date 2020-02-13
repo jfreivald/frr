@@ -514,7 +514,7 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
 	    nbr->state |= EIGRP_NEIGHBOR_INIT_TXD;
 	} else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INIT RCVD: STATE[%02x] FLAGS[%02x]. SEND ACK.", inet_ntoa(nbr->src), nbr->state, flags);
-		eigrp_hello_send_ack(nbr);
+        eigrp_hello_send_ack(nbr, 0);
 	} else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && (nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
 		nbr->state = EIGRP_NEIGHBOR_UP;
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
@@ -763,22 +763,15 @@ int eigrp_read(struct thread *thread) {
 
 	/* Update receive sequence number and send ack */
 	if (eigrph->sequence) {
-	    if (ntohl(eigrph->sequence) > nbr->recv_sequence_number || (ntohl(eigrph->sequence) < nbr->recv_sequence_number && ntohl(eigrph->sequence) == 1) ) {
-            nbr->recv_sequence_number = ntohl(eigrph->sequence);
-            if (nbr->state == EIGRP_NEIGHBOR_UP)
-                eigrp_hello_send_ack(nbr);
-	    } else {
-            L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"DISCARD DUPLICATE PACKET NBR[%s] SEQ[%u] OPCODE[%02d]", inet_ntoa(nbr->src), ntohl(eigrph->sequence), opcode);
-            if (nbr->state == EIGRP_NEIGHBOR_UP)
-                eigrp_hello_send_ack(nbr);
-            return 0;
-	    }
+        nbr->recv_sequence_number = ntohl(eigrph->sequence);
+        if (nbr->state == EIGRP_NEIGHBOR_UP)
+            eigrp_hello_send_ack(nbr, 0);
 	}
 
 	/* Read rest of the packet and call each sort of packet routine. */
 	stream_forward_getp(ibuf, EIGRP_HEADER_LEN);
 
-    L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"PROCESSING INCOMING OPCODE[%02d]", opcode);
+    //L(zlog_debug,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,"PROCESSING INCOMING OPCODE[%02d]", opcode);
 	switch (opcode) {
 	case EIGRP_OPC_HELLO:
 		eigrp_hello_receive(eigrp, iph, eigrph, ibuf, ei, length);
@@ -1476,7 +1469,7 @@ uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
-		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
+		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count);
 		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
 		stream_putc(s, EIGRP_INFINITE_METRIC.load);
 		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
@@ -1487,7 +1480,7 @@ uint16_t eigrp_add_internalTLV_to_stream_extended(struct stream *s,
 		stream_putc(s, pe->total_metric.mtu[0]);
 		stream_putc(s, pe->total_metric.mtu[1]);
 		stream_putc(s, pe->total_metric.mtu[2]);
-		stream_putc(s, pe->total_metric.hop_count+1);
+		stream_putc(s, pe->total_metric.hop_count);
 		stream_putc(s, pe->total_metric.reliability);
 		stream_putc(s, pe->total_metric.load);
 		stream_putc(s, pe->total_metric.tag);
@@ -1532,7 +1525,7 @@ uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[0]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[1]);
 		stream_putc(s, EIGRP_INFINITE_METRIC.mtu[2]);
-		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count+1);
+		stream_putc(s, EIGRP_INFINITE_METRIC.hop_count);
 		stream_putc(s, EIGRP_INFINITE_METRIC.reliability);
 		stream_putc(s, EIGRP_INFINITE_METRIC.load);
 		stream_putc(s, EIGRP_INFINITE_METRIC.tag);
@@ -1543,7 +1536,7 @@ uint16_t eigrp_add_externalTLV_to_stream_extended(struct stream *s,
 		stream_putc(s, pe->total_metric.mtu[0]);
 		stream_putc(s, pe->total_metric.mtu[1]);
 		stream_putc(s, pe->total_metric.mtu[2]);
-		stream_putc(s, pe->total_metric.hop_count+1);
+		stream_putc(s, pe->total_metric.hop_count);
 		stream_putc(s, pe->total_metric.reliability);
 		stream_putc(s, pe->total_metric.load);
 		stream_putc(s, pe->total_metric.tag);

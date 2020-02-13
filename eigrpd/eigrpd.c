@@ -259,6 +259,8 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->serno_last_update = 0;
 	eigrp->topology_changes_externalIPV4 = list_new_cb(NULL, NULL, topology_changes_ext_IPV4_debug, 0);
 	eigrp->topology_changes_internalIPV4 = list_new_cb(NULL, NULL, topology_changes_int_IPV4_debug, 0);
+    eigrp->prefixes_to_query = list_new_cb(NULL, NULL, topology_changes_int_IPV4_debug, 0);
+    eigrp->prefixes_to_reply = list_new_cb(NULL, NULL, topology_changes_int_IPV4_debug, 0);
 
 	eigrp->list[EIGRP_FILTER_IN] = NULL;
 	eigrp->list[EIGRP_FILTER_OUT] = NULL;

@@ -56,33 +56,6 @@
 #include "eigrpd/eigrp_fsm.h"
 #include "eigrpd/eigrp_memory.h"
 #include "eigrpd/eigrp_network.h"
-
-uint32_t eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_prefix_entry *pe, struct eigrp_neighbor *exception)
-{
-	struct eigrp_interface *iface;
-	struct listnode *einode, *nbrnode;
-	struct eigrp_neighbor *nbr;
-
-	uint32_t counter;
-
-	if (eigrp == NULL) {
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY,"EIGRP Routing Process not enabled");
-		return 0;
-	}
-
-	counter = 0;
-	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
-		for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
-			if (!exception || (nbr->src.s_addr != exception->src.s_addr && nbr->state == EIGRP_NEIGHBOR_UP)) {
-				eigrp_send_query(nbr, pe);
-				counter++;
-			}
-		}
-	}
-
-	return counter;
-}
-
 /*EIGRP QUERY read function*/
 void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 			 struct eigrp_header *eigrph, struct stream *s,
@@ -196,15 +169,19 @@ void eigrp_query_receive(struct eigrp *eigrp, struct ip *iph,
 	}
     //Send our queries and/or replies for this prefix.
     eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_QUERY, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
-
     eigrp_fsm_event(&msg);
 }
 
-void eigrp_send_query(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
+uint32_t eigrp_send_query(struct eigrp_neighbor *nbr)
 {
 	struct eigrp_interface *ei = nbr->ei;
 	struct eigrp_packet *ep = NULL;
+	struct eigrp *eigrp= ei->eigrp;
 	struct eigrp_header *eigrph;
+	struct listnode *np;
+	struct eigrp_prefix_entry *pe;
+	bool has_tlv = false;
+	uint32_t count = 0;
 
 	uint16_t length = EIGRP_HEADER_LEN;
 
@@ -214,30 +191,100 @@ void eigrp_send_query(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 
 	if (nbr->state != EIGRP_NEIGHBOR_UP) {
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Skip Query for Neighbor %s State[%02x]", inet_ntoa(nbr->src), nbr->state);
-		return;
+		return 0;
 	}
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Building Query for %s", inet_ntoa(nbr->src));
 
-    prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
-
     ep = eigrp_packet_new(eigrp_mtu, NULL);
-
     eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp, ep, 0);
+    eigrph = (struct eigrp_header *) STREAM_DATA(ep->s);
 
-    //Set Query Origin flag
-    eigrph = (struct eigrp_header *)STREAM_DATA(ep->s);
-    eigrph->flags = pe->oij;
-
-    if (pe->extTLV) {
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "External route [%s].", pbuf);
-        length += eigrp_add_externalTLV_to_stream(ep->s, pe, false);
-    } else {
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "Internal route [%s].", pbuf);
-        length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
+    if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
+        && (ei->params.auth_keychain != NULL)) {
+        length += eigrp_add_authTLV_MD5_to_stream(ep->s, ei);
     }
 
-    listnode_add(pe->rij, nbr);
+    for (ALL_LIST_ELEMENTS_RO(eigrp->prefixes_to_query, np, pe)) {
 
-	eigrp_place_on_nbr_queue(nbr, ep, length);
+        prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
+
+        if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
+
+            if ((length + (pe->extTLV ? pe->extTLV->length : EIGRP_TLV_MAX_IPV4_BYTE )) > eigrp_mtu) {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "This packet is full. Send to %s on %s and reset for new packet.", inet_ntoa(nbr->src), nbr->ei->ifp->name);
+
+                eigrp_place_on_nbr_queue(nbr, ep, length);
+                count++;
+
+                length = EIGRP_HEADER_LEN;
+                ep = eigrp_packet_new(eigrp_mtu, nbr);
+                eigrp_packet_header_init(EIGRP_OPC_QUERY, ei->eigrp, ep, 0);
+                eigrph = (struct eigrp_header *) STREAM_DATA(ep->s);
+
+                if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
+                    && (ei->params.auth_keychain != NULL)) {
+                    length += eigrp_add_authTLV_MD5_to_stream(ep->s, ei);
+                }
+                has_tlv = false;
+            }
+
+            //Set Query Origin flag
+            eigrph->flags = pe->oij;
+
+            if (pe->extTLV) {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "External route [%s].", pbuf);
+                length += eigrp_add_externalTLV_to_stream(ep->s, pe, false);
+            } else {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Internal route [%s].", pbuf);
+                length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
+            }
+
+            listnode_add(pe->rij, nbr);
+            has_tlv = true;
+        } else {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "Query skipping TLV [%s]. No query flag set.", pbuf);
+        }
+    }
+
+    if (!has_tlv) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE, "This packet has no query information. Discard.");
+        eigrp_packet_free(ep);
+        return count;
+    }
+
+    eigrp_place_on_nbr_queue(nbr, ep, length);
+    count++;
+
+    return count;
+}
+
+uint32_t eigrp_query_send_to_all(struct eigrp *eigrp, struct eigrp_neighbor *exception)
+{
+    struct eigrp_interface *iface;
+    struct listnode *einode, *nbrnode, *node2, *nnode2;
+    struct eigrp_prefix_entry *pe;
+    struct eigrp_neighbor *nbr;
+    uint32_t count = 0;
+
+    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, einode, iface)) {
+        for (ALL_LIST_ELEMENTS_RO(iface->nbrs, nbrnode, nbr)) {
+            if (nbr->state == EIGRP_NEIGHBOR_UP && nbr != exception) {
+                count += eigrp_send_query(nbr);
+            }
+        }
+    }
+
+    ///If no count, preserve list to transition routes to passive.
+    if (count != 0) {
+        for (ALL_LIST_ELEMENTS(eigrp->prefixes_to_query, node2, nnode2, pe)) {
+            if (pe->req_action & EIGRP_FSM_NEED_QUERY) {
+                pe->req_action &= ~EIGRP_FSM_NEED_QUERY;
+                if (!pe->req_action)
+                    listnode_delete(eigrp->prefixes_to_query, pe);
+            }
+        }
+    }
+
+    return count;
 }

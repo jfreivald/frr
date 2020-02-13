@@ -129,6 +129,8 @@ struct eigrp {
 				       by last update*/
 	struct list *topology_changes_internalIPV4;
 	struct list *topology_changes_externalIPV4;
+	struct list *prefixes_to_query;
+	struct list *prefixes_to_reply;
 
 	/*Neighbor self*/
 	struct eigrp_neighbor *neighbor_self;

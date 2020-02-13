@@ -84,7 +84,7 @@ extern int eigrp_unack_multicast_packet_retrans(struct thread *);
 extern void eigrp_sw_version_initialize(void);
 extern void eigrp_hello_send(struct eigrp_interface *, uint8_t,
 			     struct in_addr *);
-extern void eigrp_hello_send_ack(struct eigrp_neighbor *);
+extern void eigrp_hello_send_ack(struct eigrp_neighbor *nbr, uint32_t sequence_number);
 extern void eigrp_hello_receive(struct eigrp *, struct ip *,
 				struct eigrp_header *, struct stream *,
 				struct eigrp_interface *, int);
@@ -115,16 +115,17 @@ extern void eigrp_update_send_process_GR(struct eigrp *, enum GR_type,
  * These externs are found in eigrp_query.c
  */
 
-extern void eigrp_send_query(struct eigrp_neighbor *, struct eigrp_prefix_entry *pe);
+extern uint32_t eigrp_send_query(struct eigrp_neighbor *nbr);
 extern void eigrp_query_receive(struct eigrp *, struct ip *,
 				struct eigrp_header *, struct stream *,
 				struct eigrp_interface *, int);
-extern uint32_t
-eigrp_query_send_all(struct eigrp *eigrp, struct eigrp_prefix_entry *pe, struct eigrp_neighbor *exception);
+extern uint32_t eigrp_query_send_to_all(struct eigrp *eigrp, struct eigrp_neighbor *exception);
 
 /*
  * These externs are found in eigrp_reply.c
  */
+extern void eigrp_send_all_waiting_replies(struct eigrp *eigrp);
+
 extern void eigrp_send_reply(struct eigrp_neighbor *,
 			     struct eigrp_prefix_entry *);
 extern void eigrp_reply_receive(struct eigrp *, struct ip *,

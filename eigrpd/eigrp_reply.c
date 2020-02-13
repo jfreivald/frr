@@ -63,6 +63,10 @@
 #include "eigrpd/eigrp_fsm.h"
 #include "eigrpd/eigrp_memory.h"
 
+void eigrp_send_all_waiting_replies(struct eigrp *eigrp) {
+
+}
+
 void eigrp_send_reply(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *pe)
 {
 	struct eigrp_packet *ep;
