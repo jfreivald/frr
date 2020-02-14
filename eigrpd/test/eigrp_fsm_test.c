@@ -55,55 +55,6 @@ uint16_t type;
 uint16_t length;
 
 TestSuite(eigrp_fsm_test);
-/*
- * This file tests the functions for executing logic of finite state machine
- *
- *                                +------------ +
- *                                |     (7)     |
- *                                |             v
- *                    +=====================================+
- *                    |                                     |
- *                    |              Passive                |
- *                    |                                     |
- *                    +=====================================+
- *                        ^     |     ^     ^     ^    |
- *                     (3)|     |  (1)|     |  (1)|    |
- *                        |  (0)|     |  (3)|     | (2)|
- *                        |     |     |     |     |    +---------------+
- *                        |     |     |     |     |                     \
- *              +--------+      |     |     |     +-----------------+    \
- *            /                /     /      |                        \    \
- *          /                /     /        +----+                    \    \
- *         |                |     |               |                    |    |
- *         |                v     |               |                    |    v
- *    +===========+   (6)  +===========+       +===========+   (6)   +===========+
- *    |           |------->|           |  (5)  |           |-------->|           |
- *    |           |   (4)  |           |------>|           |   (4)   |           |
- *    | ACTIVE 0  |<-------| ACTIVE 1  |       | ACTIVE 2  |<--------| ACTIVE 3  |
- * +--|           |     +--|           |    +--|           |      +--|           |
- * |  +===========+     |  +===========+    |  +===========+      |  +===========+
- * |       ^  |(5)      |      ^            |    ^    ^           |         ^
- * |       |  +---------|------|------------|----+    |           |         |
- * +-------+            +------+            +---------+           +---------+
- *    (7)                 (7)                  (7)                   (7)
- *
- * Fixtures for [STATE] [EVENT]
- * States are: 
- * 	PASSIVE 
- * 	ACTIVE 0
- * 	ACTIVE 1
- * 	ACTIVE 2
- *	ACTIVE 3
- * Events are: 
- * 	0- input event other than query from successor, FC not satisfied
- * 	1- last reply, FD is reset
- * 	2- query from successor, FC not satisfied
- * 	3- last reply, FC satisfied with current value of FDij
- * 	4- distance increase while in active state
- * 	5- query from successor while in active state
- * 	6- last reply, FC not satisfied with current value of FDij
- * 	7- state not changed, usually by receiving not last reply
- */
 
 /* eigprd privileges */
 zebra_capabilities_t _caps_p[] = {
@@ -128,7 +79,52 @@ struct option longopts[] = {{0}};
 /* Master of threads. */
 struct thread_master *master;
 
+extern int eigrp_fsm_sort_prefix_entries(struct eigrp_prefix_entry *prefix);
 
+Test(eigrp_fsm_test, sort_prefix_entries_test) {
+    struct eigrp_prefix_entry *pe = eigrp_prefix_entry_new();
+    struct eigrp_nexthop_entry *ne;
+    struct eigrp_neighbor nbr;
+    struct eigrp_metrics metric;
+    int i, last_delay = 100000000;
+    struct listnode *node;
+
+    struct prefix dest;
+    pe->destination = &dest;
+    struct eigrp_interface ei;
+    nbr.ei = &ei;
+    metric.bandwidth = 1536;
+    metric.mtu[0] = 1;
+    metric.mtu[1] = 1;
+    metric.mtu[2] = 1;
+    metric.reliability = 1;
+
+    for (i = 0; i < 20; i++) {
+        ne = eigrp_nexthop_entry_new(&nbr, pe, nbr.ei, 0);
+        metric.delay = last_delay / i;
+        ne->reported_metric = metric;
+        listnode_add(pe->entries, ne);
+    }
+    node = listnode_head(pe->entries);
+    for(i = 0; i < 20; i++) {
+        if(node->next) {
+            struct eigrp_nexthop_entry *this = node->data;
+            struct eigrp_nexthop_entry *next = node->next->data;
+            assert(this->reported_metric.delay > next->reported_metric.delay);
+        }
+    }
+
+    eigrp_fsm_sort_prefix_entries(pe);
+
+    node = listnode_head(pe->entries);
+    for(i = 0; i < 20; i++) {
+        if(node->next) {
+            struct eigrp_nexthop_entry *this = node->data;
+            struct eigrp_nexthop_entry *next = node->next->data;
+            assert(this->reported_metric.delay > next->reported_metric.delay);
+        }
+    }
+}
 
 Test(eigrp_fsm_test, metric_calculation_check) {
 
