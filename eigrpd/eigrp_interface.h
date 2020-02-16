@@ -38,7 +38,8 @@
 extern void eigrp_if_init(void);
 extern int eigrp_if_new_hook(struct interface *);
 extern int eigrp_if_delete_hook(struct interface *);
-
+extern uint32_t eigrp_calculate_bandwidth(uint32_t speed_in_kbps);
+extern uint32_t eigrp_calculate_delay(uint32_t delay_in_us);
 extern bool eigrp_if_is_passive(struct eigrp_interface *ei);
 extern void eigrp_del_if_params(struct eigrp_if_params *);
 extern struct eigrp_interface *eigrp_if_new(struct eigrp *, struct interface *,

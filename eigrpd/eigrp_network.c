@@ -411,16 +411,15 @@ uint32_t eigrp_calculate_distance(struct eigrp *eigrp,
     uint8_t K5 = eigrp->k_values[4];
 
     // BW: Bandwidth is the inverse minimum bandwidth (in kbps) of the path scaled by a factor of 10^7
-    uint32_t BW = 10000000 / (metric.bandwidth ? metric.bandwidth : EIGRP_MIN_BANDWIDTH);
+    uint32_t BW = metric.bandwidth ? metric.bandwidth : EIGRP_MIN_BANDWIDTH;
     uint32_t LOAD = metric.load;
-    // DELAY: Delay is in 10's of uSec
-    uint32_t DELAY = metric.delay / 10;
+    uint32_t DELAY = metric.delay;
     uint32_t REL = metric.reliability;
 
 	/* From https://www.cisco.com/c/en/us/support/docs/ip/enhanced-interior-gateway-routing-protocol-eigrp/16406-eigrp-toc.html#anc7:
 	 * metric = ([K1 * bandwidth + (K2 * bandwidth) / (256 - load) + K3 * delay] * [K5 / (reliability + K4)]) * 256
 	 */
-	temp_metric = 256 * (((K1*BW) + ((K2*BW)/(256-LOAD)) + (K3*DELAY)) * (K5 ? (K5/(REL+K4)) : 1));
+	temp_metric = (((K1*BW) + ((K2*BW)/(256-LOAD)) + (K3*DELAY)) * (K5 ? (K5/(REL+K4)) : 1));
 
 	if (temp_metric <= EIGRP_INFINITE_DISTANCE)
 		return (uint32_t)temp_metric;

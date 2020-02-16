@@ -57,6 +57,38 @@
 #include "eigrpd/eigrp_memory.h"
 #include "eigrpd/eigrp_fsm.h"
 
+#include <sys/mman.h>
+
+struct mmap_status_t {
+    unsigned char dns_status_version;
+    struct {
+        bool line_protocol:1;
+        bool fec:1;
+        bool framing:1;
+        bool scrambling:1;
+        bool lock:1;
+    };
+    double rssi;
+    int upload;
+    int download;
+    int speed;
+
+    struct {
+        u_int32_t ours;
+        u_int32_t theirs;
+        u_int32_t their_last_seen;
+    } hdlc;
+};
+
+
+uint32_t eigrp_calculate_bandwidth(uint32_t speed_in_kbps) {
+    return (256 * (10000000/speed_in_kbps));
+}
+
+uint32_t eigrp_calculate_delay(uint32_t delay_in_us) {
+    return (256 * delay_in_us/10);
+}
+
 struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 		struct prefix *p)
 {
@@ -153,6 +185,9 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	struct eigrp *eigrp;
 	struct eigrp_fsm_action_message msg;
 	struct prefix dest_addr;
+    int shm_fd;
+
+    struct mmap_status_t *mmap_ptr;
 
 	char addr_buf[PREFIX2STR_BUFFER];
 
@@ -172,11 +207,22 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	}
 
     if ((strncmp(ei->ifp->name, "dnsTun", 6) == 0 )) {
-        //TODO: Check the mmap interface and pull the bandwidth when this interface comes up and down."
         L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Found %s. Configure Delay and Bandwidth for T1.", ei->ifp->name);
-        ei->params.delay = 20000;
-        ei->params.bandwidth = 1536;
+        ei->params.delay = eigrp_calculate_delay(20000);
+        //Check the DNS Shared Memory for the actual bandwidth of this link.
+        shm_fd = shm_open("attdns_status", O_RDONLY, 0777);
+        if (shm_fd < 0) {
+            ei->params.bandwidth = eigrp_calculate_bandwidth(1536);
+        } else {
+            mmap_ptr = (struct mmap_status_t *) mmap(0, sizeof(struct mmap_status_t), PROT_READ, MAP_SHARED, shm_fd, 0);
+            ei->params.bandwidth = eigrp_calculate_bandwidth(mmap_ptr->speed);
+        }
         ei->params.reliability = 1;
+        ei->params.load = 0;
+    } else {
+        ei->params.delay = eigrp_calculate_delay(ei->ifp->link_params ? ei->ifp->link_params->av_delay : 10);
+        ei->params.bandwidth = ei->ifp->speed ? eigrp_calculate_bandwidth(ei->ifp->speed / 1000) : eigrp_calculate_bandwidth(100000);
+        ei->params.reliability = ei->ifp->link_params ? (ei->ifp->link_params->pkt_loss ? 1/(ei->ifp->link_params->pkt_loss) : 1) : 1;
         ei->params.load = 0;
     }
 

@@ -30,6 +30,6 @@ add_executable(zebra
         zebra/ipforward_solaris.c  zebra/rtread_netlink.c    zebra/zebra_mpls.c          zebra/zebra_rib.c)
 target_link_libraries(zebra ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt)
 
-add_executable(eigrp_fsm_test eigrpd/test/eigrp_fsm_test.c)
+add_executable(eigrp_fsm_test eigrpd/test/eigrp_fsm_test.c eigrpd/eigrp_network.c eigrpd/eigrp_interface.c)
 link_directories(eigrpd . lib/.libs)
 target_link_libraries(eigrp_fsm_test ${CMAKE_SOURCE_DIR}/eigrpd/libeigrp.a ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt numa)

@@ -63,7 +63,7 @@ struct eigrp_master {
 
 #define EIGRP_INFINITE_DISTANCE		(0xFFFFFFFF)
 #define EIGRP_MAX_DELAY             (0xFFFFFFFF)
-#define EIGRP_MIN_BANDWIDTH         (0x1)
+#define EIGRP_MIN_BANDWIDTH         (25600000)      //100 kbps equivalent
 #define EIGRP_MAX_BANDWIDTH         (0xFFFFFFFF)
 #define EIGRP_MAX_HOP_COUNT         (0xFF)
 #define EIGRP_MIN_RELIABILITY       (0x0)
