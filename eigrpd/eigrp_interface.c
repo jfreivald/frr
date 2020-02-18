@@ -215,7 +215,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
             ei->params.bandwidth = eigrp_calculate_bandwidth(1536);
         } else {
             mmap_ptr = (struct mmap_status_t *) mmap(0, sizeof(struct mmap_status_t), PROT_READ, MAP_SHARED, shm_fd, 0);
-            ei->params.bandwidth = eigrp_calculate_bandwidth(mmap_ptr->speed);
+            ei->params.bandwidth = eigrp_calculate_bandwidth(mmap_ptr->speed/1000);
         }
         ei->params.reliability = 1;
         ei->params.load = 0;
