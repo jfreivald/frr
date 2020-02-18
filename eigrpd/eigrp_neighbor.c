@@ -505,7 +505,7 @@ bool eigrp_nbr_split_horizon_check(struct eigrp_prefix_entry *pe,
 		return false;
 	struct eigrp_nexthop_entry *successor = listnode_head(pe->entries);
     if (successor)
-	    return ((successor->adv_router->ei == nbr->ei));
-    else
-        return false;
+        if (successor->topology != EIGRP_CONNECTED && (successor->adv_router->ei == nbr->ei))
+            return true;
+    return false;
 }

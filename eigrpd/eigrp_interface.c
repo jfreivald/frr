@@ -221,7 +221,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
         ei->params.load = 0;
     } else {
         ei->params.delay = eigrp_calculate_delay(ei->ifp->link_params ? ei->ifp->link_params->av_delay : 10);
-        ei->params.bandwidth = ei->ifp->speed ? eigrp_calculate_bandwidth(ei->ifp->speed / 1000) : eigrp_calculate_bandwidth(100000);
+        ei->params.bandwidth = ei->ifp->speed ? eigrp_calculate_bandwidth(ei->ifp->speed * 1000) : eigrp_calculate_bandwidth(100000);
         ei->params.reliability = ei->ifp->link_params ? (ei->ifp->link_params->pkt_loss ? 1/(ei->ifp->link_params->pkt_loss) : 1) : 1;
         ei->params.load = 0;
     }
