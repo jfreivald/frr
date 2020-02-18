@@ -278,6 +278,9 @@ void eigrp_nexthop_entry_add_sort(struct eigrp_prefix_entry *node, struct eigrp_
 		}
 	}
 
+	//Check for Feasible distance. This means that the nexthop_entry's distance reported from the neighbor
+	//is less than our reported distance that we are reporting to our neighbors. Anything more than that could
+	//possibly be a loop, so we discard it.
 	if (entry->distance != EIGRP_INFINITE_DISTANCE || entry->distance < node->rdistance) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "Adding nexthop entry to prefix %s.", buf);
         listnode_add_sort(node->entries, entry);

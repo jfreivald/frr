@@ -438,7 +438,7 @@ eigrp_fsm_calculate_nexthop_entry_total_metric(struct eigrp_nexthop_entry *entry
     if (new_metrics && new_metrics->delay < EIGRP_MAX_DELAY) {
         new_total_metric = *new_metrics;
         new_total_metric.delay += nbr->ei->params.delay;
-        if (new_total_metric.bandwidth > nbr->ei->params.bandwidth)
+        if (new_total_metric.bandwidth < nbr->ei->params.bandwidth)
             new_total_metric.bandwidth = nbr->ei->params.bandwidth;
         if (new_total_metric.reliability < nbr->ei->params.reliability)
             new_total_metric.reliability = nbr->ei->params.reliability;
