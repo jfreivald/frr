@@ -872,7 +872,7 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
         new_successor = listnode_head(prefix->entries);
     }
 
-    if (new_successor != old_successor || new_successor->distance == EIGRP_MAX_METRIC) {
+    if (new_successor != old_successor || !new_successor || new_successor->distance == EIGRP_MAX_METRIC) {
         eigrp_fsm_reroute_traffic(prefix, old_successor);
     }
     EIGRP_FSM_NEED_REPLY;
