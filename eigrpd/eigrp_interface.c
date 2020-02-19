@@ -277,6 +277,10 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
 	eigrp_fsm_event(&msg);
 
+	eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, eigrp->neighbor_self, NULL, NULL, EIGRP_FSM_DONE, metric, NULL);
+
+	eigrp_fsm_event(&msg);
+
 	return 1;
 }
 

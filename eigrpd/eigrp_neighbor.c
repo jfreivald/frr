@@ -164,6 +164,10 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
         eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, ei->eigrp, ne->ei->eigrp->neighbor_self, ne, pe, EIGRP_CONNECTED, metric, NULL);
 
 		eigrp_fsm_event(&msg);
+
+        eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, ei->eigrp, ne->ei->eigrp->neighbor_self, NULL, NULL, EIGRP_FSM_DONE, metric, NULL);
+
+        eigrp_fsm_event(&msg);
 	}
 	return nbr;
 }

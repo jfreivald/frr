@@ -323,27 +323,26 @@ void eigrp_prefix_entry_delete(struct eigrp *eigrp, struct eigrp_prefix_entry *p
 	listnode_delete(eigrp->topology_changes_externalIPV4, pe);
 
 	assert(&pe->entries->del);	//Deleting lists without deleting their data is bad!
-	list_delete_all_node(pe->entries);
+	list_delete_and_null(&pe->entries);
 	assert(&pe->rij->del);		//Deleting lists without deleting their data is bad!
-	list_delete_all_node(pe->rij);
+    list_delete_and_null(&pe->rij);
 	assert(&pe->active_queries->del);
-	list_delete_all_node(pe->active_queries);
+    list_delete_and_null(&pe->active_queries);
 
 	eigrp_zebra_route_delete(pe->destination);
 
-	if (rn) {
+    if (pe->extTLV)
+        pe->extTLV = NULL;
+    pe->total_metric = EIGRP_INFINITE_METRIC;
+    pe->distance = EIGRP_INFINITE_DISTANCE;
+
+    if (rn) {
 		rn->info = NULL;
 		route_unlock_node(rn);	//Lookup above
 		route_unlock_node(rn);	//Initial Creation - should auto-delete.
 	} else {
 		L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_TOPOLOGY, "No route node for this prefix entry.");
 	}
-
-	/* TODO: Change a prefix from external to internal if we receive an Update message with it as an internal route. */
-	if (pe->extTLV)
-		pe->extTLV->metric = EIGRP_INFINITE_METRIC;
-	pe->total_metric = EIGRP_INFINITE_METRIC;
-	pe->distance = EIGRP_INFINITE_DISTANCE;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 }

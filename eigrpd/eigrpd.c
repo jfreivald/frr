@@ -282,6 +282,40 @@ static void eigrp_add(struct eigrp *eigrp)
 
 static void eigrp_delete(struct eigrp *eigrp)
 {
+    struct eigrp_interface *ei;
+    struct eigrp_neighbor *nbr;
+    struct listnode *node, *nnode, *node2, *nnode2;
+
+    eigrp_topology_neighbor_down(eigrp->neighbor_self);
+
+//    eigrp_fifo_free(eigrp->neighbor_self->retrans_queue);
+//    eigrp_fifo_free(eigrp->neighbor_self->multicast_queue);
+//
+//    XFREE(MTYPE_EIGRP_NEIGHBOR, eigrp->neighbor_self);
+//    eigrp->neighbor_self = NULL;
+
+    for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei)) {
+        for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr))
+            eigrp_nbr_down(nbr);
+        eigrp_if_down(ei, INTERFACE_DOWN_BY_FINAL);
+    }
+
+    close(eigrp->fd);
+
+    list_delete_and_null(&eigrp->eiflist);
+    list_delete_and_null(&eigrp->oi_write_q);
+
+    eigrp_topology_cleanup(eigrp);
+    eigrp_topology_free(eigrp);
+
+    list_delete_and_null(&eigrp->topology_changes_externalIPV4);
+    list_delete_and_null(&eigrp->topology_changes_internalIPV4);
+    list_delete_and_null(&eigrp->prefixes_to_reply);
+    list_delete_and_null(&eigrp->prefixes_to_query);
+
+    stream_free(eigrp->ibuf);
+
+    free(eigrp->name);
 	listnode_delete(eigrp_om->eigrp, eigrp);
 }
 
@@ -336,32 +370,9 @@ void eigrp_finish(struct eigrp *eigrp)
 /* Final cleanup of eigrp instance */
 void eigrp_finish_final(struct eigrp *eigrp)
 {
-	struct eigrp_interface *ei;
-	struct eigrp_neighbor *nbr;
-	struct listnode *node, *nnode, *node2, *nnode2;
-
-	for (ALL_LIST_ELEMENTS(eigrp->eiflist, node, nnode, ei)) {
-		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr))
-			eigrp_nbr_down(nbr);
-		eigrp_if_down(ei, INTERFACE_DOWN_BY_FINAL);
-	}
 
 	THREAD_OFF(eigrp->t_write);
 	THREAD_OFF(eigrp->t_read);
-	close(eigrp->fd);
-
-	list_delete_and_null(&eigrp->eiflist);
-	list_delete_and_null(&eigrp->oi_write_q);
-
-	eigrp_nbr_down(eigrp->neighbor_self);
-
-	eigrp_topology_cleanup(eigrp);
-	eigrp_topology_free(eigrp);
-
-	list_delete_and_null(&eigrp->topology_changes_externalIPV4);
-	list_delete_and_null(&eigrp->topology_changes_internalIPV4);
-
-	stream_free(eigrp->ibuf);
 
 	eigrp_delete(eigrp);
 
