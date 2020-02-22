@@ -75,6 +75,25 @@ struct route_table *eigrp_topology_new()
 	return p;
 }
 
+struct eigrp_prefix_nbr_sia_query *eigrp_prefix_nbr_sia_query_join_new(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *prefix) {
+    struct eigrp_prefix_nbr_sia_query *naq = XCALLOC(MTYPE_EIGRP_SIA_PREFIX_NBR_JOIN, sizeof(struct eigrp_prefix_nbr_sia_query));
+    naq->prefix = prefix;
+    naq->nbr = nbr;
+    naq->sia_nbr_timer = NULL;
+    naq->sia_reply_count = 0;
+}
+
+void eigrp_prefix_nbr_sia_query_join_free(struct eigrp_prefix_nbr_sia_query *naq) {
+
+    if (naq->sia_nbr_timer != NULL) {
+        THREAD_OFF(naq->sia_nbr_timer);
+    }
+    naq->prefix = NULL;
+    naq->nbr = NULL;
+    naq->sia_reply_count = 0;
+    XFREE(MTYPE_EIGRP_SIA_PREFIX_NBR_JOIN, naq);
+}
+
 /*
  * Returns new created toplogy node
  * cmp - assigned function for comparing topology entry
@@ -94,6 +113,7 @@ struct eigrp_prefix_entry *eigrp_prefix_entry_new()
     new->extTLV = NULL;
     new->oij = -1;
     new->req_action = 0;
+    new->sia_timer = NULL;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_TRACE, "EXIT");
 	return new;

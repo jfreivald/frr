@@ -858,6 +858,23 @@ int eigrp_fsm_send_reply(struct eigrp_fsm_action_message *msg)
 int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
     struct eigrp_neighbor *data;
     struct listnode *node1, *node2;
+    struct eigrp *eigrp = eigrp_lookup();
+    struct eigrp_prefix_nbr_sia_query *naq;
+
+    //Cancel all SIA activities for this route
+
+    eigrp_sia_lock(eigrp);
+    eigrp_cancel_prefix_sia_timers(prefix);
+
+    for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, node1, node2, naq)) {
+        if (naq->prefix == prefix) {
+            //We lock the mutex but we never unlock it because we also free it.
+            listnode_delete(eigrp->prefix_nbr_sia_query_join_table, naq);
+            eigrp_prefix_nbr_sia_query_join_free(naq);
+        }
+    }
+
+    eigrp_sia_unlock(eigrp);
 
     prefix->state = EIGRP_FSM_STATE_PASSIVE;
     prefix->oij = -1;
@@ -875,7 +892,7 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
     if (new_successor != old_successor || !new_successor || new_successor->distance == EIGRP_MAX_METRIC) {
         eigrp_fsm_reroute_traffic(prefix, old_successor);
     }
-    EIGRP_FSM_NEED_REPLY;
+
     //Send any outstanding replies
     for (ALL_LIST_ELEMENTS(prefix->active_queries, node1, node2, data)) {
         eigrp_send_reply(data, prefix);
@@ -1131,6 +1148,8 @@ int eigrp_fsm_event_Q_SDNE(struct eigrp_fsm_action_message *msg){
     msg->prefix->oij = 3;
     listnode_add(msg->prefix->active_queries, msg->adv_router);
 
+    eigrp_new_prefix_active_timer(msg->prefix, EIGRP_SIA_TIMEOUT);
+
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     eigrp_fsm_update_prefix_metrics(msg->prefix);
     //Send the queries, skipping the split horizon
@@ -1151,6 +1170,8 @@ int eigrp_fsm_event_NQE_SDNE(struct eigrp_fsm_action_message *msg){
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_1;
     msg->prefix->oij = 1;
 
+    eigrp_new_prefix_active_timer(msg->prefix, EIGRP_SIA_TIMEOUT);
+
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     eigrp_fsm_update_prefix_metrics(msg->prefix);
     //Send the queries, skipping the split horizon
@@ -1167,6 +1188,7 @@ int eigrp_fsm_event_SQ_AAR(struct eigrp_fsm_action_message *msg){
 
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_2;
     msg->prefix->oij = 2;
+
     eigrp_fsm_calculate_nexthop_entry_total_metric(msg->entry, &(msg->incoming_tlv_metrics), msg->adv_router, msg->etlv, true);
     listnode_add(msg->prefix->active_queries, msg->adv_router);
 
@@ -1229,6 +1251,8 @@ int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg){
         send_flags |= EIGRP_FSM_NEED_QUERY;
         send_flags &= ~EIGRP_FSM_QUERY_SKIP_SPLIT_HORIZON;
 
+        eigrp_new_prefix_active_timer(msg->prefix, EIGRP_SIA_TIMEOUT);
+
     } else if (msg->prefix->entries->count == 0 && msg->prefix->state == EIGRP_FSM_STATE_ACTIVE_0) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT LR 12");
         msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_1;
@@ -1237,6 +1261,9 @@ int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg){
         listnode_add(msg->eigrp->prefixes_to_query, msg->prefix);
         send_flags |= EIGRP_FSM_NEED_QUERY;
         send_flags &= ~EIGRP_FSM_QUERY_SKIP_SPLIT_HORIZON;
+
+        eigrp_new_prefix_active_timer(msg->prefix, EIGRP_SIA_TIMEOUT);
+
     } else {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT LR 13-16");
         eigrp_fsm_transition_to_passive(msg->prefix);

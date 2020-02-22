@@ -132,7 +132,9 @@ struct eigrp {
 	struct list *prefixes_to_query;
 	struct list *prefixes_to_reply;
 
-	/*Neighbor self*/
+	struct list *prefix_nbr_sia_query_join_table;
+
+    /*Neighbor self*/
 	struct eigrp_neighbor *neighbor_self;
 
 	/*Configured metric for redistributed routes*/
@@ -153,6 +155,8 @@ struct eigrp {
 		int metric_config;
 		uint32_t metric;
 	} route_map[ZEBRA_ROUTE_MAX];
+
+	pthread_mutex_t sia_action_mutex;
 
 	QOBJ_FIELDS
 };
@@ -492,6 +496,16 @@ struct eigrp_prefix_entry {
 
 	uint64_t serno; /*Serial number for this entry. Increased with each
 			   change of entry*/
+
+	struct thread *sia_timer;
+};
+
+struct eigrp_prefix_nbr_sia_query {
+    struct eigrp_prefix_entry *prefix;
+    struct eigrp_neighbor *nbr;
+    struct thread *sia_nbr_timer;
+    int sia_reply_count;
+
 };
 
 /* EIGRP Topology table record structure */

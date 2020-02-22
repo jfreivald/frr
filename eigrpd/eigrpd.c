@@ -271,6 +271,8 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->routemap[EIGRP_FILTER_IN] = NULL;
 	eigrp->routemap[EIGRP_FILTER_OUT] = NULL;
 
+	pthread_mutex_init(&eigrp->sia_action_mutex, NULL);
+
 	QOBJ_REG(eigrp, eigrp);
 	return eigrp;
 }

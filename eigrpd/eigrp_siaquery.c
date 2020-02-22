@@ -201,43 +201,225 @@ void eigrp_siaquery_receive(struct eigrp *eigrp, struct ip *iph,
 }
 
 void eigrp_send_siaquery(struct eigrp_neighbor *nbr,
-			 struct eigrp_prefix_entry *pe)
+                         struct eigrp_prefix_entry *pe)
 {
-	struct eigrp_packet *ep;
-	uint16_t length = EIGRP_HEADER_LEN;
+    struct eigrp_packet *ep;
+    struct eigrp_header *eh;
+    uint16_t length = EIGRP_HEADER_LEN;
 
-	ep = eigrp_packet_new(EIGRP_PACKET_MTU(nbr->ei->ifp->mtu), nbr);
+    assert(pe);
+    assert(nbr);
 
-	/* Prepare EIGRP INIT UPDATE header */
-	eigrp_packet_header_init(EIGRP_OPC_SIAQUERY, nbr->ei->eigrp, ep, 0);
+    nbr->ei->siaQuery_out++;
 
-	// encode Authentication TLV, if needed
-	if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-	    && (nbr->ei->params.auth_keychain != NULL)) {
-		length += eigrp_add_authTLV_MD5_to_stream(ep->s, nbr->ei);
-	}
+    ep = eigrp_packet_new(EIGRP_PACKET_MTU(nbr->ei->ifp->mtu), nbr);
 
-    if (pe) {
-        if (pe->extTLV) {
-            length += eigrp_add_externalTLV_to_stream(ep->s, pe, false);
-        } else {
-            length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
-        }
+    /* Prepare EIGRP INIT UPDATE header */
+    eigrp_packet_header_init(EIGRP_OPC_SIAQUERY, nbr->ei->eigrp, ep, 0);
+
+    eh = (struct eigrp_header *)STREAM_DATA(ep->s);
+    eh->flags = pe->oij;
+
+    // encode Authentication TLV, if needed
+    if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
+        && (nbr->ei->params.auth_keychain != NULL)) {
+        length += eigrp_add_authTLV_MD5_to_stream(ep->s, nbr->ei);
+    }
+
+    if (pe->extTLV) {
+        length += eigrp_add_externalTLV_to_stream(ep->s, pe, false);
+    } else {
+        length += eigrp_add_internalTLV_to_stream(ep->s, pe, false);
     }
 
     if ((nbr->ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
-	    && (nbr->ei->params.auth_keychain != NULL)) {
-		eigrp_make_md5_digest(nbr->ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
-	}
+        && (nbr->ei->params.auth_keychain != NULL)) {
+        eigrp_make_md5_digest(nbr->ei, ep->s, EIGRP_AUTH_UPDATE_FLAG);
+    }
 
-	/* EIGRP Checksum */
-	eigrp_packet_checksum(nbr->ei, ep->s, length);
+    /* EIGRP Checksum */
+    eigrp_packet_checksum(nbr->ei, ep->s, length);
 
-	ep->length = length;
-	ep->dst.s_addr = nbr->src.s_addr;
+    ep->length = length;
+    ep->dst.s_addr = nbr->src.s_addr;
 
-	if (nbr->state == EIGRP_NEIGHBOR_UP) {
+    if (nbr->state == EIGRP_NEIGHBOR_UP) {
         eigrp_place_on_nbr_queue(nbr, ep, length);
-	} else
-		eigrp_packet_free(ep);
+    } else
+        eigrp_packet_free(ep);
+}
+
+struct eigrp_prefix_nbr_sia_query *eigrp_get_sia_naq_from_timer(struct thread *sia_nbr_timer) {
+    struct listnode *n;
+    struct eigrp_prefix_nbr_sia_query *naq;
+    struct eigrp *eigrp = eigrp_lookup();
+
+    eigrp_sia_lock(eigrp_lookup());
+
+    for (ALL_LIST_ELEMENTS_RO(eigrp->prefix_nbr_sia_query_join_table, n, naq)) {
+        if (sia_nbr_timer->arg == naq) {
+            return naq;
+        }
+    }
+
+    return NULL;
+    ///NOTE: Returns with the SIA locked. Calling function must unlock when access is complete.
+}
+
+int eigrp_sia_reset_nbr(struct thread *sia_nbr_timer) {
+    struct eigrp_prefix_nbr_sia_query *naq = eigrp_get_sia_naq_from_timer(sia_nbr_timer);
+    struct eigrp *eigrp = eigrp_lookup();
+
+    if(naq) {
+        if (naq->sia_nbr_timer != NULL) {
+            THREAD_OFF(naq->sia_nbr_timer);
+        }
+
+        listnode_delete(eigrp->prefix_nbr_sia_query_join_table, naq);
+        eigrp_nbr_hard_restart(naq->nbr, NULL);
+        eigrp_prefix_nbr_sia_query_join_free(naq);
+    }
+    eigrp_sia_unlock(eigrp_lookup());
+}
+
+void eigrp_cancel_prefix_nbr_sia_timer(struct eigrp_prefix_nbr_sia_query *naq) {
+    if (naq->sia_nbr_timer)
+        THREAD_OFF(naq->sia_nbr_timer);
+    naq->sia_nbr_timer = NULL;
+}
+
+int eigrp_siaquery_siareply_timeout(struct thread *sia_nbr_timer) {
+    struct eigrp_prefix_nbr_sia_query *naq = eigrp_get_sia_naq_from_timer(sia_nbr_timer);
+
+    if (naq) {
+        eigrp_cancel_prefix_nbr_sia_timer(naq);
+        if (naq->nbr->state == EIGRP_NEIGHBOR_UP && naq->prefix->state != EIGRP_FSM_STATE_PASSIVE) {
+            eigrp_send_siaquery(naq->nbr, naq->prefix);
+            ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
+            thread_add_timer(master, eigrp_sia_reset_nbr, naq, EIGRP_SIA_TIMEOUT, &(naq->sia_nbr_timer));
+        }
+    }
+
+    eigrp_sia_unlock(eigrp_lookup());
+
+}
+
+int eigrp_received_siareply_set_timer(struct thread *sia_nbr_timer) {
+    struct eigrp_prefix_nbr_sia_query *naq = eigrp_get_sia_naq_from_timer(sia_nbr_timer);
+    struct eigrp *eigrp = eigrp_lookup();
+    if(naq) {
+        eigrp_cancel_prefix_nbr_sia_timer(naq);
+        if (naq->nbr->state == EIGRP_NEIGHBOR_UP && naq->prefix->state != EIGRP_FSM_STATE_PASSIVE) {
+            naq->sia_nbr_timer++;
+            if (naq->sia_reply_count > 3) {
+                listnode_delete(eigrp->prefix_nbr_sia_query_join_table, naq);
+                eigrp_sia_unlock(eigrp_lookup());
+                eigrp_nbr_hard_restart(naq->nbr, NULL);
+                eigrp_prefix_nbr_sia_query_join_free(naq);
+            } else {
+                ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
+                thread_add_timer(master, eigrp_siaquery_siareply_timeout, naq, EIGRP_SIA_TIMEOUT,
+                                 &(naq->sia_nbr_timer));
+                eigrp_sia_unlock(eigrp_lookup());
+            }
+        }
+    } else {
+        eigrp_sia_unlock(eigrp_lookup());
+    }
+}
+
+int eigrp_sia_timeout(struct thread *sia_timer) {
+    struct eigrp_prefix_entry *pe = sia_timer->arg;
+    struct listnode *nnode, *q1, *q2;
+    struct eigrp_neighbor *qnbr;
+    struct eigrp_prefix_nbr_sia_query *asq;
+    struct eigrp *eigrp = eigrp_lookup();
+
+    eigrp_sia_lock(eigrp);
+
+    if (pe->sia_timer) {
+        THREAD_OFF(pe->sia_timer);
+    }
+    pe->sia_timer = NULL;
+
+    for (ALL_LIST_ELEMENTS_RO(pe->rij, nnode, qnbr)) {
+        for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, q1, q2, asq)) {
+            if (asq->nbr != qnbr || asq->prefix != pe) {
+                continue;
+            }
+        }
+        if (!asq) {
+            //This neighbor/prefix combo was not found in the active list. Allocate a new one.
+            asq = eigrp_prefix_nbr_sia_query_join_new(qnbr, pe);
+            listnode_add(eigrp->prefix_nbr_sia_query_join_table, asq);
+        }
+
+        //If there is an active timer for this neighbor, cancel it.
+        eigrp_cancel_prefix_nbr_sia_timer(asq);
+        eigrp_send_siaquery(asq->nbr, pe);
+        ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
+        thread_add_timer(master, eigrp_sia_reset_nbr, asq, EIGRP_SIA_TIMEOUT, &(asq->sia_nbr_timer));
+    }
+
+    eigrp_sia_unlock(eigrp);
+
+}
+
+/** \fn eigrp_cancel_prefix_sia_timers(struct eigrp_prefix_entry *pe)
+ *
+ * The calling function must already have the SIA lock.
+ *
+ * @param pe Prefix to be operated on
+ */
+void eigrp_cancel_prefix_sia_timers(struct eigrp_prefix_entry *pe) {
+    struct eigrp *eigrp = eigrp_lookup();
+    struct listnode *n1, *n2;
+    struct eigrp_prefix_nbr_sia_query *naq;
+
+    if (pe->sia_timer) {
+        THREAD_OFF(pe->sia_timer);
+    }
+    pe->sia_timer = NULL;
+
+    for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, n1, n2, naq)) {
+        eigrp_cancel_prefix_nbr_sia_timer(naq);
+    }
+}
+
+void eigrp_new_prefix_active_timer(struct eigrp_prefix_entry *pe, uint32_t timeout) {
+    eigrp_sia_lock(eigrp_lookup());
+
+    eigrp_cancel_prefix_sia_timers(pe);
+    ///NOTE: sia_timers have struct eigrp_prefix_entry data types
+    thread_add_timer(master, eigrp_sia_timeout, pe, timeout, &(pe->sia_timer));
+
+    eigrp_sia_unlock(eigrp_lookup());
+}
+
+
+/** \fn eigrp_sia_lock(struct eigrp *eigrp)
+ *
+ * There are so many timers associated with SIA that can fire at arbitrary intervals, especially when accounting
+ * for SIA-REPLY messages, and each timer carries with it a data pointer to tracking objects.
+ * There needs to be a master lock that determines whether or not a returning timer actually has a valid pointer.
+ * To manage this, the eigrp object has a join table of prefix/neighbors that have SIA-QUERY messages outstanding.
+ * Accessing this join table requires a lock. If a function will access or manipulate anything on the join table
+ * they must access the table through the eigrp_get_sia_naq_from_timer() function [or equivalent action]. This
+ * function locks the SIA mutex, then sorts through the table and searches for the required entry. If it exists
+ * in the table it returns the pointer WITH THE MUTEX STILL LOCKED. The calling function must unlock the mutex
+ * when all table manipulation and data access is complete. If the pointer returned by the timer does not exist
+ * in the table then it MUST HAVE BEEN DELETED BY A PREVIOUS EVENT and cannot be accessed and a NULL is returned.
+ *
+ * This means that any of the timer threads, firing at any time, will only get to access their data if it still exists,
+ * eliminating the race conditions associated with the SIA timers.
+ *
+ * @param eigrp The top level eigrp object that is maintaining the join table.
+ */
+
+void eigrp_sia_lock(struct eigrp *eigrp) {
+    pthread_mutex_unlock(&eigrp->sia_action_mutex);
+}
+
+void eigrp_sia_unlock(struct eigrp *eigrp) {
+    pthread_mutex_unlock(&eigrp->sia_action_mutex);
 }
