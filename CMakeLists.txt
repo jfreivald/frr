@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(test C)
+project(frr-5-LTEspeed C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_CONFIG_H=1 -DDEBUG -DDEVELOPER")
