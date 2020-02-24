@@ -593,6 +593,10 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 
     prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
+    if(msg->packet_type == EIGRP_OPC_SIAQUERY) {
+        return EIGRP_FSM_SIA_QUERY;
+    }
+    
     switch (msg->prefix->state) {
         case EIGRP_FSM_STATE_PASSIVE:
             //Valid Events are 1,2,3,4
