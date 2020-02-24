@@ -223,6 +223,7 @@ int eigrp_fsm_event_NR(struct eigrp_fsm_action_message *msg);
 int eigrp_fsm_event_SNQE_AAR_RO(struct eigrp_fsm_action_message *msg);
 int eigrp_fsm_event_SNQE_AAR_SO(struct eigrp_fsm_action_message *msg);
 int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg);
+int eigrp_fsm_event_SIA(struct eigrp_fsm_action_message *msg);
 
 const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_DELAY,EIGRP_MIN_BANDWIDTH,{0,0,0},EIGRP_MAX_HOP_COUNT,EIGRP_MIN_RELIABILITY,EIGRP_MAX_LOAD,0,0};
 
@@ -1270,4 +1271,23 @@ int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg){
     }
 
     return 0;
+}
+
+int eigrp_fsm_event_SIA(struct eigrp_fsm_action_message *msg) {
+    struct eigrp_nexthop_entry *successor = listnode_head(msg->prefix->entries);
+
+    if (successor && successor->adv_router == msg->adv_router) {
+        //This SIAQuery is from the successor. Check if we have a FS
+        if(msg->prefix->entries->count > 1) {
+            //We have a Feasible Successor. This counts as a Query with FS event.
+            eigrp_fsm_event_Q_SE(msg);
+        } else {
+            //We don't have a FS. Send SIA-REPLY and treat as successor query.
+            eigrp_fsm_event_Q_SDNE(msg);
+            eigrp_send_siareply(msg->adv_router, msg->prefix);
+        }
+    } else if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE && successor != NULL) {
+        //This qualifies as a query event from a non-successor.
+        eigrp_fsm_event_Q_SE(msg);
+    }
 }
