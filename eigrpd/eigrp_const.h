@@ -190,7 +190,10 @@ enum eigrp_fsm_events {
     EIGRP_FSM_EVENT_SNQE_AAR_SO = 10,
 
     /** Events 11-16 are all Last Reply events. They are bundled here. **/
-    EIGRP_FSM_EVENT_LR
+    EIGRP_FSM_EVENT_LR = 11,
+
+    /** SIA events **/
+    EIGRP_FSM_SIA_QUERY = 12
 };
 
 /**

@@ -233,15 +233,13 @@ const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_DELAY,EIGRP_MIN_BANDWID
  * This is the lookup table for events by state.
  */
 int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
-		{
-				// PASSIVE STATE
+        {
+                // PASSIVE STATE
                 EIGRP_FSM_EVENT_INVALID,
-				EIGRP_FSM_EVENT_Q_SE,
-				EIGRP_FSM_EVENT_NQE_SE,
-				EIGRP_FSM_EVENT_Q_SDNE,
-				EIGRP_FSM_EVENT_NQE_SDNE,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
+                EIGRP_FSM_EVENT_Q_SE,
+                EIGRP_FSM_EVENT_NQE_SE,
+                EIGRP_FSM_EVENT_Q_SDNE,
+                EIGRP_FSM_EVENT_NQE_SDNE,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -249,12 +247,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 0 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 0 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -267,14 +263,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 1 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 1 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -287,14 +279,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_SNQE_AAR_RO,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 2 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 2 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -307,14 +295,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 3 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 3 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -327,12 +311,8 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_SNQE_AAR_SO,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
+                EIGRP_FSM_SIA_QUERY
+        },
 };
 
 void eigrp_fsm_initialize_action_message(struct eigrp_fsm_action_message *msg,
@@ -982,41 +962,44 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 		switch(NSM[msg->prefix->state][eigrp_get_fsm_event(msg)]) {
         case EIGRP_FSM_EVENT_Q_SE:
             eigrp_fsm_event_Q_SE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NQE_SE:
             eigrp_fsm_event_NQE_SE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_Q_SDNE:
             eigrp_fsm_event_Q_SDNE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NQE_SDNE:
             eigrp_fsm_event_NQE_SDNE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_SQ_AAR:
             eigrp_fsm_event_SQ_AAR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NSQ_AAR:
             eigrp_fsm_event_NSQ_AAR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NS_NQE_AAR:
             eigrp_fsm_event_NS_NQE_AAR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NR:
             eigrp_fsm_event_NR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_SNQE_AAR_RO:
             eigrp_fsm_event_SNQE_AAR_RO(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_SNQE_AAR_SO:
             eigrp_fsm_event_SNQE_AAR_SO(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_LR:
             eigrp_fsm_event_LR(msg);
-                break;
+            break;
+        case EIGRP_FSM_SIA_QUERY:
+            eigrp_fsm_event_SIA(msg);
+            break;
         case EIGRP_FSM_EVENT_INVALID:
         default:
             eigrp_fsm_event_INVALID(msg);
-                break;
+            break;
         }
 	} else {
 		//Send and update if we need to [contains ACK]
