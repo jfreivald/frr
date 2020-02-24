@@ -64,7 +64,8 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
     struct eigrp_neighbor *nbr;
     struct TLV_IPv4_Internal_type *tlv;
     struct TLV_IPv4_External_type *etlv;
-
+    struct eigrp_prefix_nbr_sia_query *naq;
+    struct listnode *n;
     uint16_t type;
 
     /* increment statistics. */
@@ -95,13 +96,16 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
             /* If the destination exists (it should, but one never
              * know)*/
             if (dest != NULL) {
-                struct eigrp_fsm_action_message msg;
-                struct eigrp_nexthop_entry *entry =
-                        eigrp_prefix_entry_lookup(dest->entries,
-                                                  nbr);
-                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_SIAREPLY, eigrp, nbr, entry, dest, EIGRP_INT, tlv->metric, NULL);
-
-                eigrp_fsm_event(&msg);
+                eigrp_sia_lock(eigrp);
+                for (ALL_LIST_ELEMENTS_RO(eigrp->prefix_nbr_sia_query_join_table, n, naq)) {
+                    if (naq->prefix == dest && naq->nbr == nbr) {
+                        break;
+                    }
+                }
+                if (naq) {
+                    eigrp_received_siareply_set_timer(naq);
+                }
+                eigrp_sia_unlock(eigrp);
             }
             eigrp_IPv4_InternalTLV_free(tlv);
         }
@@ -122,13 +126,16 @@ void eigrp_siareply_receive(struct eigrp *eigrp, struct ip *iph,
             /* If the destination exists (it should, but one never
              * know)*/
             if (dest != NULL) {
-                struct eigrp_fsm_action_message msg;
-                struct eigrp_nexthop_entry *entry =
-                        eigrp_prefix_entry_lookup(dest->entries,
-                                                  nbr);
-                eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_SIAREPLY, eigrp, nbr, entry, dest, EIGRP_EXT, etlv->metric, etlv);
-
-                eigrp_fsm_event(&msg);
+                eigrp_sia_lock(eigrp);
+                for (ALL_LIST_ELEMENTS_RO(eigrp->prefix_nbr_sia_query_join_table, n, naq)) {
+                    if (naq->prefix == dest && naq->nbr == nbr) {
+                        break;
+                    }
+                }
+                if (naq) {
+                    eigrp_received_siareply_set_timer(naq);
+                }
+                eigrp_sia_unlock(eigrp);
             }
             eigrp_IPv4_ExternalTLV_free(etlv);
         }

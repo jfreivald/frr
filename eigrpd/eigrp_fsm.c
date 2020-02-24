@@ -1265,16 +1265,26 @@ int eigrp_fsm_event_SIA(struct eigrp_fsm_action_message *msg) {
 
     if (successor && successor->adv_router == msg->adv_router) {
         //This SIAQuery is from the successor. Check if we have a FS
-        if(msg->prefix->entries->count > 1) {
-            //We have a Feasible Successor. This counts as a Query with FS event.
-            eigrp_fsm_event_Q_SE(msg);
+        if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE) {
+            if (msg->prefix->entries->count > 1) {
+                //We have a Feasible Successor. This counts as a Query with FS event.
+                eigrp_fsm_event_Q_SE(msg);
+            } else {
+                //We don't have a FS. Send SIA-REPLY and treat as successor query.
+                eigrp_send_siareply(msg->adv_router, msg->prefix);
+                eigrp_fsm_event_Q_SDNE(msg);
+            }
         } else {
-            //We don't have a FS. Send SIA-REPLY and treat as successor query.
-            eigrp_fsm_event_Q_SDNE(msg);
+            //This route is active. Send SIA-REPLY and event 5, successor query on already active route.
             eigrp_send_siareply(msg->adv_router, msg->prefix);
+            eigrp_fsm_event_SQ_AAR(msg);
+
         }
-    } else if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE && successor != NULL) {
+    } else if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE) {
         //This qualifies as a query event from a non-successor.
         eigrp_fsm_event_Q_SE(msg);
+    } else if (msg->prefix->state != EIGRP_FSM_STATE_PASSIVE) {
+        //This is a non-successor query on an already active route (Event 6)
+        eigrp_fsm_event_NSQ_AAR(msg);
     }
 }

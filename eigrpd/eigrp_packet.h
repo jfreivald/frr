@@ -140,6 +140,8 @@ extern void eigrp_send_siaquery(struct eigrp_neighbor *,
 extern void eigrp_siaquery_receive(struct eigrp *, struct ip *,
 				   struct eigrp_header *, struct stream *,
 				   struct eigrp_interface *, int);
+extern int eigrp_received_siareply_set_timer(struct eigrp_prefix_nbr_sia_query *naq);
+
 
 /*
  * These externs are found in eigrp_siareply.c
