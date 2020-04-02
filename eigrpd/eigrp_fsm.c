@@ -227,7 +227,7 @@ int eigrp_fsm_event_SIA(struct eigrp_fsm_action_message *msg);
 
 const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_DELAY,EIGRP_MIN_BANDWIDTH,{0,0,0},EIGRP_MAX_HOP_COUNT,EIGRP_MIN_RELIABILITY,EIGRP_MAX_LOAD,0,0};
 
-
+pthread_mutex_t topology_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * This is the lookup table for events by state.
@@ -900,6 +900,8 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
     char   nbr_str[PREFIX2STR_BUFFER];
     uint32_t queries = 0;
 
+    pthread_mutex_lock(&topology_mutex);
+
 #ifdef EIGRP_QUERY_AUDITING_ENABLED
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "BEGIN QUERY PRE ACTION AUDIT");
     /* iterate over all prefixes in topology table */
@@ -1073,6 +1075,9 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
     }
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "END QUERY POST ACTION AUDIT");
 #endif
+
+    pthread_mutex_unlock(&topology_mutex);
+
 	return 1;
 }
 

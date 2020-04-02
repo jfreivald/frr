@@ -83,5 +83,7 @@ extern void eigrp_fsm_initialize_action_message(struct eigrp_fsm_action_message 
             struct TLV_IPv4_External_type *etlvp
         );
 
+extern pthread_mutex_t topology_mutex;
+
 
 #endif /* _ZEBRA_EIGRP_DUAL_H */
