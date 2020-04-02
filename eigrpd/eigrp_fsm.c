@@ -223,24 +223,23 @@ int eigrp_fsm_event_NR(struct eigrp_fsm_action_message *msg);
 int eigrp_fsm_event_SNQE_AAR_RO(struct eigrp_fsm_action_message *msg);
 int eigrp_fsm_event_SNQE_AAR_SO(struct eigrp_fsm_action_message *msg);
 int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg);
+int eigrp_fsm_event_SIA(struct eigrp_fsm_action_message *msg);
 
 const struct eigrp_metrics infinite_metrics = {EIGRP_MAX_DELAY,EIGRP_MIN_BANDWIDTH,{0,0,0},EIGRP_MAX_HOP_COUNT,EIGRP_MIN_RELIABILITY,EIGRP_MAX_LOAD,0,0};
 
-
+pthread_mutex_t topology_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * This is the lookup table for events by state.
  */
 int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
-		{
-				// PASSIVE STATE
+        {
+                // PASSIVE STATE
                 EIGRP_FSM_EVENT_INVALID,
-				EIGRP_FSM_EVENT_Q_SE,
-				EIGRP_FSM_EVENT_NQE_SE,
-				EIGRP_FSM_EVENT_Q_SDNE,
-				EIGRP_FSM_EVENT_NQE_SDNE,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
+                EIGRP_FSM_EVENT_Q_SE,
+                EIGRP_FSM_EVENT_NQE_SE,
+                EIGRP_FSM_EVENT_Q_SDNE,
+                EIGRP_FSM_EVENT_NQE_SDNE,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -248,12 +247,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 0 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 0 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -266,14 +263,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 1 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 1 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -286,14 +279,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_SNQE_AAR_RO,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 2 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 2 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -306,14 +295,10 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
-		{
-				// Active 3 state
+                EIGRP_FSM_SIA_QUERY
+        },
+        {
+                // Active 3 state
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_INVALID,
@@ -326,12 +311,8 @@ int NSM[EIGRP_FSM_STATE_MAX][EIGRP_FSM_EVENT_MAX] = {
                 EIGRP_FSM_EVENT_INVALID,
                 EIGRP_FSM_EVENT_SNQE_AAR_SO,
                 EIGRP_FSM_EVENT_LR,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-                EIGRP_FSM_EVENT_INVALID,
-		},
+                EIGRP_FSM_SIA_QUERY
+        },
 };
 
 void eigrp_fsm_initialize_action_message(struct eigrp_fsm_action_message *msg,
@@ -592,6 +573,10 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
 
     prefix2str(msg->prefix->destination, pbuf, PREFIX2STR_BUFFER);
 
+    if(msg->packet_type == EIGRP_OPC_SIAQUERY) {
+        return EIGRP_FSM_SIA_QUERY;
+    }
+    
     switch (msg->prefix->state) {
         case EIGRP_FSM_STATE_PASSIVE:
             //Valid Events are 1,2,3,4
@@ -915,6 +900,8 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
     char   nbr_str[PREFIX2STR_BUFFER];
     uint32_t queries = 0;
 
+    pthread_mutex_lock(&topology_mutex);
+
 #ifdef EIGRP_QUERY_AUDITING_ENABLED
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "BEGIN QUERY PRE ACTION AUDIT");
     /* iterate over all prefixes in topology table */
@@ -977,41 +964,44 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
 		switch(NSM[msg->prefix->state][eigrp_get_fsm_event(msg)]) {
         case EIGRP_FSM_EVENT_Q_SE:
             eigrp_fsm_event_Q_SE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NQE_SE:
             eigrp_fsm_event_NQE_SE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_Q_SDNE:
             eigrp_fsm_event_Q_SDNE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NQE_SDNE:
             eigrp_fsm_event_NQE_SDNE(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_SQ_AAR:
             eigrp_fsm_event_SQ_AAR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NSQ_AAR:
             eigrp_fsm_event_NSQ_AAR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NS_NQE_AAR:
             eigrp_fsm_event_NS_NQE_AAR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_NR:
             eigrp_fsm_event_NR(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_SNQE_AAR_RO:
             eigrp_fsm_event_SNQE_AAR_RO(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_SNQE_AAR_SO:
             eigrp_fsm_event_SNQE_AAR_SO(msg);
-                break;
+            break;
         case EIGRP_FSM_EVENT_LR:
             eigrp_fsm_event_LR(msg);
-                break;
+            break;
+        case EIGRP_FSM_SIA_QUERY:
+            eigrp_fsm_event_SIA(msg);
+            break;
         case EIGRP_FSM_EVENT_INVALID:
         default:
             eigrp_fsm_event_INVALID(msg);
-                break;
+            break;
         }
 	} else {
 		//Send and update if we need to [contains ACK]
@@ -1085,6 +1075,9 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
     }
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_QUERY, "END QUERY POST ACTION AUDIT");
 #endif
+
+    pthread_mutex_unlock(&topology_mutex);
+
 	return 1;
 }
 
@@ -1270,4 +1263,33 @@ int eigrp_fsm_event_LR(struct eigrp_fsm_action_message *msg){
     }
 
     return 0;
+}
+
+int eigrp_fsm_event_SIA(struct eigrp_fsm_action_message *msg) {
+    struct eigrp_nexthop_entry *successor = listnode_head(msg->prefix->entries);
+
+    if (successor && successor->adv_router == msg->adv_router) {
+        //This SIAQuery is from the successor. Check if we have a FS
+        if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE) {
+            if (msg->prefix->entries->count > 1) {
+                //We have a Feasible Successor. This counts as a Query with FS event.
+                eigrp_fsm_event_Q_SE(msg);
+            } else {
+                //We don't have a FS. Send SIA-REPLY and treat as successor query.
+                eigrp_send_siareply(msg->adv_router, msg->prefix);
+                eigrp_fsm_event_Q_SDNE(msg);
+            }
+        } else {
+            //This route is active. Send SIA-REPLY and event 5, successor query on already active route.
+            eigrp_send_siareply(msg->adv_router, msg->prefix);
+            eigrp_fsm_event_SQ_AAR(msg);
+
+        }
+    } else if (msg->prefix->state == EIGRP_FSM_STATE_PASSIVE) {
+        //This qualifies as a query event from a non-successor.
+        eigrp_fsm_event_Q_SE(msg);
+    } else if (msg->prefix->state != EIGRP_FSM_STATE_PASSIVE) {
+        //This is a non-successor query on an already active route (Event 6)
+        eigrp_fsm_event_NSQ_AAR(msg);
+    }
 }

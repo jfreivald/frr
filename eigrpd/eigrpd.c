@@ -261,8 +261,9 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->topology_changes_internalIPV4 = list_new_cb(NULL, NULL, topology_changes_int_IPV4_debug, 0);
     eigrp->prefixes_to_query = list_new_cb(NULL, NULL, topology_changes_int_IPV4_debug, 0);
     eigrp->prefixes_to_reply = list_new_cb(NULL, NULL, topology_changes_int_IPV4_debug, 0);
+    eigrp->prefix_nbr_sia_query_join_table = list_new_cb(NULL, NULL, NULL, 0);
 
-	eigrp->list[EIGRP_FILTER_IN] = NULL;
+    eigrp->list[EIGRP_FILTER_IN] = NULL;
 	eigrp->list[EIGRP_FILTER_OUT] = NULL;
 
 	eigrp->prefix[EIGRP_FILTER_IN] = NULL;

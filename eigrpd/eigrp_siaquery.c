@@ -303,29 +303,30 @@ int eigrp_siaquery_siareply_timeout(struct thread *sia_nbr_timer) {
     eigrp_sia_unlock(eigrp_lookup());
 
 }
-
-int eigrp_received_siareply_set_timer(struct thread *sia_nbr_timer) {
-    struct eigrp_prefix_nbr_sia_query *naq = eigrp_get_sia_naq_from_timer(sia_nbr_timer);
+/** \fn int eigrp_received_siareply_set_timer(struct eigrp_prefix_nbr_sia_query *naq)
+ *
+ * Call this function with the SIA mutex locked.
+ *
+ * @param naq Calling function should have locked the SIA structures and pulled the correct join record
+ * @return Always 0.
+ */
+int eigrp_received_siareply_set_timer(struct eigrp_prefix_nbr_sia_query *naq) {
     struct eigrp *eigrp = eigrp_lookup();
-    if(naq) {
-        eigrp_cancel_prefix_nbr_sia_timer(naq);
-        if (naq->nbr->state == EIGRP_NEIGHBOR_UP && naq->prefix->state != EIGRP_FSM_STATE_PASSIVE) {
-            naq->sia_nbr_timer++;
-            if (naq->sia_reply_count > 3) {
-                listnode_delete(eigrp->prefix_nbr_sia_query_join_table, naq);
-                eigrp_sia_unlock(eigrp_lookup());
-                eigrp_nbr_hard_restart(naq->nbr, NULL);
-                eigrp_prefix_nbr_sia_query_join_free(naq);
-            } else {
-                ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
-                thread_add_timer(master, eigrp_siaquery_siareply_timeout, naq, EIGRP_SIA_TIMEOUT,
-                                 &(naq->sia_nbr_timer));
-                eigrp_sia_unlock(eigrp_lookup());
-            }
+
+    eigrp_cancel_prefix_nbr_sia_timer(naq);
+    if (naq->nbr->state == EIGRP_NEIGHBOR_UP && naq->prefix->state != EIGRP_FSM_STATE_PASSIVE) {
+        naq->sia_nbr_timer++;
+        if (naq->sia_reply_count > 3) {
+            listnode_delete(eigrp->prefix_nbr_sia_query_join_table, naq);
+            eigrp_nbr_hard_restart(naq->nbr, NULL);
+            eigrp_prefix_nbr_sia_query_join_free(naq);
+        } else {
+            ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
+            thread_add_timer(master, eigrp_siaquery_siareply_timeout, naq, EIGRP_SIA_TIMEOUT,
+                             &(naq->sia_nbr_timer));
         }
-    } else {
-        eigrp_sia_unlock(eigrp_lookup());
     }
+    return 0;
 }
 
 int eigrp_sia_timeout(struct thread *sia_timer) {
