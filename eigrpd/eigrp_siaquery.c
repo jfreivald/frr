@@ -349,10 +349,13 @@ int eigrp_sia_timeout(struct thread *sia_timer) {
                 continue;
             }
         }
-        if (!asq) {
+        if (qnbr && !asq) {
             //This neighbor/prefix combo was not found in the active list. Allocate a new one.
             asq = eigrp_prefix_nbr_sia_query_join_new(qnbr, pe);
             listnode_add(eigrp->prefix_nbr_sia_query_join_table, asq);
+        } else if (!qnbr) {
+            //There are no more neighbors. We are done.
+            break;
         }
 
         //If there is an active timer for this neighbor, cancel it.
