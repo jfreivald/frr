@@ -310,6 +310,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
 	struct listnode *ein;
 	struct eigrp_interface *tei;
+    struct eigrp_prefix_nbr_sia_query *asq;
 
 	char pbuf[PREFIX2STR_BUFFER];
 
@@ -367,6 +368,20 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 				if (msg.prefix->active_queries)
 				    listnode_delete(msg.prefix->active_queries, qnbr);
 			}
+		}
+
+		for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, n, nn, asq)) {
+		    if (asq->nbr == nbr) {
+		        //This nbr has an active SIA QUERY. Cancel it!
+		        eigrp_sia_lock(eigrp);
+		        THREAD_OFF(asq->sia_nbr_timer);
+		        asq->prefix = NULL;
+		        asq->nbr = NULL;
+		        asq->sia_reply_count = 0;
+		        listnode_delete(eigrp->prefix_nbr_sia_query_join_table, asq);
+                eigrp_prefix_nbr_sia_query_join_free(asq);
+		        eigrp_sia_unlock(eigrp);
+		    }
 		}
 	}
 
