@@ -370,22 +370,13 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 			}
 		}
 
-		for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, n, nn, asq)) {
-		    if (asq->nbr == nbr) {
-		        //This nbr has an active SIA QUERY. Cancel it!
-		        eigrp_sia_lock(eigrp);
-		        THREAD_OFF(asq->sia_nbr_timer);
-		        asq->prefix = NULL;
-		        asq->nbr = NULL;
-		        asq->sia_reply_count = 0;
-		        listnode_delete(eigrp->prefix_nbr_sia_query_join_table, asq);
-                eigrp_prefix_nbr_sia_query_join_free(asq);
-		        eigrp_sia_unlock(eigrp);
-		    }
-		}
+        eigrp_sia_lock(eigrp);
+        eigrp_cancel_nbr_sia_timers(nbr);
+        eigrp_sia_unlock(eigrp);
 	}
 
-	//Finish this sequence.
+
+    //Finish this sequence.
     eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
 
 	eigrp_fsm_event(&msg);

@@ -850,15 +850,6 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
 
     eigrp_sia_lock(eigrp);
     eigrp_cancel_prefix_sia_timers(prefix);
-
-    for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, node1, node2, naq)) {
-        if (naq->prefix == prefix) {
-            //We lock the mutex but we never unlock it because we also free it.
-            listnode_delete(eigrp->prefix_nbr_sia_query_join_table, naq);
-            eigrp_prefix_nbr_sia_query_join_free(naq);
-        }
-    }
-
     eigrp_sia_unlock(eigrp);
 
     prefix->state = EIGRP_FSM_STATE_PASSIVE;

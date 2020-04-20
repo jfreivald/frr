@@ -295,7 +295,14 @@ void eigrp_cancel_prefix_nbr_sia_timer(struct eigrp_prefix_nbr_sia_query *naq) {
     prefix2str(naq->prefix->destination, prefixbuf, PREFIX2STR_BUFFER);
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stuck in active timer cancelled[%s:%s]", inet_ntoa(naq->nbr->src), prefixbuf);
 
+    naq->prefix = NULL;
+    naq->nbr = NULL;
+    naq->sia_reply_count = 0;
     naq->sia_nbr_timer = NULL;
+
+    listnode_delete(eigrp_lookup()->prefix_nbr_sia_query_join_table, naq);
+    eigrp_prefix_nbr_sia_query_join_free(naq);
+
 }
 
 int eigrp_siaquery_siareply_timeout(struct thread *sia_nbr_timer) {
@@ -344,6 +351,7 @@ int eigrp_received_siareply_set_timer(struct eigrp_prefix_nbr_sia_query *naq) {
 }
 
 int eigrp_sia_timeout(struct thread *sia_timer) {
+    ///NOTE: sia_timers have struct eigrp_prefix_entry data types
     struct eigrp_prefix_entry *pe = sia_timer->arg;
     struct listnode *nnode, *q1, *q2;
     struct eigrp_neighbor *qnbr;
@@ -373,13 +381,18 @@ int eigrp_sia_timeout(struct thread *sia_timer) {
             break;
         }
 
-        prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stuck in active timeout[%s:%s]", inet_ntoa(asq->nbr->src), prefixbuf);
-        //If there is an active timer for this neighbor, cancel it.
-        eigrp_cancel_prefix_nbr_sia_timer(asq);
-        eigrp_send_siaquery(asq->nbr, pe);
-        ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
-        thread_add_timer(master, eigrp_sia_reset_nbr, asq, EIGRP_SIA_TIMEOUT, &(asq->sia_nbr_timer));
+        if (asq->nbr) {
+            prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stuck in active timeout[%s:%s]",
+              inet_ntoa(asq->nbr->src), prefixbuf);
+            //If there is an active timer for this neighbor, cancel it.
+            eigrp_cancel_prefix_nbr_sia_timer(asq);
+            eigrp_send_siaquery(asq->nbr, pe);
+            ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
+            thread_add_timer(master, eigrp_sia_reset_nbr, asq, EIGRP_SIA_TIMEOUT, &(asq->sia_nbr_timer));
+        } else {
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stuck in active timeout found asq for NULL neighbor[%x:%x:%x:%x]. Ignore.", asq->nbr, asq->prefix, asq->sia_reply_count, asq->sia_nbr_timer);
+        }
     }
 
     eigrp_sia_unlock(eigrp);
@@ -388,7 +401,7 @@ int eigrp_sia_timeout(struct thread *sia_timer) {
 
 /** \fn eigrp_cancel_prefix_sia_timers(struct eigrp_prefix_entry *pe)
  *
- * The calling function must already have the SIA lock.
+ * Cancel all SIA timers associated with this prefix. The calling function must already have the SIA lock.
  *
  * @param pe Prefix to be operated on
  */
@@ -403,7 +416,27 @@ void eigrp_cancel_prefix_sia_timers(struct eigrp_prefix_entry *pe) {
     pe->sia_timer = NULL;
 
     for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, n1, n2, naq)) {
-        eigrp_cancel_prefix_nbr_sia_timer(naq);
+        if (naq->prefix == pe) {
+            eigrp_cancel_prefix_nbr_sia_timer(naq);
+        }
+    }
+}
+
+/** \fn eigrp_cancel_nbr_sia_timers(struct eigrp_prefix_entry *pe)
+ *
+ * Cancel all SIA timers associated with this neighbor. The calling function must already have the SIA lock.
+ *
+ * @param nbr Neighbor to be operated on
+ */
+void eigrp_cancel_nbr_sia_timers(struct eigrp_neighbor *nbr) {
+    struct eigrp *eigrp = eigrp_lookup();
+    struct listnode *n1, *n2;
+    struct eigrp_prefix_nbr_sia_query *naq;
+
+    for (ALL_LIST_ELEMENTS(eigrp->prefix_nbr_sia_query_join_table, n1, n2, naq)) {
+        if (naq->nbr == nbr){
+            eigrp_cancel_prefix_nbr_sia_timer(naq);
+        }
     }
 }
 

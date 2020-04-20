@@ -40,6 +40,7 @@ void eigrp_topology_init(struct route_table *table);
 struct list * list_new_nexthop_entries(void);
 struct eigrp_prefix_nbr_sia_query *eigrp_prefix_nbr_sia_query_join_new(struct eigrp_neighbor *nbr, struct eigrp_prefix_entry *prefix);
 void eigrp_cancel_prefix_sia_timers(struct eigrp_prefix_entry *pe);
+void eigrp_cancel_nbr_sia_timers(struct eigrp_neighbor *nbr);
 void eigrp_new_prefix_active_timer(struct eigrp_prefix_entry *pe, uint32_t timeout);
 void eigrp_prefix_nbr_sia_query_join_free(struct eigrp_prefix_nbr_sia_query *naq);
 void eigrp_sia_lock(struct eigrp *eigrp);
