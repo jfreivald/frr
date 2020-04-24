@@ -381,7 +381,7 @@ int eigrp_sia_timeout(struct thread *sia_timer) {
             break;
         }
 
-        if (asq->nbr) {
+        if (asq->nbr && asq->prefix) {
             prefix2str(pe->destination, prefixbuf, PREFIX2STR_BUFFER);
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stuck in active timeout[%s:%s]",
               inet_ntoa(asq->nbr->src), prefixbuf);
@@ -391,7 +391,7 @@ int eigrp_sia_timeout(struct thread *sia_timer) {
             ///NOTE: sia_nbr_timers have struct eigrp_prefix_nbr_sia_query data types
             thread_add_timer(master, eigrp_sia_reset_nbr, asq, EIGRP_SIA_TIMEOUT, &(asq->sia_nbr_timer));
         } else {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stuck in active timeout found asq for NULL neighbor[%x:%x:%x:%x]. Ignore.", asq->nbr, asq->prefix, asq->sia_reply_count, asq->sia_nbr_timer);
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stuck in active timeout found asq for NULL Neighbor or Prefix[%x:%x:%x:%x]. Ignore.", asq->nbr, asq->prefix, asq->sia_reply_count, asq->sia_nbr_timer);
         }
     }
 
