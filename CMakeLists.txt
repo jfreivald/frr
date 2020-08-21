@@ -12,7 +12,7 @@ add_executable(eigrpd
         eigrpd/eigrpd.c        eigrpd/eigrp_hello.c      eigrpd/eigrp_neighbor.c  eigrpd/eigrp_pkt_tlv2.c  eigrpd/eigrp_siaquery.c  eigrpd/eigrp_update.c
         eigrpd/eigrp_dump.c    eigrpd/eigrp_interface.c  eigrpd/eigrp_network.c   eigrpd/eigrp_query.c     eigrpd/eigrp_siareply.c  eigrpd/eigrp_vty.c
         eigrpd/eigrp_filter.c  eigrpd/eigrp_main.c       eigrpd/eigrp_packet.c    eigrpd/eigrp_reply.c     eigrpd/eigrp_snmp.c      eigrpd/eigrp_zebra.c
-        eigrpd/eigrp_fsm.c     eigrpd/eigrp_memory.c     eigrpd/eigrp_pkt_tlv1.c  eigrpd/eigrp_topology.c
+        eigrpd/eigrp_fsm.c     eigrpd/eigrp_memory.c     eigrpd/eigrp_pkt_tlv1.c  eigrpd/eigrp_topology.c  eigrpd/eigrp_bfd.c
         )
 target_link_libraries(eigrpd ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt numa)
 
