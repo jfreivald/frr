@@ -112,7 +112,8 @@ struct eigrp_bfd_server {
 struct eigrp_bfd_server * eigrp_bfd_server_new(struct eigrp *eigrp);
 void eigrp_bfd_server_destroy(struct eigrp_bfd_server *bfd_server);
 struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr);
-void eigrp_bfd_session_destroy(eigrp_bfd_session * eigrp_bfd_session);
+void eigrp_bfd_session_destroy(struct eigrp_bfd_session * eigrp_bfd_session);
+static int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2);
 struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *session);
 void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg *eigrp_bfd_ctl_msg);
 
