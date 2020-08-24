@@ -28,6 +28,7 @@ eigrpd_libeigrp_a_SOURCES = \
 	eigrpd/eigrp_vty.c \
 	eigrpd/eigrp_zebra.c \
 	eigrpd/eigrpd.c \
+	eigrpd/eigrp_bfd.c \
 	# end
 
 eigrpdheaderdir = $(pkgincludedir)/eigrpd

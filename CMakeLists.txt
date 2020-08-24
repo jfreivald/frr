@@ -5,7 +5,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_CONFIG_H=1 -DDEBUG -DDEVELOPER")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 
-
 include_directories(eigrpd/test eigrpd . lib)
 
 add_executable(eigrpd
@@ -14,7 +13,7 @@ add_executable(eigrpd
         eigrpd/eigrp_filter.c  eigrpd/eigrp_main.c       eigrpd/eigrp_packet.c    eigrpd/eigrp_reply.c     eigrpd/eigrp_snmp.c      eigrpd/eigrp_zebra.c
         eigrpd/eigrp_fsm.c     eigrpd/eigrp_memory.c     eigrpd/eigrp_pkt_tlv1.c  eigrpd/eigrp_topology.c  eigrpd/eigrp_bfd.c
         )
-target_link_libraries(eigrpd ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt numa)
+target_link_libraries(eigrpd frr pthread dl crypt m json-c rt numa)
 
 add_executable(zebra
         zebra/connected.c          zebra/ipforward_sysctl.c  zebra/rtread_sysctl.c       zebra/zebra_mpls_openbsd.c      zebra/zebra_rnh.c
@@ -28,8 +27,10 @@ add_executable(zebra
         zebra/ioctl_solaris.c      zebra/rt_netlink.c        zebra/zebra_mpls_netlink.c  zebra/zebra_ptm_redistribute.c
         zebra/ipforward_proc.c     zebra/rtread_getmsg.c     zebra/zebra_mpls_null.c     zebra/zebra_pw.c
         zebra/ipforward_solaris.c  zebra/rtread_netlink.c    zebra/zebra_mpls.c          zebra/zebra_rib.c)
-target_link_libraries(zebra ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt)
+target_link_libraries(zebra frr pthread dl crypt m json-c rt)
 
+#[[
 add_executable(eigrp_fsm_test eigrpd/test/eigrp_fsm_test.c eigrpd/eigrp_network.c eigrpd/eigrp_interface.c)
 link_directories(eigrpd . lib/.libs)
 target_link_libraries(eigrp_fsm_test ${CMAKE_SOURCE_DIR}/eigrpd/libeigrp.a ${CMAKE_SOURCE_DIR}/lib/.libs/libfrr.a criterion pthread dl crypt m json-c rt numa)
+]]

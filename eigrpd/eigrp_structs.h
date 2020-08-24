@@ -298,6 +298,8 @@ struct eigrp_neighbor {
 	struct list *nbr_gr_prefixes_send;
 	/* if packet is first or last during Graceful restart */
 	enum Packet_part_type nbr_gr_packet_type;
+
+	struct eigrp_bfd_session *bfd_session;
 };
 
 //---------------------------------------------------------------------------------------------------------------------------------------------

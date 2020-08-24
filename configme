@@ -7,7 +7,6 @@
     --sbindir=/usr/local/sbin \
     --sysconfdir=/usr/local/etc \
     --libdir=/usr/local/lib \
-    --runstatedir=/run/frr \
     --enable-pimd \
     --enable-watchfrr \
     --enable-ospfclient=yes \
@@ -24,3 +23,4 @@
     --with-pkg-git-version \
     --with-pkg-extra-version=-LTEspeed
 		#--enable-dev-build \
+    		#--runstatedir=/run/frr \

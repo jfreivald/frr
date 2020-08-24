@@ -33,6 +33,8 @@
 
 #ifndef _ZEBRA_EIGRP_NEIGHBOR_H
 #define _ZEBRA_EIGRP_NEIGHBOR_H
+#include "eigrpd/eigrp_structs.h"
+#include "lib/vty.h"
 
 /* Prototypes */
 extern struct eigrp_neighbor *eigrp_nbr_get(struct eigrp_interface *,

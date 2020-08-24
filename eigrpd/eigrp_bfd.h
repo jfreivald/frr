@@ -40,36 +40,42 @@
 #ifndef _ZEBRA_EIGRP_BFD_H
 #define _ZEBRA_EIGRP_BFD_H
 
-#include "eigrp_neighbor.h"
-#include "eigrp_structs.h"
-#include "../lib/thread.h"
+#include <stdint.h>
+#include "lib/thread.h"
+#include "eigrpd/eigrp_structs.h"
+#include "eigrpd/eigrp_neighbor.h"
 
-#define EIGRP_BFD_ADMIN_DOWN    0
-#define EIGRP_BFD_DOWN          1
-#define EIGRP_BFD_INIT          2
-#define EIGRP_BFD_UP            3
+#define EIGRP_BFD_STATUS_ADMIN_DOWN     (0)
+#define EIGRP_BFD_STATUS_DOWN           (1)
+#define EIGRP_BFD_STATUS_INIT           (2)
+#define EIGRP_BFD_STATUS_UP             (3)
 
+#define EIGRP_BFD_LENGTH_NO_AUTH        (24)
 
-#define EIGRP_BFD_DIAG_NONE                 0
-#define EIGRP_BFD_DIAG_CTL_TIME_EXP         1
-#define EIGRP_BFD_DIAG_ECHO_FAIL            2
-#define EIGRP_BFD_DIAG_NBR_SESSION_DWN      3
-#define EIGRP_BFD_DIAG_FWD_PLN_RESET        4
-#define EIGRP_BFD_DIAG_PATH_DOWN            5
-#define EIGRP_BFD_DIAG_CONCAT_PATH_DOWN     6
-#define EIGRP_BFD_DIAG_ADMIN_DOWN           7
-#define EIGRP_BFD_DIAG_REV_CONCAT_PATH_DOWN 8
+#define EIGRP_BFD_DIAG_NONE                 (0)
+#define EIGRP_BFD_DIAG_CTL_TIME_EXP         (1)
+#define EIGRP_BFD_DIAG_ECHO_FAIL            (2)
+#define EIGRP_BFD_DIAG_NBR_SESSION_DWN      (3)
+#define EIGRP_BFD_DIAG_FWD_PLN_RESET        (4)
+#define EIGRP_BFD_DIAG_PATH_DOWN            (5)
+#define EIGRP_BFD_DIAG_CONCAT_PATH_DOWN     (6)
+#define EIGRP_BFD_DIAG_ADMIN_DOWN           (7)
+#define EIGRP_BFD_DIAG_REV_CONCAT_PATH_DOWN (8)
 
 
 //NOTE: All times in this module are in milliseconds.
-#define EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL       (1000)
+#define EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL  (1000)
+#define EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL       (100)
 #define EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL       (50)
+#define EIGRP_BFD_DEFAULT_REQ_MIN_ECHO_RX_INTERVAL  (0)
 #define EIGRP_BFD_DEFAULT_DETECT_MULTI              (3)
 #define EIGRP_BFD_DEFAULT_REM_MIN_RX_INTERVAL       (1)
 #define EIGRP_BFD_DEMAND_MODE                       (1)
 #define EIGRP_BFD_NO_DEMAND_MODE                    (0)
 #define EIGRP_BFD_VERSION                           (1)
 #define EIGRP_BFD_NO_AUTH                           (0)
+
+#pragma pack(push, 1)
 
 struct eigrp_bfd_hdr {
     uint8_t vers:3;
@@ -105,9 +111,12 @@ struct eigrp_bfd_ctl_msg {
     struct eigrp_bfd_auth_hdr auth_hdr[0];
 };
 
+#pragma pop
+
 struct eigrp_bfd_session {
     struct eigrp_neighbor *nbr;
     struct thread *eigrp_nbr_bfd_ctl_thread;
+    struct thread *eigrp_nbr_bfd_detection_thread;
     struct eigrp_bfd_ctl_msg *last_ctl_rcv;
     pthread_mutex_t *session_mutex;
 
@@ -120,38 +129,37 @@ struct eigrp_bfd_session {
     uint32_t DesiredMinTxInterval;
     uint32_t RequiredMinRxInterval;
     uint32_t RemoteMinRxInterval;
+    uint32_t RequiredMinEchoRxInterval;
     uint8_t DemandMode;
     uint8_t RemoteDemandMode;
     uint8_t DetectMulti;
     uint8_t AuthType;
+
 };
 
 struct eigrp_bfd_server {
     uint16_t port;
     struct list *sessions;
+    struct thread *bfd_read_thread;
+    int bfd_fd;
+
+    struct stream *i_stream;
+
 };
 
 #define EIGRP_BFD_DEFAULT_PORT  (3784)
 
 //TODO: Create initialization and allocation and deallocation functions;
-struct eigrp_bfd_server * eigrp_bfd_server_new(struct eigrp *eigrp);
-void eigrp_bfd_server_destroy(struct eigrp_bfd_server *bfd_server);
+struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *);
+void eigrp_bfd_server_reset(void);
 struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr);
 void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session);
 static int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2);
-struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *session);
+struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *session, int poll, int final);
+int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int final);
 void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg);
 int eigrp_bfd_write(struct thread *thread);
-
-
-//TODO: Create server thread with processing functions;
-//TODO: Create session thread to send control messages on schedule;
+int eigrp_bfd_read(struct thread *thread);
 int eigrp_bfd_send_ctl_msg_thread(struct thread *t);
-int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session);
-//TODO: Do not create LOOP functions - too much effort on Linux;
-//TODO: For each of the above TODOs (and others), review RFCs and create task list
-//TODO: Establish interaction with EIGRP (come up with neighbor, tear down neighbor when link dies, etc.)
-//TODO: Treat DNS as a multi-access link, not a serial link (because it is, even though it shouldn't be)
-
 
 #endif //_ZEBRA_EIGRP_BFD_H

@@ -58,6 +58,7 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_memory.h"
 #include "eigrpd/eigrp_fsm.h"
+#include "eigrpd/eigrp_bfd.h"
 
 struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 {
@@ -91,6 +92,7 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
 	nbr->multicast_queue = eigrp_fifo_new();
 
 	nbr->crypt_seqnum = 0;
+	nbr->bfd_session = NULL;
 
 	return nbr;
 }
@@ -168,6 +170,9 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
         eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, ei->eigrp, ne->ei->eigrp->neighbor_self, NULL, NULL, EIGRP_FSM_DONE, metric, NULL);
 
         eigrp_fsm_event(&msg);
+
+        eigrp_bfd_server_get(nbr->ei->eigrp); //Runs to ensure the BFD server is up and running.
+        eigrp_bfd_session_new(nbr);
 	}
 	return nbr;
 }
@@ -319,6 +324,9 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
     THREAD_OFF(nbr->t_holddown);
+
+    if (nbr->bfd_session)
+        eigrp_bfd_session_destroy(&nbr->bfd_session);
 
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
