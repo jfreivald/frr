@@ -44,6 +44,8 @@
 #include "lib/thread.h"
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrp_neighbor.h"
+#include <netinet/udp.h>
+#include <netinet/ip.h>
 
 #define EIGRP_BFD_STATUS_ADMIN_DOWN     (0)
 #define EIGRP_BFD_STATUS_DOWN           (1)
@@ -74,6 +76,7 @@
 #define EIGRP_BFD_NO_DEMAND_MODE                    (0)
 #define EIGRP_BFD_VERSION                           (1)
 #define EIGRP_BFD_NO_AUTH                           (0)
+#define EIGRP_BFD_TTL                               (255)
 
 #pragma pack(push, 1)
 
@@ -99,6 +102,9 @@ struct eigrp_bfd_auth_hdr {
 };
 
 struct eigrp_bfd_ctl_msg {
+    struct ip iph;
+    struct udphdr udph;
+
     struct eigrp_bfd_hdr hdr;
     struct eigrp_bfd_flags flags;
     uint8_t detect_multi;
@@ -142,6 +148,7 @@ struct eigrp_bfd_server {
     struct list *sessions;
     struct thread *bfd_read_thread;
     int bfd_fd;
+    pthread_mutex_t *port_write_mutex;
 
     struct stream *i_stream;
 

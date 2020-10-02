@@ -5,8 +5,6 @@
 #include "lib/stream.h"
 #include "lib/vrf.h"
 #include <sockopt.h>
-#include <netinet/udp.h>
-#include <netinet/ip.h>
 #include <lib/prefix.h>
 
 
@@ -38,6 +36,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
         server = eigrp_bfd_server_singleton;
     } else {
         server = XCALLOC(MTYPE_EIGRP_BFD_SERVER, sizeof(struct eigrp_bfd_server));
+        pthread_mutex_init(server->port_write_mutex, NULL);
         server->port = EIGRP_BFD_DEFAULT_PORT;
         server->sessions = list_new_cb(eigrp_bfd_session_cmp_void_ptr, eigrp_bfd_session_destroy_void_ptr, NULL, 0);
         if ( (server->bfd_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
@@ -158,7 +157,35 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     assert(poll == 0 || final == 0);
     assert(sizeof(struct eigrp_bfd_ctl_msg) == EIGRP_BFD_LENGTH_NO_AUTH);
 
-    struct eigrp_bfd_ctl_msg *msg = XMALLOC(MTYPE_EIGRP_BFD_CTL_MSG, EIGRP_BFD_LENGTH_NO_AUTH);
+    struct eigrp_bfd_ctl_msg *msg = XMALLOC(MTYPE_EIGRP_BFD_CTL_MSG, sizeof(struct eigrp_bfd_ctl_msg));
+
+    msg->iph.ip_hl = sizeof(struct ip) >> 2;
+    /* it'd be very strange for header to not be 4byte-word aligned but.. */
+    if (sizeof(struct ip)
+        > (unsigned int)(msg->iph.ip_hl << 2))
+        msg->iph.ip_hl++; /* we presume sizeof struct ip cant overflow
+				ip_hl.. */
+
+    msg->iph.ip_v = IPVERSION;
+    msg->iph.ip_tos = IPTOS_PREC_INTERNETCONTROL;
+    msg->iph.ip_len = (msg->iph.ip_hl << 2) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH;
+
+#if defined(__DragonFly__)
+    /*
+	 * DragonFly's raw socket expects ip_len/ip_off in network byte order.
+	 */
+	iph.ip_len = htons(iph.ip_len);
+#endif
+
+    msg->iph.ip_off = 0;
+    msg->iph.ip_ttl = EIGRP_BFD_TTL;
+    msg->iph.ip_p = IPPROTO_UDP;
+    msg->iph.ip_sum = 0;
+    msg->iph.ip_src.s_addr = session->nbr->ei->address->u.prefix4.s_addr;
+    msg->iph.ip_dst.s_addr = session->nbr->src.s_addr;
+
+    sockopt_iphdrincl_swab_htosys(&msg->iph);
+
     msg->hdr = session->header;
     msg->flags.sta = session->SessionState;
     msg->flags.p = poll;
@@ -209,37 +236,53 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 }
 
 int eigrp_bfd_write(struct thread *thread){
-    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "EIGRP_BFD: PACKET WRITE NOT IMPLEMENTED");
+
 
     struct eigrp_bfd_ctl_msg *msg = (struct eigrp_bfd_ctl_msg *) thread->arg;
-    if (msg)
-        eigrp_bfd_ctl_msg_destroy(&msg);
-    return 0;
+    int retval = 0;
+
+    pthread_mutex_lock(eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
+
+    if (msg) {
+        struct iovec iov[1];
+        iov[0].iov_base = msg;
+        iov[0].iov_len = ntohl(msg->iph.ip_len);
+        struct msghdr message;
+        message.msg_name = msg->iph.ip_dst.s_addr;
+        message.msg_namelen = sizeof(in_addr_t);
+        message.msg_iov = iov;
+        message.msg_iovlen = 1;
+        message.msg_control = 0;
+        message.msg_controllen = 0;
+
+        if (sendmsg(eigrp_bfd_server_get(eigrp_lookup())->bfd_fd, &message, 0) < 0) {
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD: PACKET WRITE ERROR: %s", strerror(errno));
+            retval = -1;
+        }
+    }
+
+    pthread_mutex_unlock(eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
+    return retval;
 }
 
 int eigrp_bfd_read(struct thread *thread) {
     L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "EIGRP_BFD: PACKET PROCESSING NOT IMPLEMENTED");
 
-    struct ip *iph;
     struct interface *ifp = 0;
+    struct eigrp *eigrp = eigrp_lookup();
 
-    if (eigrp_bfd_server_singleton) {
-        eigrp_bfd_server_singleton->bfd_read_thread = NULL;
-        thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_singleton->bfd_fd,&eigrp_bfd_server_singleton->bfd_read_thread);
+    eigrp_bfd_server_get(eigrp)->bfd_read_thread = NULL;
+    thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->bfd_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
 
-        stream_reset(eigrp_bfd_server_singleton->i_stream);
+    stream_reset(eigrp_bfd_server_get(eigrp)->i_stream);
 
-        struct stream *ibuf;
-        if (!(ibuf = eigrp_bfd_recv_packet(eigrp_bfd_server_singleton->bfd_fd, &ifp,
-                                           eigrp_bfd_server_singleton->i_stream))) {
-            return -1;
-        }
-
-        return eigrp_bfd_process_ctl_msg(ibuf, ifp);
+    struct stream *ibuf;
+    if (!(ibuf = eigrp_bfd_recv_packet(eigrp_bfd_server_get(eigrp)->bfd_fd, &ifp,
+                                       eigrp_bfd_server_get(eigrp)->i_stream))) {
+        return -1;
     }
 
-    return -1;
-
+    return eigrp_bfd_process_ctl_msg(ibuf, ifp);
 }
 
 struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stream *ibuf)
@@ -356,7 +399,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //no session is found, the packet MUST be discarded.
     if (bfd_msg->your_descr != 0) {
         struct listnode *n;
-        for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_singleton->sessions, n, session)) {
+        for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n, session)) {
             if (session->LocalDescr == ntohl(bfd_msg->your_descr)) {
                 nbr = session->nbr;
                 ei = session->nbr->ei;
