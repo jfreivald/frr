@@ -342,6 +342,17 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
+	if ( (ei->nbrs->count > 1) && (strncmp(ei->ifp->name, "dnsTun", 20) == 0)) {
+	    //This is a DNS interface. DNS interfaces are only allowed one neighbor. Kill any neighbors that are not this one.
+	    struct listnode *n, *nn;
+	    struct eigrp_neighbor *nnbr;
+	    for (ALL_LIST_ELEMENTS(ei->nbrs, n, nn, nnbr)) {
+	        if (nnbr->state == EIGRP_NEIGHBOR_UP && nnbr != nbr) {
+	            eigrp_nbr_down(nnbr);
+	        }
+	    }
+	}
+
 	if (IS_DEBUG_EIGRP_PACKET(eigrph->opcode - 1, RECV))
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Processing Hello size[%u] int(%s) nbr(%s)", size,
 				ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT),
@@ -728,11 +739,6 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 		// add in the TID list if doing multi-topology
 		length += eigrp_tidlist_encode(ep->s);
 
-		/* encode Peer Termination TLV if needed */
-		if (flags & EIGRP_HELLO_GRACEFUL_SHUTDOWN_NBR)
-			length +=
-					eigrp_peer_termination_encode(ep->s, nbr_addr);
-
 		// Set packet length
 		ep->length = length;
 
@@ -797,6 +803,36 @@ void eigrp_hello_send_ack(struct eigrp_neighbor *nbr, uint32_t sequence_number)
 		thread_add_write(master, eigrp_write, nbr->ei->eigrp,
 				nbr->ei->eigrp->fd, &nbr->ei->eigrp->t_write);
 	}
+}
+
+void eigrp_hello_send_reset(struct eigrp_neighbor *nbr)
+{
+    struct eigrp_packet *ep;
+    struct eigrp_header *hdr;
+
+    /* if packet successfully created, add it to the interface queue */
+    ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
+
+    if (ep) {
+        if (IS_DEBUG_EIGRP_PACKET(0, SEND))
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Queueing [Shutdown] Ack Seq [%u] nbr [%s]",
+              nbr->recv_sequence_number,
+              inet_ntoa(nbr->src));
+        hdr = (struct eigrp_header *)STREAM_DATA(ep->s);
+        hdr->ack = htonl(nbr->recv_sequence_number);
+        ep->nbr = nbr;
+
+        /* Add packet to the top of the interface output queue*/
+        eigrp_fifo_push(nbr->ei->obuf, ep);
+
+        /* Hook thread to write packet. */
+        if (nbr->ei->on_write_q == 0) {
+            listnode_add(nbr->ei->eigrp->oi_write_q, nbr->ei);
+            nbr->ei->on_write_q = 1;
+        }
+        thread_add_write(master, eigrp_write, nbr->ei->eigrp,
+                         nbr->ei->eigrp->fd, &nbr->ei->eigrp->t_write);
+    }
 }
 
 /**

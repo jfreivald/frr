@@ -317,6 +317,10 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 	if (!nbr)
 		return;
 
+	if (nbr->state == EIGRP_NEIGHBOR_UP) {
+        eigrp_hello_send_reset(nbr);
+	}
+
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
     THREAD_OFF(nbr->t_holddown);
 
