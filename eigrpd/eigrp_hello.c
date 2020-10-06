@@ -342,13 +342,19 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	if ( (ei->nbrs->count > 1) && (strncmp(ei->ifp->name, "dnsTun", 20) == 0)) {
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "HELLO from %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
+	if ( (ei->nbrs->count > 1) && (strncmp(ei->ifp->name, "dnsTun", 6) == 0)) {
 	    //This is a DNS interface. DNS interfaces are only allowed one neighbor. Kill any neighbors that are not this one.
 	    struct listnode *n, *nn;
 	    struct eigrp_neighbor *nnbr;
 	    for (ALL_LIST_ELEMENTS(ei->nbrs, n, nn, nnbr)) {
 	        if (nnbr->state == EIGRP_NEIGHBOR_UP && nnbr != nbr) {
 	            eigrp_nbr_down(nnbr);
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"New neighbor [%s] on interface [%s] kicking off previous neighbor [%s]",
+                  inet_ntoa(nbr->src),
+                  nbr->ei->ifp->name,
+                  inet_ntoa(nnbr->src)
+                );
 	        }
 	    }
 	}
@@ -822,6 +828,7 @@ void eigrp_hello_send_reset(struct eigrp_neighbor *nbr)
         hdr->ack = htonl(nbr->recv_sequence_number);
         ep->nbr = nbr;
 
+        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"RESETTING NEIGHBOR [%s]", inet_ntoa(nbr->src));
         /* Add packet to the top of the interface output queue*/
         eigrp_fifo_push(nbr->ei->obuf, ep);
 
