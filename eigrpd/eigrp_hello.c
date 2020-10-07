@@ -349,7 +349,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	    struct eigrp_neighbor *nnbr;
 	    for (ALL_LIST_ELEMENTS(ei->nbrs, n, nn, nnbr)) {
 	        if (nnbr->state == EIGRP_NEIGHBOR_UP && nnbr != nbr) {
-                eigrp_hello_send_reset(nnbr);
+                eigrp_nbr_down(nnbr);
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"New neighbor [%s] on interface [%s] kicking off previous neighbor [%s]",
                   inet_ntoa(nbr->src),
                   nbr->ei->ifp->name,
