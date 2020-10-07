@@ -585,14 +585,14 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                     if (listnode_head(msg->prefix->entries) == msg->entry) {
                         //Query is from successor
                         if (msg->prefix->entries->count > 1) {
-                            //FS Exists. Event 2
+                            //FS Exists. Event 1
                             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. FS Exists.");
-                            return 2;
+                            return EIGRP_FSM_EVENT_Q_SE;
                         }
 
                         //No FS. Event 3
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from successor. No FS Exists.");
-                        return 3;
+                        return EIGRP_FSM_EVENT_Q_SDNE;
                     }
                     //Not from Successor - Event 1
                     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Query from non-successor");
@@ -605,12 +605,12 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                                 //FS Exists - Event 2
                                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM,
                                   "PASSIVE: Update INCREASE from successor. FS Exists.");
-                                return 2;
+                                return EIGRP_FSM_EVENT_NQE_SE;
                             }
                             //Metric increase from successor - Event 4
                             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM,
                               "PASSIVE: Update INCREASE from successor. No FS Exists.");
-                            return 4;
+                            return EIGRP_FSM_EVENT_NQE_SDNE;
                         }
                         //Metric did not increase - Event 2
                         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update no increase from successor.");
