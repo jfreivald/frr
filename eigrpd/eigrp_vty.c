@@ -868,7 +868,7 @@ DEFUN (no_eigrp_ip_summary_address,
 
 DEFUN (eigrp_single_neighbor_summary,
        eigrp_single_neighbor_summary_cmd,
-       "ip eigrp single_neighbor (1-65535)/M",
+       "ip eigrp single_neighbor (1-65535)",
        "Interface Internet Protocol config commands\n"
        "Enhanced Interior Gateway Routing Protocol (EIGRP)\n"
        "Reset any previous neighbor when a new one comes up\n"
@@ -897,7 +897,7 @@ DEFUN (eigrp_single_neighbor_summary,
 
 DEFUN (no_eigrp_single_neighbor_summary,
        no_eigrp_single_neighbor_summary_cmd,
-       "no ip eigrp single_neighbor (1-65535)/M",
+       "no ip eigrp single_neighbor (1-65535)",
        NO_STR
        "Interface Internet Protocol config commands\n"
        "Enhanced Interior Gateway Routing Protocol (EIGRP)\n"
