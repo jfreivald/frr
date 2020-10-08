@@ -2352,7 +2352,7 @@ static void vty_read_file(FILE *confp)
 
 	vty = vty_new();
 	/* vty_close won't close stderr;  if some config command prints
-	 * something it'll end up there.  (not ideal; it'd be beter if output
+	 * something it'll end up there.  (not ideal; it'd be better if output
 	 * from a file-load went to logging instead.  Also note that if this
 	 * function is called after daemonizing, stderr will be /dev/null.)
 	 *
