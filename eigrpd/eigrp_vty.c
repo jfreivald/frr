@@ -333,6 +333,8 @@ DEFUN (eigrp_single_neighbor,
     struct listnode *node;
     char *ifname = argv[1]->arg;
 
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Processing non-standard command \"single-neighbor\" for %s", ifname);
+
     for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
         if (strcmp(ifname, ei->ifp->name) == 0) {
             ei->is_single_neighbor = true;
