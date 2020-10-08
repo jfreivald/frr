@@ -523,8 +523,11 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
         eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
         if (ei->nbrs->count > 1) {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Interface %s has %d neighbors", ei->ifp->name, ei->nbrs->count);
             for (ALL_LIST_ELEMENTS_RO(eigrp->single_neighbor_interfaces, n1, snip)) {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Compare %s and %s", ei->ifp->name, snip);
                 if (strncmp(snip, ei->ifp->name, 20)) {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Match");
                     //This interface only allows one neighbor. Kill any neighbors that are not this one.
                     struct listnode *n, *nn;
                     struct eigrp_neighbor *nnbr;
@@ -539,7 +542,10 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
                             eigrp_nbr_down(nnbr);
                         }
                     }
+                } else {
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "No Match");
                 }
+
             }
         }
 	} else if (eigrph->opcode != EIGRP_OPC_HELLO) {
