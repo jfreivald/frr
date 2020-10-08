@@ -866,6 +866,64 @@ DEFUN (no_eigrp_ip_summary_address,
 	return CMD_SUCCESS;
 }
 
+DEFUN (eigrp_single_neighbor_summary,
+       eigrp_single_neighbor_summary_cmd,
+       "ip eigrp single_neighbor (1-65535)/M",
+       "Interface Internet Protocol config commands\n"
+       "Enhanced Interior Gateway Routing Protocol (EIGRP)\n"
+       "Reset any previous neighbor when a new one comes up\n"
+       "AS number\n")
+{
+    VTY_DECLVAR_CONTEXT(interface, ifp);
+    struct eigrp_interface *ei = ifp->info;
+    struct eigrp *eigrp;
+
+    eigrp = eigrp_lookup();
+    if (eigrp == NULL) {
+        vty_out(vty, " EIGRP Routing Process not enabled\n");
+        return CMD_SUCCESS;
+    }
+
+    if (!ei) {
+        vty_out(vty, " EIGRP not configured on this interface\n");
+        return CMD_SUCCESS;
+    }
+
+    ei->is_single_neighbor = true;
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Using non-standard feature: single_neighbor interface");
+
+    return CMD_SUCCESS;
+}
+
+DEFUN (no_eigrp_single_neighbor_summary,
+       no_eigrp_single_neighbor_summary_cmd,
+       "no ip eigrp single_neighbor (1-65535)/M",
+       NO_STR
+       "Interface Internet Protocol config commands\n"
+       "Enhanced Interior Gateway Routing Protocol (EIGRP)\n"
+       "Reset any previous neighbor when a new one comes up\n"
+       "AS number\n")
+{
+    VTY_DECLVAR_CONTEXT(interface, ifp);
+    struct eigrp_interface *ei = ifp->info;
+    struct eigrp *eigrp;
+
+    eigrp = eigrp_lookup();
+    if (eigrp == NULL) {
+        vty_out(vty, " EIGRP Routing Process not enabled\n");
+        return CMD_SUCCESS;
+    }
+
+    if (!ei) {
+        vty_out(vty, " EIGRP not configured on this interface\n");
+        return CMD_SUCCESS;
+    }
+
+    ei->is_single_neighbor = false;
+
+    return CMD_SUCCESS;
+}
+
 DEFUN (no_eigrp_if_ip_holdinterval,
        no_eigrp_if_ip_holdinterval_cmd,
        "no ip hold-time eigrp",
@@ -1541,6 +1599,10 @@ void eigrp_vty_if_init(void)
 	/*EIGRP Summarization commands*/
 	install_element(INTERFACE_NODE, &eigrp_ip_summary_address_cmd);
 	install_element(INTERFACE_NODE, &no_eigrp_ip_summary_address_cmd);
+
+	/*EIGRP Single Neighbor Interface commands*/
+	install_element(INTERFACE_NODE, &eigrp_single_neighbor_summary_cmd);
+	install_element(INTERFACE_NODE, &no_eigrp_single_neighbor_summary_cmd);
 }
 
 static void eigrp_vty_zebra_init(void)

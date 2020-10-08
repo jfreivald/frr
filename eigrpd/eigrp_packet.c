@@ -519,18 +519,18 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
 		nbr->state = EIGRP_NEIGHBOR_UP;
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
         eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
-        if ( (ei->nbrs->count > 1) && (strncmp(ei->ifp->name, "dnsTun", 6) == 0)) {
-            //This is a DNS interface. DNS interfaces are only allowed one neighbor. Kill any neighbors that are not this one.
+        if ( ei->is_single_neighbor && (ei->nbrs->count > 1) ) {
+            //This interface only allows one neighbor. Kill any neighbors that are not this one.
             struct listnode *n, *nn;
             struct eigrp_neighbor *nnbr;
             for (ALL_LIST_ELEMENTS(ei->nbrs, n, nn, nnbr)) {
                 if (nnbr->state == EIGRP_NEIGHBOR_UP && nnbr != nbr) {
-                    eigrp_nbr_down(nnbr);
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"New neighbor [%s] on interface [%s] kicking off previous neighbor [%s]",
+                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,"New neighbor [%s] on single neighbor interface [%s] kicking off previous neighbor [%s]",
                       inet_ntoa(nbr->src),
                       nbr->ei->ifp->name,
                       inet_ntoa(nnbr->src)
                     );
+                    eigrp_nbr_down(nnbr);
                 }
             }
         }

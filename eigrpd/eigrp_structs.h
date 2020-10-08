@@ -240,6 +240,9 @@ struct eigrp_interface {
 	struct prefix_list *prefix[EIGRP_FILTER_MAX];
 	/* Route-map. */
 	struct route_map *routemap[EIGRP_FILTER_MAX];
+
+	/* Single Neighbor Interface - Does this interface kill old neighbor when new detected. */
+	bool is_single_neighbor;
 };
 
 /* Determines if it is first or last packet

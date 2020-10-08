@@ -139,6 +139,8 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	ei->params.auth_type = EIGRP_AUTH_TYPE_NONE;
 	ei->params.auth_keychain = NULL;
 
+	ei->is_single_neighbor = false;
+
 	return ei;
 }
 
