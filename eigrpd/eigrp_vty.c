@@ -329,19 +329,15 @@ DEFUN (eigrp_single_neighbor,
        "Interface to enforce single neighbor\n")
 {
     VTY_DECLVAR_CONTEXT(eigrp, eigrp);
-    struct eigrp_interface *ei;
     struct listnode *node;
     char *ifname = argv[1]->arg;
 
-    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Processing non-standard command \"single-neighbor\" for %s", ifname);
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Using non-standard feature \"single-neighbor\" for %s", ifname);
 
-    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
-        if (strcmp(ifname, ei->ifp->name) == 0) {
-            ei->is_single_neighbor = true;
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Using non-standard feature \"single-neighbor\" on %s", ei->ifp->name);
-            return CMD_SUCCESS;
-        }
-    }
+    char *name = malloc(20);
+    strncpy(name, ifname, 20);
+    name[19] = 0;
+    listnode_add(eigrp->single_neighbor_interfaces, name);
 
     return CMD_SUCCESS;
 }
@@ -354,14 +350,14 @@ DEFUN (no_eigrp_single_neighbor,
        "Interface to enforce single neighbor\n")
 {
     VTY_DECLVAR_CONTEXT(eigrp, eigrp);
-    struct eigrp_interface *ei;
-    struct listnode *node;
     char *ifname = argv[2]->arg;
+    char *snif;
+    struct listnode *n1, *n2;
 
-    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
-        if (strcmp(ifname, ei->ifp->name) == 0) {
-            ei->is_single_neighbor = false;
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing non-standard feature \"single-neighbor\" from %s", ei->ifp->name);
+    for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interfaces, n1, n2, snif)) {
+        if (strncmp(ifname, snif, 20) == 0) {
+            listnode_delete(eigrp->single_neighbor_interfaces, snif);
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing non-standard feature \"single-neighbor\" from %s", snif);
             return CMD_SUCCESS;
         }
     }

@@ -158,7 +158,9 @@ struct eigrp {
 
 	pthread_mutex_t sia_action_mutex;
 
-	QOBJ_FIELDS
+    struct list *single_neighbor_interfaces;
+
+    QOBJ_FIELDS
 };
 DECLARE_QOBJ_TYPE(eigrp)
 
@@ -241,8 +243,6 @@ struct eigrp_interface {
 	/* Route-map. */
 	struct route_map *routemap[EIGRP_FILTER_MAX];
 
-	/* Single Neighbor Interface - Does this interface kill old neighbor when new detected. */
-	bool is_single_neighbor;
 };
 
 /* Determines if it is first or last packet

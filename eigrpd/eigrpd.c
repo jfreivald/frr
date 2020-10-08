@@ -274,6 +274,8 @@ static struct eigrp *eigrp_new(const char *AS)
 
 	pthread_mutex_init(&eigrp->sia_action_mutex, NULL);
 
+	eigrp->single_neighbor_interfaces = list_new();
+
 	QOBJ_REG(eigrp, eigrp);
 	return eigrp;
 }
