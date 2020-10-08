@@ -618,7 +618,7 @@ eigrp_get_fsm_event(struct eigrp_fsm_action_message *msg)
                     }
                     //Update from non-successor. Event 2.
                     if (msg->prefix->entries->count)
-                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update from non-successor[S:%s][U:%s].", inet_ntoa(((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src), inet_ntoa(msg->adv_router->src));
+                        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "PASSIVE: Update from non-successor[S:%s][U:%s].", ((struct eigrp_neighbor *)listnode_head(msg->prefix->entries))->src, msg->adv_router->src);
                     return 2;
                     //Update from successor
                 default:

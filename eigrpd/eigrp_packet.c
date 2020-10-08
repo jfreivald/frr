@@ -522,6 +522,7 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
 		nbr->state = EIGRP_NEIGHBOR_UP;
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
         eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Interface %s has %d neighbors", ei->ifp->name, ei->nbrs->count);
         if (ei->nbrs->count > 1) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Interface %s has %d neighbors", ei->ifp->name, ei->nbrs->count);
             for (ALL_LIST_ELEMENTS_RO(eigrp->single_neighbor_interfaces, n1, snip)) {
