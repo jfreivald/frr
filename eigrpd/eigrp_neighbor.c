@@ -66,15 +66,17 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei, struct in_addr 
 
     /* Check to see if this neighbor already exists on the interface */
 
-    for (ALL_LIST_ELEMENTS_RO(ei->nbrs, ne, nbr)) {
-        if (nbr == NULL)
-            break;
-        if (nbr->src.s_addr == source_address.s_addr) {
-            return nbr;
+    if (ei && ei->nbrs) {
+        for (ALL_LIST_ELEMENTS_RO(ei->nbrs, ne, nbr)) {
+            if (nbr == NULL)
+                break;
+            if (nbr->src.s_addr == source_address.s_addr) {
+                return nbr;
+            }
         }
     }
 
-    /* Allcate new neighbor. */
+    /* Allocate new neighbor. */
 	nbr = XCALLOC(MTYPE_EIGRP_NEIGHBOR, sizeof(struct eigrp_neighbor));
 	if (!nbr) {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to allocate memory for new neighbor");
