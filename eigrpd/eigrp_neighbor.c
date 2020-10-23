@@ -59,11 +59,20 @@
 #include "eigrpd/eigrp_memory.h"
 #include "eigrpd/eigrp_fsm.h"
 
-struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei)
+struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei, struct in_addr source_address)
 {
 	struct eigrp_neighbor *nbr;
+	struct listnode *ne;
 
-	/* Allcate new neighbor. */
+    /* Check to see if this neighbor already exists on the interface */
+
+    for (ALL_LIST_ELEMENTS_RO(ei->nbrs, ne, nbr)) {
+        if (nbr->src.s_addr == source_address.s_addr) {
+            return nbr;
+        }
+    }
+
+    /* Allcate new neighbor. */
 	nbr = XCALLOC(MTYPE_EIGRP_NEIGHBOR, sizeof(struct eigrp_neighbor));
 	if (!nbr) {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to allocate memory for new neighbor");
@@ -115,13 +124,14 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 
 	char addr_buf[PREFIX2STR_BUFFER];
 
-	if ( NULL == (nbr = eigrp_nbr_new(ei))) {
+
+    assert(ei);
+    assert(ei->eigrp);
+
+if ( NULL == (nbr = eigrp_nbr_new(ei, iph->ip_src))) {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Neighbor not allocated. Unable to process new neighbor.");
 		return NULL;
 	}
-
-	assert(ei);
-	assert(ei->eigrp);
 
 	nbr->src = iph->ip_src;
 
