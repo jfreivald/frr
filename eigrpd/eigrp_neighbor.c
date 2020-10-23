@@ -67,6 +67,8 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei, struct in_addr 
     /* Check to see if this neighbor already exists on the interface */
 
     for (ALL_LIST_ELEMENTS_RO(ei->nbrs, ne, nbr)) {
+        if (nbr == NULL)
+            break;
         if (nbr->src.s_addr == source_address.s_addr) {
             return nbr;
         }
@@ -128,7 +130,7 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
     assert(ei);
     assert(ei->eigrp);
 
-if ( NULL == (nbr = eigrp_nbr_new(ei, iph->ip_src))) {
+    if ( NULL == (nbr = eigrp_nbr_new(ei, iph->ip_src))) {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Neighbor not allocated. Unable to process new neighbor.");
 		return NULL;
 	}
