@@ -139,6 +139,8 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	ei->params.auth_type = EIGRP_AUTH_TYPE_NONE;
 	ei->params.auth_keychain = NULL;
 
+	ei->single_neighbor = 0;
+
 	return ei;
 }
 
@@ -185,6 +187,8 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	struct eigrp *eigrp;
 	struct eigrp_fsm_action_message msg;
 	struct prefix dest_addr;
+	struct listnode *ln;
+	char *ifname;
     int shm_fd;
 
     struct mmap_status_t *mmap_ptr;
@@ -204,6 +208,12 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "%s used for Neighbor Self CF[%s:%s:%d]", ei->ifp ? ei->ifp->name : "NEW", file, func, line );
 		eigrp->neighbor_self->ei = ei;
 		eigrp->neighbor_self->src = ei->connected->address->u.prefix4;
+	}
+
+	for (ALL_LIST_ELEMENTS_RO(eigrp->single_neighbor_interface_names, ln, ifname)) {
+	    if ((strnlen(ifname, EIGRP_MAX_INTERFACE_NAME) == strnlen(ei->ifp->name, EIGRP_MAX_INTERFACE_NAME)) && (strncmp(ei->ifp->name, ifname, strlen(ifname)) == 0)) {
+	        ei->single_neighbor = 1;
+	    }
 	}
 
     if ((strncmp(ei->ifp->name, "dnsTun", 6) == 0 )) {

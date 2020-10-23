@@ -68,6 +68,7 @@ struct eigrp_master {
 #define EIGRP_MAX_HOP_COUNT         (0xFF)
 #define EIGRP_MIN_RELIABILITY       (0x0)
 #define EIGRP_MAX_LOAD              (0xFF)
+#define EIGRP_MAX_INTERFACE_NAME    (20)
 
 struct eigrp_metrics {
 	uint32_t delay;
@@ -158,7 +159,7 @@ struct eigrp {
 
 	pthread_mutex_t sia_action_mutex;
 
-    struct list *single_neighbor_interfaces;
+    struct list *single_neighbor_interface_names;
 
     QOBJ_FIELDS
 };
@@ -242,6 +243,8 @@ struct eigrp_interface {
 	struct prefix_list *prefix[EIGRP_FILTER_MAX];
 	/* Route-map. */
 	struct route_map *routemap[EIGRP_FILTER_MAX];
+
+	int single_neighbor;
 
 };
 

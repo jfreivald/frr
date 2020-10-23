@@ -334,10 +334,10 @@ DEFUN (eigrp_single_neighbor,
 
     L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Using non-standard feature \"single-neighbor\" for %s", ifname);
 
-    char *name = malloc(20);
-    strncpy(name, ifname, 20);
-    name[19] = 0;
-    listnode_add(eigrp->single_neighbor_interfaces, name);
+    char *name = malloc(EIGRP_MAX_INTERFACE_NAME);
+    strncpy(name, ifname, EIGRP_MAX_INTERFACE_NAME);
+    name[EIGRP_MAX_INTERFACE_NAME-1] = 0;
+    listnode_add(eigrp->single_neighbor_interface_names, name);
 
     return CMD_SUCCESS;
 }
@@ -354,9 +354,9 @@ DEFUN (no_eigrp_single_neighbor,
     char *snif;
     struct listnode *n1, *n2;
 
-    for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interfaces, n1, n2, snif)) {
-        if (strncmp(ifname, snif, 20) == 0) {
-            listnode_delete(eigrp->single_neighbor_interfaces, snif);
+    for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interface_names, n1, n2, snif)) {
+        if (strncmp(ifname, snif, EIGRP_MAX_INTERFACE_NAME) == 0) {
+            listnode_delete(eigrp->single_neighbor_interface_names, snif);
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing non-standard feature \"single-neighbor\" from %s", snif);
             return CMD_SUCCESS;
         }
@@ -364,8 +364,6 @@ DEFUN (no_eigrp_single_neighbor,
 
     return CMD_SUCCESS;
 }
-
-
 
 DEFUN (eigrp_timers_active,
        eigrp_timers_active_cmd,
