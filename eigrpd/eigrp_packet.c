@@ -496,7 +496,7 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
 	uint32_t flags = ntohl(eigrph->flags);
 	struct eigrp *eigrp = ei->eigrp;
 	struct listnode *n, *nn;
-	struct eigrp_neighbor *nnbr;
+	struct eigrp_neighbor *pnbr;
 	char *snip;
 
 	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "PACKET FROM NON-UP NEIGHBOR [%s]: OPCODE[%d] FLAGS[%02x] STATE[%02x]]",
@@ -525,22 +525,23 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
         eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
         if (ei->single_neighbor != 0 && ei->nbrs->count > 1) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Single neighbor Interface %s has %d neighbors", ei->ifp->name, ei->nbrs->count);
-            for (ALL_LIST_ELEMENTS(ei->nbrs, n, nn, nnbr)) {
-                if ((nnbr->state == EIGRP_NEIGHBOR_UP) && (nnbr != nbr)) {
+            for (ALL_LIST_ELEMENTS(ei->nbrs, n, nn, pnbr)) {
+                if ((pnbr->state == EIGRP_NEIGHBOR_UP) && (pnbr != nbr)) {
                     char addr1[20], addr2[20];
-                    strncpy(addr1, inet_ntoa(nnbr->src), 20);
-                    strncpy(addr2, inet_ntoa(nbr->src), 20);
-                    if(nbr->src.s_addr == nnbr->src.s_addr) {
-                        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "WARNING: TWO NEIGHBORS ON THE SAME INTERFACE HAVE THE SAME SOURCE [%08x:%s][%08x:%s]", nbr, addr1, nnbr, addr2);
+                    strncpy(addr1, inet_ntoa(nbr->src), 20);
+                    strncpy(addr2, inet_ntoa(pnbr->src), 20);
+                    if(nbr->src.s_addr == pnbr->src.s_addr) {
+                        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "WARNING: TWO NEIGHBORS ON THE SAME INTERFACE HAVE THE SAME SOURCE [%08x:%s][%08x:%s]", nbr, addr1, pnbr, addr2);
                     }
                     L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
                       "New neighbor [%s] on single neighbor interface [%s] kicking off previous neighbor [%s]",
                       addr1, ei->ifp->name, addr2
                     );
-                    eigrp_nbr_down(nnbr);
+                    eigrp_nbr_down(pnbr);
                 }
             }
         }
+        eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
 	} else if (eigrph->opcode != EIGRP_OPC_HELLO) {
 		/* Some other non-init packet. The other router probably thinks we're up. Reset them. */
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INVALID STARTUP SEQUENCE: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
