@@ -527,12 +527,15 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Single neighbor Interface %s has %d neighbors", ei->ifp->name, ei->nbrs->count);
             for (ALL_LIST_ELEMENTS(ei->nbrs, n, nn, nnbr)) {
                 if ((nnbr->state == EIGRP_NEIGHBOR_UP) && (nnbr != nbr)) {
+                    char addr1[20], addr2[20];
+                    strncpy(addr1, inet_ntoa(nnbr->src), 20);
+                    strncpy(addr2, inet_ntoa(nbr->src), 20);
                     if(nbr->src.s_addr == nnbr->src.s_addr) {
-                        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "WARNING: TWO NEIGHBORS ON THE SAME INTERFACE HAVE THE SAME SOURCE [%08x:%s][%08x:%s]", nbr, inet_ntoa(nbr->src), nnbr, inet_ntoa(nnbr->src));
+                        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "WARNING: TWO NEIGHBORS ON THE SAME INTERFACE HAVE THE SAME SOURCE [%08x:%s][%08x:%s]", nbr, addr1, nnbr, addr2);
                     }
                     L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
                       "New neighbor [%s] on single neighbor interface [%s] kicking off previous neighbor [%s]",
-                      inet_ntoa(nbr->src), ei->ifp->name, inet_ntoa(nnbr->src)
+                      addr1, ei->ifp->name, addr2
                     );
                     eigrp_nbr_down(nnbr);
                 }

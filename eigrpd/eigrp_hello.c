@@ -342,7 +342,7 @@ void eigrp_hello_receive(struct eigrp *eigrp, struct ip *iph,
 	/* neighbor must be valid, eigrp_nbr_get creates if none existed */
 	assert(nbr);
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "HELLO from %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO, "HELLO from %s on %s", inet_ntoa(nbr->src), nbr->ei->ifp->name);
 
 	if (IS_DEBUG_EIGRP_PACKET(eigrph->opcode - 1, RECV))
 		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_HELLO,"Processing Hello size[%u] int(%s) nbr(%s)", size,

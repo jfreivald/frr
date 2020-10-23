@@ -346,19 +346,19 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 			continue;
 		prefix2str(&(rn->p), pbuf, PREFIX2STR_BUFFER);
 		if ( (pe = rn->info ) == NULL) {
-			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Skipping empty route node [%s]", pbuf);
+			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_UPDATE,"Skipping empty route node [%s]", pbuf);
 			continue;
 		}
 		prefix2str(pe->destination, pbuf, PREFIX2STR_BUFFER);
 		// Remove all nexthop entries for this neighbor
 
-		L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Checking prefix [%s]", pbuf);
+		L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_UPDATE,"Checking prefix [%s]", pbuf);
 		for (ALL_LIST_ELEMENTS(pe->entries, n, nn, ne)) {
 
 			//Also remove this neighbor from any replies that are pending.
 			for (ALL_LIST_ELEMENTS(pe->rij, rijn, rijnn, rijnbr)) {
 				if (rijnbr->src.s_addr == nbr->src.s_addr) {
-					L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has reply waiting from %s ", pbuf, inet_ntoa(nbr->src));
+					L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_REPLY,"Prefix [%s] has reply waiting from %s, which is shutting down. Close Reply.", pbuf, inet_ntoa(nbr->src));
 
                     eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_REPLY, eigrp, nbr, ne, pe, pe->extTLV ? EIGRP_EXT : EIGRP_INT, EIGRP_INFINITE_METRIC, pe->extTLV ? pe->extTLV : NULL);
 
@@ -367,7 +367,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 			}
 
 			if (ne->adv_router->src.s_addr == nbr->src.s_addr) {
-				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has route node for %s ", pbuf, inet_ntoa(nbr->src));
+				L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_UPDATE,"Prefix [%s] has route node for %s ", pbuf, inet_ntoa(nbr->src));
                 eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, ne, pe, pe->extTLV ? EIGRP_EXT : EIGRP_INT, EIGRP_INFINITE_METRIC, pe->extTLV ? pe->extTLV : NULL);
 
 				eigrp_fsm_event(&msg);
@@ -379,7 +379,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 		struct eigrp_neighbor *qnbr;
 
 		for (ALL_LIST_ELEMENTS(pe->active_queries, n, nn, qnbr)) {
-			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Prefix [%s] has pending query for %s", pbuf, inet_ntoa(nbr->src));
+			L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_REPLY | LOGGER_EIGRP_QUERY, "Prefix [%s] has pending query for %s. Send reply to dying neighbor.", pbuf, inet_ntoa(nbr->src));
 			if (qnbr && nbr->src.s_addr == qnbr->src.s_addr) {
 			    //We send replies to this neighbor even though they are there down now?
                 eigrp_send_reply(nbr, pe);
