@@ -512,11 +512,13 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
                 strncpy(addr1, inet_ntoa(nbr->src), 20);
                 strncpy(addr2, inet_ntoa(pnbr->src), 20);
                 if(nbr->src.s_addr == pnbr->src.s_addr) {
-                    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "WARNING: TWO NEIGHBORS ON THE SAME INTERFACE HAVE THE SAME SOURCE [%08x:%s][%08x:%s]", nbr, addr1, pnbr, addr2);
+                    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
+                            "WARNING: TWO NEIGHBORS ON THE SAME INTERFACE HAVE THE SAME SOURCE [%08x:%s][%08x:%s]",
+                            nbr, addr1, pnbr, addr2);
                 }
                 L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
-                  "New neighbor [%s] on single neighbor interface [%s] send restart to previous neighbor [%s]",
-                  addr1, ei->ifp->name, addr2
+                        "New neighbor [%s] on single neighbor interface [%s] send restart to previous neighbor [%s]",
+                        addr1, ei->ifp->name, addr2
                 );
                 eigrp_hello_send_reset(pnbr);
             }
@@ -527,10 +529,9 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s SEND INIT: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
 	    eigrp_update_send_init(nbr);
 	    nbr->state |= EIGRP_NEIGHBOR_INIT_TXD;
-	}
-	if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
+	} else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INIT RCVD: STATE[%02x] FLAGS[%02x]. SEND ACK.", inet_ntoa(nbr->src), nbr->state, flags);
-        eigrp_update_send_init(nbr);
+        eigrp_hello_send_ack(nbr, 0);
     } else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && (nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
 		nbr->state = EIGRP_NEIGHBOR_UP;
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
