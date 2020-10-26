@@ -743,9 +743,10 @@ static void frr_daemonize(void)
  */
 static int frr_config_read_in(struct thread *t)
 {
+    zlog_info("Reading config file: %s", di->config_file);
 	if (!vty_read_config(di->config_file, config_default) &&
 	    di->backup_config_file) {
-		zlog_info("Attempting to read backup config file: %s specified",
+		zlog_info("Config file failed. Attempting to read backup config file: %s specified",
 			  di->backup_config_file);
 		vty_read_config(di->backup_config_file, config_default);
 	}

@@ -85,6 +85,7 @@ extern void eigrp_sw_version_initialize(void);
 extern void eigrp_hello_send(struct eigrp_interface *, uint8_t,
 			     struct in_addr *);
 extern void eigrp_hello_send_ack(struct eigrp_neighbor *nbr, uint32_t sequence_number);
+void eigrp_hello_send_reset(struct eigrp_neighbor *nbr);
 extern void eigrp_hello_receive(struct eigrp *, struct ip *,
 				struct eigrp_header *, struct stream *,
 				struct eigrp_interface *, int);

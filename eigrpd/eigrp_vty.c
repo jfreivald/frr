@@ -322,6 +322,49 @@ DEFUN (no_eigrp_passive_interface,
 	return CMD_SUCCESS;
 }
 
+DEFUN (eigrp_single_neighbor,
+       eigrp_single_neighbor_cmd,
+       "single-neighbor IFNAME",
+       "Reset any previous neighbor when a new one comes up\n"
+       "Interface to enforce single neighbor\n")
+{
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp);
+    struct listnode *node;
+    char *ifname = argv[1]->arg;
+
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Using non-standard feature \"single-neighbor\" for %s", ifname);
+
+    char *name = malloc(EIGRP_MAX_INTERFACE_NAME);
+    strncpy(name, ifname, EIGRP_MAX_INTERFACE_NAME);
+    name[EIGRP_MAX_INTERFACE_NAME-1] = 0;
+    listnode_add(eigrp->single_neighbor_interface_names, name);
+
+    return CMD_SUCCESS;
+}
+
+DEFUN (no_eigrp_single_neighbor,
+       no_eigrp_single_neighbor_cmd,
+       "no single-neighbor IFNAME",
+       NO_STR
+       "Reset any previous neighbor when a new one comes up\n"
+       "Interface to enforce single neighbor\n")
+{
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp);
+    char *ifname = argv[2]->arg;
+    char *snif;
+    struct listnode *n1, *n2;
+
+    for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interface_names, n1, n2, snif)) {
+        if (strncmp(ifname, snif, EIGRP_MAX_INTERFACE_NAME) == 0) {
+            listnode_delete(eigrp->single_neighbor_interface_names, snif);
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing non-standard feature \"single-neighbor\" from %s", snif);
+            return CMD_SUCCESS;
+        }
+    }
+
+    return CMD_SUCCESS;
+}
+
 DEFUN (eigrp_timers_active,
        eigrp_timers_active_cmd,
        "timers active-time <(1-65535)|disabled>",
@@ -1541,6 +1584,7 @@ void eigrp_vty_if_init(void)
 	/*EIGRP Summarization commands*/
 	install_element(INTERFACE_NODE, &eigrp_ip_summary_address_cmd);
 	install_element(INTERFACE_NODE, &no_eigrp_ip_summary_address_cmd);
+
 }
 
 static void eigrp_vty_zebra_init(void)
@@ -1574,6 +1618,10 @@ void eigrp_vty_init(void)
 	install_element(EIGRP_NODE, &no_eigrp_maximum_paths_cmd);
 	install_element(EIGRP_NODE, &eigrp_neighbor_cmd);
 	install_element(EIGRP_NODE, &no_eigrp_neighbor_cmd);
+
+    /*EIGRP Single Neighbor commands*/
+    install_element(EIGRP_NODE, &eigrp_single_neighbor_cmd);
+    install_element(EIGRP_NODE, &no_eigrp_single_neighbor_cmd);
 
 	/* commands for manual hard restart */
 	install_element(ENABLE_NODE, &clear_ip_eigrp_neighbors_cmd);

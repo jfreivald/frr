@@ -426,7 +426,7 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 
 	/* Prepare EIGRP INIT UPDATE header */
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))
-		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Seq [%u] Ack [%u]",
+		L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR | LOGGER_EIGRP_UPDATE,"Enqueuing Update Init Seq [%u] Ack [%u]",
 			   nbr->ei->eigrp->sequence_number,
 			   nbr->recv_sequence_number);
 

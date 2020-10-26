@@ -249,7 +249,9 @@ static struct eigrp *eigrp_new(const char *AS)
 
 	eigrp->topology_table = route_table_init();
 
-	eigrp->neighbor_self = eigrp_nbr_new(NULL);
+	struct in_addr any_add;
+	any_add.s_addr = INADDR_ANY;
+	eigrp->neighbor_self = eigrp_nbr_new(NULL, any_add);
 	eigrp->neighbor_self->src.s_addr = INADDR_ANY;
 
 	eigrp->variance = EIGRP_VARIANCE_DEFAULT;
@@ -273,6 +275,8 @@ static struct eigrp *eigrp_new(const char *AS)
 	eigrp->routemap[EIGRP_FILTER_OUT] = NULL;
 
 	pthread_mutex_init(&eigrp->sia_action_mutex, NULL);
+
+	eigrp->single_neighbor_interface_names = list_new();
 
 	QOBJ_REG(eigrp, eigrp);
 	return eigrp;
