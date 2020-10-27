@@ -46,6 +46,7 @@
 #include "linklist.h"
 #include "distribute.h"
 
+
 #include "eigrpd/eigrp_structs.h"
 #include "eigrpd/eigrpd.h"
 #include "eigrpd/eigrp_interface.h"
@@ -56,6 +57,8 @@
 #include "eigrpd/eigrp_network.h"
 #include "eigrpd/eigrp_dump.h"
 #include "eigrpd/eigrp_const.h"
+#include "eigrpd/eigrp_memory.h"
+#include "eigrpd/eigrp_bfd.h"
 
 static int config_write_network(struct vty *vty, struct eigrp *eigrp)
 {
@@ -260,10 +263,16 @@ DEFUN (eigrp_router_id,
        "Router ID for this EIGRP process\n"
        "EIGRP Router-ID in IP address format\n")
 {
-	// struct eigrp *eigrp = vty->index;
-	/*TODO: */
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
 
-	return CMD_SUCCESS;
+    struct in_addr static_add;
+    if (inet_aton(argv[2]->arg, &static_add) != 1) {
+        return CMD_WARNING_CONFIG_FAILED;
+    }
+
+    eigrp->router_id_static = static_add.s_addr;
+
+    return CMD_SUCCESS;
 }
 
 DEFUN (no_eigrp_router_id,
@@ -274,8 +283,9 @@ DEFUN (no_eigrp_router_id,
        "Router ID for this EIGRP process\n"
        "EIGRP Router-ID in IP address format\n")
 {
-	// struct eigrp *eigrp = vty->index;
-	/*TODO: */
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
+
+    eigrp->router_id_static = 0L;
 
 	return CMD_SUCCESS;
 }
@@ -286,40 +296,86 @@ DEFUN (eigrp_passive_interface,
        "Suppress routing updates on an interface\n"
        "Interface to suppress on\n")
 {
-	VTY_DECLVAR_CONTEXT(eigrp, eigrp);
-	struct eigrp_interface *ei;
-	struct listnode *node;
-	char *ifname = argv[1]->arg;
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
+    struct eigrp_interface *ei;
+    struct listnode *node;
+    char *ifname = argv[1]->arg;
 
-	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
-		if (strcmp(ifname, ei->ifp->name) == 0) {
-			ei->params.passive_interface = EIGRP_IF_PASSIVE;
-			return CMD_SUCCESS;
-		}
-	}
-	return CMD_SUCCESS;
+    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
+        if (strcmp(ifname, ei->ifp->name) == 0) {
+            ei->params.passive_interface = EIGRP_IF_PASSIVE;
+            return CMD_SUCCESS;
+        }
+    }
+    return CMD_SUCCESS;
 }
 
 DEFUN (no_eigrp_passive_interface,
        no_eigrp_passive_interface_cmd,
        "no passive-interface IFNAME",
        NO_STR
-       "Suppress routing updates on an interface\n"
-       "Interface to suppress on\n")
+               "Suppress routing updates on an interface\n"
+               "Interface to suppress on\n")
 {
-	VTY_DECLVAR_CONTEXT(eigrp, eigrp);
-	struct eigrp_interface *ei;
-	struct listnode *node;
-	char *ifname = argv[2]->arg;
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
+    struct eigrp_interface *ei;
+    struct listnode *node;
+    char *ifname = argv[2]->arg;
 
-	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
-		if (strcmp(ifname, ei->ifp->name) == 0) {
-			ei->params.passive_interface = EIGRP_IF_ACTIVE;
-			return CMD_SUCCESS;
-		}
-	}
+    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
+        if (strcmp(ifname, ei->ifp->name) == 0) {
+            ei->params.passive_interface = EIGRP_IF_ACTIVE;
+            return CMD_SUCCESS;
+        }
+    }
 
-	return CMD_SUCCESS;
+    return CMD_SUCCESS;
+}
+
+DEFUN (eigrp_bfd_interface,
+       eigrp_bfd_interface_cmd,
+       "bfd-interface IFNAME RequiredMinRxInterval DesiredMinTxInterval",
+       "Enable BFD on this interface for EIGRP\n"
+       "Required Minimum Receive Interval\n"
+       "Desired Minimum Transmit Interval\n")
+{
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
+
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Using Bi-Forward Detection on interface %s", argv[1]->arg);
+
+    struct eigrp_bfd_interface *bfd_iface = XMALLOC(MTYPE_EIGRP_BFD_INTERFACE, sizeof(struct eigrp_bfd_interface));
+    strncpy(bfd_iface->name, argv[1]->arg, EIGRP_MAX_INTERFACE_NAME);
+    bfd_iface->name[EIGRP_MAX_INTERFACE_NAME-1] = 0;
+    bfd_iface->bfd_params = eigrp_bfd_params_new();
+    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[2]->arg, NULL, 0);
+    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[3]->arg, NULL, 0);
+
+    listnode_add(eigrp->single_neighbor_interface_names, bfd_iface);
+
+    return CMD_SUCCESS;
+}
+
+DEFUN (no_eigrp_bfd_interface,
+       no_eigrp_bfd_interface_cmd,
+       "no bfd-interface IFNAME",
+       NO_STR
+       "Suppress BFD on interface\n"
+       "Interface to suppress BFD on\n")
+{
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
+    char *ifname = argv[2]->arg;
+    char *snif;
+    struct listnode *n1, *n2;
+
+    for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interface_names, n1, n2, snif)) {
+        if (strncmp(ifname, snif, EIGRP_MAX_INTERFACE_NAME) == 0) {
+            listnode_delete(eigrp->single_neighbor_interface_names, snif);
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing Bi-Forward Detection from interface %s", snif);
+            return CMD_SUCCESS;
+        }
+    }
+
+    return CMD_SUCCESS;
 }
 
 DEFUN (eigrp_single_neighbor,
@@ -328,8 +384,7 @@ DEFUN (eigrp_single_neighbor,
        "Reset any previous neighbor when a new one comes up\n"
        "Interface to enforce single neighbor\n")
 {
-    VTY_DECLVAR_CONTEXT(eigrp, eigrp);
-    struct listnode *node;
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
     char *ifname = argv[1]->arg;
 
     L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "WARNING: Using non-standard feature \"single-neighbor\" for %s", ifname);
@@ -349,7 +404,7 @@ DEFUN (no_eigrp_single_neighbor,
        "Reset any previous neighbor when a new one comes up\n"
        "Interface to enforce single neighbor\n")
 {
-    VTY_DECLVAR_CONTEXT(eigrp, eigrp);
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
     char *ifname = argv[2]->arg;
     char *snif;
     struct listnode *n1, *n2;
@@ -394,7 +449,6 @@ DEFUN (no_eigrp_timers_active,
 	return CMD_SUCCESS;
 }
 
-
 DEFUN (eigrp_metric_weights,
        eigrp_metric_weights_cmd,
        "metric weights (0-255) (0-255) (0-255) (0-255) (0-255) ",
@@ -406,8 +460,18 @@ DEFUN (eigrp_metric_weights,
        "K4\n"
        "K5\n")
 {
-	// struct eigrp *eigrp = vty->index;
-	/*TODO: */
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
+
+    if (argc != 7) {
+        return CMD_WARNING_CONFIG_FAILED;
+    }
+
+    eigrp->k_values[0] = strtoul(argv[2]->arg, NULL, 0);
+    eigrp->k_values[1] = strtoul(argv[3]->arg, NULL, 0);
+    eigrp->k_values[2] = strtoul(argv[4]->arg, NULL, 0);
+    eigrp->k_values[3] = strtoul(argv[5]->arg, NULL, 0);
+    eigrp->k_values[4] = strtoul(argv[6]->arg, NULL, 0);
+    eigrp->k_values[5] = EIGRP_K6_DEFAULT;
 
 	return CMD_SUCCESS;
 }
@@ -424,10 +488,16 @@ DEFUN (no_eigrp_metric_weights,
        "K4\n"
        "K5\n")
 {
-	// struct eigrp *eigrp = vty->index;
-	/*TODO: */
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp)
 
-	return CMD_SUCCESS;
+    eigrp->k_values[0] = EIGRP_K1_DEFAULT;
+    eigrp->k_values[1] = EIGRP_K2_DEFAULT;
+    eigrp->k_values[2] = EIGRP_K3_DEFAULT;
+    eigrp->k_values[3] = EIGRP_K4_DEFAULT;
+    eigrp->k_values[4] = EIGRP_K5_DEFAULT;
+    eigrp->k_values[5] = EIGRP_K6_DEFAULT;
+
+    return CMD_SUCCESS;
 }
 
 
@@ -650,7 +720,7 @@ DEFUN (eigrp_if_delay,
        "Specify interface throughput delay\n"
        "Throughput delay (tens of microseconds)\n")
 {
-	VTY_DECLVAR_CONTEXT(interface, ifp);
+	VTY_DECLVAR_CONTEXT(interface, ifp)
 	struct eigrp_interface *ei = ifp->info;
 	struct eigrp *eigrp;
 	uint32_t delay;
@@ -681,7 +751,7 @@ DEFUN (no_eigrp_if_delay,
        "Specify interface throughput delay\n"
        "Throughput delay (tens of microseconds)\n")
 {
-	VTY_DECLVAR_CONTEXT(interface, ifp);
+	VTY_DECLVAR_CONTEXT(interface, ifp)
 	struct eigrp_interface *ei = ifp->info;
 	struct eigrp *eigrp;
 
@@ -709,7 +779,7 @@ DEFUN (eigrp_if_bandwidth,
        "Set bandwidth informational parameter\n"
        "Bandwidth in kilobits\n")
 {
-	VTY_DECLVAR_CONTEXT(interface, ifp);
+	VTY_DECLVAR_CONTEXT(interface, ifp)
 	struct eigrp_interface *ei = ifp->info;
 	uint32_t bandwidth;
 	struct eigrp *eigrp;

@@ -76,6 +76,19 @@ void eigrp_bfd_server_reset(void) {
     eigrp_bfd_server_singleton = NULL;
 }
 
+struct eigrp_bfd_params * eigrp_bfd_params_new() {
+    struct eigrp_bfd_params *bfd_params = XMALLOC(MTYPE_EIGRP_BFD_PARAMS, sizeof(struct eigrp_bfd_params));
+
+    bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
+    bfd_params->RequiredMinRxInterval = EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL;
+    bfd_params->RemoteMinRxInterval = EIGRP_BFD_DEFAULT_REM_MIN_RX_INTERVAL;
+    bfd_params->RequiredMinEchoRxInterval = EIGRP_BFD_DEFAULT_REQ_MIN_ECHO_RX_INTERVAL;
+    bfd_params->DemandMode = EIGRP_BFD_NO_DEMAND_MODE;
+    bfd_params->RemoteDemandMode = EIGRP_BFD_NO_DEMAND_MODE;
+    bfd_params->DetectMulti = EIGRP_BFD_DEFAULT_DETECT_MULTI;
+    bfd_params->AuthType = EIGRP_BFD_NO_AUTH;
+}
+
 struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
 
     assert(nbr != NULL);
@@ -105,19 +118,24 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
     session->RemoteDescr = 0;
     session->header.vers = EIGRP_BFD_VERSION;
     session->header.diag = EIGRP_BFD_DIAG_NONE;
-    session->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
-    session->RequiredMinRxInterval = EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL;
-    session->RemoteMinRxInterval = EIGRP_BFD_DEFAULT_REM_MIN_RX_INTERVAL;
-    session->RequiredMinEchoRxInterval = EIGRP_BFD_DEFAULT_REQ_MIN_ECHO_RX_INTERVAL;
-    session->DemandMode = EIGRP_BFD_NO_DEMAND_MODE;
-    session->RemoteDemandMode = EIGRP_BFD_NO_DEMAND_MODE;
-    session->DetectMulti = EIGRP_BFD_DEFAULT_DETECT_MULTI;
-    session->AuthType = EIGRP_BFD_NO_AUTH;
+
+    session->bfd_params = eigrp_bfd_params_new();
+
+    if (nbr->ei->bfd_params) {
+        session->bfd_params->DesiredMinTxInterval = nbr->ei->bfd_params->DesiredMinTxInterval;
+        session->bfd_params->RequiredMinRxInterval = nbr->ei->bfd_params->RequiredMinRxInterval;
+        session->bfd_params->RemoteDemandMode = nbr->ei->bfd_params->RemoteDemandMode;
+        session->bfd_params->RequiredMinEchoRxInterval = nbr->ei->bfd_params->RequiredMinEchoRxInterval;
+        session->bfd_params->AuthType = nbr->ei->bfd_params->AuthType;
+        session->bfd_params->DemandMode = nbr->ei->bfd_params->DemandMode;
+        session->bfd_params->DetectMulti = nbr->ei->bfd_params->DetectMulti;
+        session->bfd_params->RemoteDemandMode = nbr->ei->bfd_params->RemoteDemandMode;
+    }
 
     session->eigrp_nbr_bfd_ctl_thread = NULL;
     session->eigrp_nbr_bfd_detection_thread  = NULL;
 
-    thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->DesiredMinTxInterval, &session->eigrp_nbr_bfd_ctl_thread);
+    thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval, &session->eigrp_nbr_bfd_ctl_thread);
 
     return session;
 }
@@ -191,16 +209,16 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->flags.p = poll;
     msg->flags.f = final;
     msg->flags.c = 0;
-    msg->flags.a = session->AuthType != EIGRP_BFD_NO_AUTH ? 1 : 0;
-    msg->flags.d = session->DemandMode != EIGRP_BFD_NO_DEMAND_MODE ? 1 : 0;
+    msg->flags.a = session->bfd_params->AuthType != EIGRP_BFD_NO_AUTH ? 1 : 0;
+    msg->flags.d = session->bfd_params->DemandMode != EIGRP_BFD_NO_DEMAND_MODE ? 1 : 0;
     msg->flags.m = 0;
-    msg->detect_multi = session->DetectMulti;
+    msg->detect_multi = session->bfd_params->DetectMulti;
     msg->length = EIGRP_BFD_LENGTH_NO_AUTH;
     msg->my_descr = htonl(session->LocalDescr);
     msg->your_descr = htonl(session->RemoteDescr);
-    msg->desired_min_tx_interval = htonl(session->DesiredMinTxInterval);
-    msg->required_min_rx_interval = htonl(session->RequiredMinRxInterval);
-    msg->required_min_echo_rx_interval = htonl(session->RequiredMinEchoRxInterval);
+    msg->desired_min_tx_interval = htonl(session->bfd_params->DesiredMinTxInterval);
+    msg->required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
+    msg->required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 }
 
 void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg) {
@@ -230,7 +248,7 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
-    thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->DesiredMinTxInterval > session->RemoteMinRxInterval ? session->DesiredMinTxInterval : session->RemoteMinRxInterval, &session->eigrp_nbr_bfd_ctl_thread);
+    thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval, &session->eigrp_nbr_bfd_ctl_thread);
 
     return ret_val;
 }
@@ -463,7 +481,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
 
     //If the A bit is set and no authentication is in use (bfd.AuthType
     //is zero), the packet MUST be discarded.
-    if (bfd_msg->flags.a && session->AuthType == 0) {
+    if (bfd_msg->flags.a && session->bfd_params->AuthType == 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Bad Message - Authorization requested, but not enabled locally");
         pthread_mutex_unlock(session->session_mutex);
         return -1;
@@ -471,7 +489,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
 
     //If the A bit is clear and authentication is in use (bfd.AuthType
     //is nonzero), the packet MUST be discarded.
-    if (!bfd_msg->flags.a && session->AuthType != 0) {
+    if (!bfd_msg->flags.a && session->bfd_params->AuthType != 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Bad Message - No authorization when authorization required locally");
         pthread_mutex_unlock(session->session_mutex);
         return -1;
@@ -493,10 +511,10 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     session->RemoteSessionState = bfd_msg->flags.sta;
 
     //Set bfd.RemoteDemandMode to the value of the Demand (D) bit.
-    session->RemoteDemandMode = bfd_msg->flags.d;
+    session->bfd_params->RemoteDemandMode = bfd_msg->flags.d;
 
     //Set bfd.RemoteMinRxInterval to the value of Required Min RX Interval.
-    session->RemoteMinRxInterval = bfd_msg->required_min_rx_interval;
+    session->bfd_params->RemoteMinRxInterval = bfd_msg->required_min_rx_interval;
 
     //If the Required Min Echo RX Interval field is zero, the
     //transmission of Echo packets, if any, MUST cease.
@@ -559,20 +577,20 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
         } else if (bfd_msg->flags.sta == EIGRP_BFD_STATUS_INIT) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session UP");
             session->SessionState = EIGRP_BFD_STATUS_UP;
-            session->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
+            session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
         }
     } else if(session->SessionState == EIGRP_BFD_STATUS_INIT) {
         if (bfd_msg->flags.sta == EIGRP_BFD_STATUS_INIT || bfd_msg->flags.sta == EIGRP_BFD_STATUS_UP) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session UP");
             session->SessionState = EIGRP_BFD_STATUS_UP;
-            session->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
+            session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
         }
     }  else if(session->SessionState == EIGRP_BFD_STATUS_UP) {
         if (bfd_msg->flags.sta == EIGRP_BFD_STATUS_DOWN) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session DOWN");
             session->header.diag = EIGRP_BFD_DIAG_NBR_SESSION_DWN;
             session->SessionState = EIGRP_BFD_STATUS_DOWN;
-            session->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
+            session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
             eigrp_nbr_down(nbr);
         }
     }
@@ -587,12 +605,12 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //system and the local system MUST cease the periodic transmission
     //of BFD Control packets (see section 6.8.7).
 
-    if (session->DemandMode && session->SessionState == EIGRP_BFD_STATUS_UP && bfd_msg->flags.sta == EIGRP_BFD_STATUS_UP) {
+    if (session->bfd_params->DemandMode && session->SessionState == EIGRP_BFD_STATUS_UP && bfd_msg->flags.sta == EIGRP_BFD_STATUS_UP) {
         if (session->eigrp_nbr_bfd_ctl_thread != NULL) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Entering DEMAND MODE");
             THREAD_OFF(session->eigrp_nbr_bfd_ctl_thread);
         }
-        detection_timer = session->DetectMulti * session->DesiredMinTxInterval > session->RemoteMinRxInterval ? session->DesiredMinTxInterval : session->RemoteMinRxInterval;
+        detection_timer = session->bfd_params->DetectMulti * session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval;
     }
 
     //If bfd.RemoteDemandMode is 0, or bfd.SessionState is not Up, or
@@ -602,9 +620,9 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     else {
         if (session->eigrp_nbr_bfd_ctl_thread == NULL) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets");
-            thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->DesiredMinTxInterval > session->RemoteMinRxInterval ? session->DesiredMinTxInterval : session->RemoteMinRxInterval, &session->eigrp_nbr_bfd_ctl_thread);
+            thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval, &session->eigrp_nbr_bfd_ctl_thread);
         }
-        detection_timer = bfd_msg->detect_multi * bfd_msg->desired_min_tx_interval > session->RemoteMinRxInterval ? bfd_msg->desired_min_tx_interval : session->RemoteMinRxInterval;
+        detection_timer = bfd_msg->detect_multi * bfd_msg->desired_min_tx_interval > session->bfd_params->RemoteMinRxInterval ? bfd_msg->desired_min_tx_interval : session->bfd_params->RemoteMinRxInterval;
     }
 
     //If the packet was not discarded, it has been received for purposes
@@ -638,5 +656,5 @@ static int eigrp_bfd_session_timer_expired(struct thread *thread) {
     struct eigrp_bfd_session *session = THREAD_ARG(thread);
     pthread_mutex_lock(session->session_mutex);
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
-    session->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
+    session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
 }

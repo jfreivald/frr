@@ -56,6 +56,7 @@
 #include "eigrpd/eigrp_topology.h"
 #include "eigrpd/eigrp_memory.h"
 #include "eigrpd/eigrp_fsm.h"
+#include "eigrpd/eigrp_bfd.h"
 
 #include <sys/mman.h>
 
@@ -140,6 +141,7 @@ struct eigrp_interface *eigrp_if_new(struct eigrp *eigrp, struct interface *ifp,
 	ei->params.auth_keychain = NULL;
 
 	ei->single_neighbor = 0;
+	ei->bfd_params = NULL;
 
 	return ei;
 }
@@ -188,6 +190,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 	struct eigrp_fsm_action_message msg;
 	struct prefix dest_addr;
 	struct listnode *ln;
+	struct eigrp_bfd_interface *bfd_interface;
 	char *ifname;
     int shm_fd;
 
@@ -210,11 +213,32 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 		eigrp->neighbor_self->src = ei->connected->address->u.prefix4;
 	}
 
-	for (ALL_LIST_ELEMENTS_RO(eigrp->single_neighbor_interface_names, ln, ifname)) {
-	    if ((strnlen(ifname, EIGRP_MAX_INTERFACE_NAME) == strnlen(ei->ifp->name, EIGRP_MAX_INTERFACE_NAME)) && (strncmp(ei->ifp->name, ifname, strlen(ifname)) == 0)) {
-	        ei->single_neighbor = 1;
-	    }
-	}
+	ei->single_neighbor = 0;
+
+    for (ALL_LIST_ELEMENTS_RO(eigrp->single_neighbor_interface_names, ln, ifname)) {
+        if ((strnlen(ifname, EIGRP_MAX_INTERFACE_NAME) == strnlen(ei->ifp->name, EIGRP_MAX_INTERFACE_NAME)) && (strncmp(ei->ifp->name, ifname, strlen(ifname)) == 0)) {
+            ei->single_neighbor = 1;
+        }
+    }
+
+    if (ei->bfd_params) {
+        XFREE(MTYPE_EIGRP_BFD_PARAMS, ei->bfd_params);
+        ei->bfd_params = NULL;
+    }
+
+    for (ALL_LIST_ELEMENTS_RO(eigrp->eigrp_bfd_interface_info, ln, bfd_interface)) {
+        if ((strnlen(bfd_interface->name, EIGRP_MAX_INTERFACE_NAME) == strnlen(ei->ifp->name, EIGRP_MAX_INTERFACE_NAME)) && (strncmp(ei->ifp->name, bfd_interface->name, strlen(bfd_interface->name)) == 0)) {
+            ei->bfd_params = XMALLOC(MTYPE_EIGRP_BFD_PARAMS, sizeof(struct eigrp_bfd_params));
+            ei->bfd_params->DesiredMinTxInterval = bfd_interface->bfd_params->DesiredMinTxInterval;
+            ei->bfd_params->RequiredMinRxInterval = bfd_interface->bfd_params->RequiredMinRxInterval;
+            ei->bfd_params->RemoteMinRxInterval = bfd_interface->bfd_params->RemoteMinRxInterval;
+            ei->bfd_params->RequiredMinEchoRxInterval = bfd_interface->bfd_params->RequiredMinEchoRxInterval;
+            ei->bfd_params->DetectMulti = bfd_interface->bfd_params->DetectMulti;
+            ei->bfd_params->DemandMode = bfd_interface->bfd_params->DemandMode;
+            ei->bfd_params->AuthType = bfd_interface->bfd_params->AuthType;
+            ei->bfd_params->RemoteDemandMode = bfd_interface->bfd_params->RemoteDemandMode;
+        }
+    }
 
     if ((strncmp(ei->ifp->name, "dnsTun", 6) == 0 )) {
         L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Found %s. Configure Delay and Bandwidth for T1.", ei->ifp->name);

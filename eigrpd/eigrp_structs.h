@@ -38,6 +38,7 @@
 
 #include "eigrpd/eigrp_const.h"
 #include "eigrpd/eigrp_macros.h"
+//#include "eigrpd/eigrp_bfd.h"
 
 /* EIGRP master for system wide configuration and variables. */
 struct eigrp_master {
@@ -160,6 +161,7 @@ struct eigrp {
 	pthread_mutex_t sia_action_mutex;
 
     struct list *single_neighbor_interface_names;
+    struct list *eigrp_bfd_interface_info;
 
     QOBJ_FIELDS
 };
@@ -245,6 +247,8 @@ struct eigrp_interface {
 	struct route_map *routemap[EIGRP_FILTER_MAX];
 
 	int single_neighbor;
+
+	struct eigrp_bfd_params *bfd_params;
 
 };
 
@@ -556,6 +560,17 @@ struct eigrp_fsm_action_message {
 	struct eigrp_metrics incoming_tlv_metrics;
 	enum metric_change change;
 	bool initialized;
+};
+
+struct eigrp_bfd_params {
+    uint32_t DesiredMinTxInterval;
+    uint32_t RequiredMinRxInterval;
+    uint32_t RemoteMinRxInterval;
+    uint32_t RequiredMinEchoRxInterval;
+    uint8_t DemandMode;
+    uint8_t RemoteDemandMode;
+    uint8_t DetectMulti;
+    uint8_t AuthType;
 };
 
 #endif /* _ZEBRA_EIGRP_STRUCTURES_H_ */

@@ -80,6 +80,11 @@
 
 #pragma pack(push, 1)
 
+struct eigrp_bfd_interface {
+    char name[20];
+    struct eigrp_bfd_params *bfd_params;
+};
+
 struct eigrp_bfd_hdr {
     uint8_t vers:3;
     uint8_t diag:5;
@@ -132,14 +137,7 @@ struct eigrp_bfd_session {
     uint32_t LocalDescr;
     uint32_t RemoteDescr;
 
-    uint32_t DesiredMinTxInterval;
-    uint32_t RequiredMinRxInterval;
-    uint32_t RemoteMinRxInterval;
-    uint32_t RequiredMinEchoRxInterval;
-    uint8_t DemandMode;
-    uint8_t RemoteDemandMode;
-    uint8_t DetectMulti;
-    uint8_t AuthType;
+    struct eigrp_bfd_params *bfd_params;
 
 };
 
@@ -168,5 +166,8 @@ void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg);
 int eigrp_bfd_write(struct thread *thread);
 int eigrp_bfd_read(struct thread *thread);
 int eigrp_bfd_send_ctl_msg_thread(struct thread *t);
+struct eigrp_bfd_params * eigrp_bfd_params_new();
+
+#pragma pack(pop);
 
 #endif //_ZEBRA_EIGRP_BFD_H
