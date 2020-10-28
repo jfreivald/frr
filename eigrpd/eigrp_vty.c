@@ -1693,7 +1693,11 @@ void eigrp_vty_init(void)
     install_element(EIGRP_NODE, &eigrp_single_neighbor_cmd);
     install_element(EIGRP_NODE, &no_eigrp_single_neighbor_cmd);
 
-	/* commands for manual hard restart */
+    /*EIGRP BFD commands*/
+    install_element(EIGRP_NODE, &eigrp_bfd_interface_cmd);
+    install_element(EIGRP_NODE, &no_eigrp_bfd_interface_cmd);
+
+    /* commands for manual hard restart */
 	install_element(ENABLE_NODE, &clear_ip_eigrp_neighbors_cmd);
 	install_element(ENABLE_NODE, &clear_ip_eigrp_neighbors_int_cmd);
 	install_element(ENABLE_NODE, &clear_ip_eigrp_neighbors_IP_cmd);

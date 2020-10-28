@@ -190,7 +190,7 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
             eigrp_bfd_session_new(nbr);
         }
 	}
-	
+
 	return nbr;
 }
 
