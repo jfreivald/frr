@@ -30,19 +30,15 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
 
     assert (eigrp != NULL);
 
-    struct eigrp_bfd_server *server;
-
-    if (eigrp_bfd_server_singleton != NULL) {
-        server = eigrp_bfd_server_singleton;
-    } else {
-        server = XCALLOC(MTYPE_EIGRP_BFD_SERVER, sizeof(struct eigrp_bfd_server));
-        pthread_mutex_init(&server->port_write_mutex, NULL);
-        server->port = EIGRP_BFD_DEFAULT_PORT;
-        server->sessions = list_new_cb(eigrp_bfd_session_cmp_void_ptr, eigrp_bfd_session_destroy_void_ptr, NULL, 0);
-        if ( (server->bfd_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
+    if (eigrp_bfd_server_singleton == NULL) {
+        eigrp_bfd_server_singleton = XCALLOC(MTYPE_EIGRP_BFD_SERVER, sizeof(struct eigrp_bfd_server));
+        pthread_mutex_init(&eigrp_bfd_server_singleton->port_write_mutex, NULL);
+        eigrp_bfd_server_singleton->port = EIGRP_BFD_DEFAULT_PORT;
+        eigrp_bfd_server_singleton->sessions = list_new_cb(eigrp_bfd_session_cmp_void_ptr, eigrp_bfd_session_destroy_void_ptr, NULL, 0);
+        if ( (eigrp_bfd_server_singleton->bfd_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: ", strerror(errno));
-            list_delete_and_null(&server->sessions);
-            XFREE(MTYPE_EIGRP_BFD_SERVER, server);
+            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
+            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
             return NULL;
         }
 
@@ -53,15 +49,17 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
         sock.sin_family = AF_INET;
         sock.sin_port = htons(EIGRP_BFD_DEFAULT_PORT);
 
-        if (bind(server->bfd_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
+        if (bind(eigrp_bfd_server_singleton->bfd_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Bind Error: %s", strerror(errno));
-            list_delete_and_null(&server->sessions);
-            XFREE(MTYPE_EIGRP_BFD_SERVER, server);
+            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
+            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
             return NULL;
+        } else {
+            L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Server bound to socket %u", ntohs(sock.sin_port));
         }
     }
 
-    return server;
+    return eigrp_bfd_server_singleton;
 }
 
 void eigrp_bfd_server_reset(void) {
