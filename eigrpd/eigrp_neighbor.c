@@ -186,9 +186,11 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
         eigrp_fsm_event(&msg);
 
         if (ei->bfd_params != NULL) {
+            L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Starting BFD Session for Neighbor %s", inet_ntoa(nbr->src));
             eigrp_bfd_session_new(nbr);
         }
 	}
+	
 	return nbr;
 }
 
@@ -344,10 +346,13 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 	nbr->state = EIGRP_NEIGHBOR_DOWN;
     THREAD_OFF(nbr->t_holddown);
 
-    if (nbr->bfd_session)
-        eigrp_bfd_session_destroy(&nbr->bfd_session);
-
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
+
+    if (nbr->bfd_session) {
+        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stopping BFD Session");
+        eigrp_bfd_session_destroy(&nbr->bfd_session);
+    }
+
 
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ( (rn = route_table_iter_next(&it)) ) {
