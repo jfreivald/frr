@@ -353,7 +353,7 @@ DEFUN (eigrp_bfd_interface,
     bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0);
     bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0);
 
-    listnode_add(eigrp->single_neighbor_interface_names, bfd_iface);
+    listnode_add(eigrp->eigrp_bfd_interface_info, bfd_iface);
 
     return CMD_SUCCESS;
 }
@@ -372,7 +372,7 @@ DEFUN (no_eigrp_bfd_interface,
 
     for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interface_names, n1, n2, bfd_iface)) {
         if (strncmp(argv[2]->arg, bfd_iface->name, EIGRP_MAX_INTERFACE_NAME) == 0) {
-            listnode_delete(eigrp->single_neighbor_interface_names, bfd_iface);
+            listnode_delete(eigrp->eigrp_bfd_interface_info, bfd_iface);
             //TODO: Stop sessions for all neighbors on this interface
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing Bi-Forward Detection from interface %s", bfd_iface->name);
             XFREE(MTYPE_EIGRP_BFD_INTERFACE, bfd_iface);
