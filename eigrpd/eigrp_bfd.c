@@ -290,7 +290,7 @@ int eigrp_bfd_write(struct thread *thread){
             char buf[16384];
             char *input = (char *)msg;
             for (int i = 0; i < iov[0].iov_len; i++) {
-                sprintf(&buf[i*3], 4, "%02x|", input[i]);
+                snprintf(&buf[i*3], 4, "%02x|", input[i]);
             }
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tMESSAGE: %s", buf);
             retval = -1;
