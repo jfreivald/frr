@@ -150,7 +150,7 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
     listnode_add(eigrp_bfd_server_get(eigrp_lookup())->sessions, session);
     nbr->bfd_session = session;
 
-    thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval, &session->eigrp_nbr_bfd_ctl_thread);
+    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval/1000, &session->eigrp_nbr_bfd_ctl_thread);
 
     return session;
 }
@@ -262,7 +262,7 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
-    thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval, &session->eigrp_nbr_bfd_ctl_thread);
+    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, (session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)/1000, &session->eigrp_nbr_bfd_ctl_thread);
 
     return ret_val;
 }
@@ -650,7 +650,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Entering DEMAND MODE");
             THREAD_OFF(session->eigrp_nbr_bfd_ctl_thread);
         }
-        detection_timer = session->bfd_params->DetectMulti * session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval;
+        detection_timer = (session->bfd_params->DetectMulti * EIGRP_BFD_TIMER_SELECT_MS);
     }
 
     //If bfd.RemoteDemandMode is 0, or bfd.SessionState is not Up, or
@@ -660,9 +660,9 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     else {
         if (session->eigrp_nbr_bfd_ctl_thread == NULL) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets");
-            thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval, &session->eigrp_nbr_bfd_ctl_thread);
+            thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS, &session->eigrp_nbr_bfd_ctl_thread);
         }
-        detection_timer = bfd_msg->detect_multi * bfd_msg->desired_min_tx_interval > session->bfd_params->RemoteMinRxInterval ? bfd_msg->desired_min_tx_interval : session->bfd_params->RemoteMinRxInterval;
+        detection_timer = (bfd_msg->detect_multi * EIGRP_BFD_TIMER_SELECT_MS);
     }
 
     //If the packet was not discarded, it has been received for purposes
@@ -673,7 +673,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
             THREAD_OFF(session->eigrp_nbr_bfd_detection_thread);
         }
 
-        thread_add_timer(master, eigrp_bfd_session_timer_expired, session, detection_timer,
+        thread_add_timer_msec(master, eigrp_bfd_session_timer_expired, session, detection_timer,
                          &session->eigrp_nbr_bfd_detection_thread);
     }
 

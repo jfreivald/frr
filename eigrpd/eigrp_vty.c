@@ -338,9 +338,9 @@ DEFUN (eigrp_bfd_interface,
        "bfd commands\n"
        "interface for BFD and EIGRP interaction\n"
        "Required Minimum Receive Interval\n"
-       "Interval in milliseconds\n"
+       "Interval in microseconds\n"
        "Desired Minimum Transmit Interval\n"
-       "Interval in milliseconds\n")
+       "Interval in microseconds\n")
 {
     VTY_DECLVAR_CONTEXT(eigrp, eigrp)
 

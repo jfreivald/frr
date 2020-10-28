@@ -79,6 +79,8 @@
 #define EIGRP_BFD_NO_AUTH                           (0)
 #define EIGRP_BFD_TTL                               (255)
 
+#define EIGRP_BFD_TIMER_SELECT_MS                   ((session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)/1000)
+
 #pragma pack(push, 1)
 
 struct eigrp_bfd_interface {
