@@ -66,7 +66,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
             L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Server bound to socket %u", ntohs(sock.sin_port));
             thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->bfd_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
         }
-        
+
         if (eigrpd_privs.change(ZPRIVS_LOWER))
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not lower privilege, %s",
               safe_strerror(errno));

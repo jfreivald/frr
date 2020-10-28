@@ -108,9 +108,6 @@ struct eigrp_bfd_auth_hdr {
 };
 
 struct eigrp_bfd_ctl_msg {
-    struct ip iph;
-    struct udphdr udph;
-
     struct eigrp_bfd_hdr hdr;
     struct eigrp_bfd_flags flags;
     uint8_t detect_multi;
