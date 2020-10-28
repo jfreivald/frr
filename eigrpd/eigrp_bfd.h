@@ -53,6 +53,7 @@
 #define EIGRP_BFD_STATUS_UP             (3)
 
 #define EIGRP_BFD_LENGTH_NO_AUTH        (24)
+#define EIGRP_BFD_LENGTH_MAX            (1500)
 
 #define EIGRP_BFD_DIAG_NONE                 (0)
 #define EIGRP_BFD_DIAG_CTL_TIME_EXP         (1)

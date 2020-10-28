@@ -49,6 +49,8 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
         sock.sin_family = AF_INET;
         sock.sin_port = htons(EIGRP_BFD_DEFAULT_PORT);
 
+        eigrp_bfd_server_singleton->i_stream = stream_new(EIGRP_BFD_LENGTH_MAX + 1);
+
         if (bind(eigrp_bfd_server_singleton->bfd_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Bind Error: %s", strerror(errno));
             list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
