@@ -690,7 +690,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
 
 static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg) {
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "IP Length[%u], UDP Length [%u], BFD Length [%u]",
-            ntohs(msg->iph.ip_len), ntohs(msg->udph.len), msg->bfdh.length);
+            msg->iph.ip_len, ntohs(msg->udph.len), msg->bfdh.length);
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "V[%u] D[%u] S[%u] ME[%08x] YOU [%08x] DMIN [%u] RMIN [%u] EMIN [%u] ",
             msg->bfdh.hdr.vers, msg->bfdh.hdr.diag, msg->bfdh.flags.sta, ntohl(msg->bfdh.my_descr), ntohl(msg->bfdh.your_descr),
             ntohl(msg->bfdh.desired_min_tx_interval), ntohl(msg->bfdh.required_min_rx_interval), ntohl(msg->bfdh.required_min_echo_rx_interval));
