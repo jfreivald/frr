@@ -363,14 +363,16 @@ DEFUN (no_eigrp_bfd_interface,
        "Interface to suppress BFD on\n")
 {
     VTY_DECLVAR_CONTEXT(eigrp, eigrp)
-    char *ifname = argv[2]->arg;
-    char *snif;
+
+    struct eigrp_bfd_interface *bfd_iface;
     struct listnode *n1, *n2;
 
-    for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interface_names, n1, n2, snif)) {
-        if (strncmp(ifname, snif, EIGRP_MAX_INTERFACE_NAME) == 0) {
-            listnode_delete(eigrp->single_neighbor_interface_names, snif);
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing Bi-Forward Detection from interface %s", snif);
+    for (ALL_LIST_ELEMENTS(eigrp->single_neighbor_interface_names, n1, n2, bfd_iface)) {
+        if (strncmp(argv[2]->arg, bfd_iface->name, EIGRP_MAX_INTERFACE_NAME) == 0) {
+            listnode_delete(eigrp->single_neighbor_interface_names, bfd_iface);
+            //TODO: Stop sessions for all neighbors on this interface
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Removing Bi-Forward Detection from interface %s", bfd_iface->name);
+            XFREE(MTYPE_EIGRP_BFD_INTERFACE, bfd_iface);
             return CMD_SUCCESS;
         }
     }
