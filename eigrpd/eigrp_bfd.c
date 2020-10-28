@@ -56,6 +56,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
             return NULL;
         } else {
             L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Server bound to socket %u", ntohs(sock.sin_port));
+            thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->bfd_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
         }
     }
 
@@ -174,7 +175,6 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
 
     assert(session != NULL);
     assert(poll == 0 || final == 0);
-    assert(sizeof(struct eigrp_bfd_ctl_msg) == EIGRP_BFD_LENGTH_NO_AUTH);
 
     struct eigrp_bfd_ctl_msg *msg = XMALLOC(MTYPE_EIGRP_BFD_CTL_MSG, sizeof(struct eigrp_bfd_ctl_msg));
 
