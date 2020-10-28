@@ -54,7 +54,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
         sock.sin_port = htons(EIGRP_BFD_DEFAULT_PORT);
 
         if (bind(server->bfd_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Bind Error: ", strerror(errno));
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Bind Error: %s", strerror(errno));
             list_delete_and_null(&server->sessions);
             XFREE(MTYPE_EIGRP_BFD_SERVER, server);
             return NULL;
