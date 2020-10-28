@@ -36,7 +36,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
         server = eigrp_bfd_server_singleton;
     } else {
         server = XCALLOC(MTYPE_EIGRP_BFD_SERVER, sizeof(struct eigrp_bfd_server));
-        pthread_mutex_init(server->port_write_mutex, NULL);
+        pthread_mutex_init(&server->port_write_mutex, NULL);
         server->port = EIGRP_BFD_DEFAULT_PORT;
         server->sessions = list_new_cb(eigrp_bfd_session_cmp_void_ptr, eigrp_bfd_session_destroy_void_ptr, NULL, 0);
         if ( (server->bfd_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
@@ -262,7 +262,7 @@ int eigrp_bfd_write(struct thread *thread){
     struct eigrp_bfd_ctl_msg *msg = (struct eigrp_bfd_ctl_msg *) thread->arg;
     int retval = 0;
 
-    pthread_mutex_lock(eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
+    pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 
     if (msg) {
         struct iovec iov[1];
@@ -282,7 +282,7 @@ int eigrp_bfd_write(struct thread *thread){
         }
     }
 
-    pthread_mutex_unlock(eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
+    pthread_mutex_unlock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
     return retval;
 }
 
