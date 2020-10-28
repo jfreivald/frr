@@ -35,7 +35,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
         pthread_mutex_init(&eigrp_bfd_server_singleton->port_write_mutex, NULL);
         eigrp_bfd_server_singleton->port = EIGRP_BFD_DEFAULT_PORT;
         eigrp_bfd_server_singleton->sessions = list_new_cb(eigrp_bfd_session_cmp_void_ptr, eigrp_bfd_session_destroy_void_ptr, NULL, 0);
-        if ( (eigrp_bfd_server_singleton->bfd_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
+        if ( (eigrp_bfd_server_singleton->bfd_fd = socket(AF_INET, SOCK_RAW, 0) ) < 0) {
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: ", strerror(errno));
             list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
             XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
