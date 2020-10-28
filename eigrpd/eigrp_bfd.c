@@ -231,7 +231,7 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.desired_min_tx_interval = htonl(session->bfd_params->DesiredMinTxInterval);
     msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
-    
+
     return msg;
 }
 
@@ -286,7 +286,13 @@ int eigrp_bfd_write(struct thread *thread){
         message.msg_controllen = 0;
 
         if (sendmsg(eigrp_bfd_server_get(eigrp_lookup())->bfd_fd, &message, 0) < 0) {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD: PACKET WRITE ERROR: %s", strerror(errno));
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
+            char buf[16384];
+            char *input = (char *)msg;
+            for (int i = 0; i < iov[0].iov_len; i++) {
+                sprintf(&buf[i*3], 4, "%02x|", input[i]);
+            }
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tMESSAGE: %s", buf);
             retval = -1;
         }
     }
