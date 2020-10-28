@@ -218,21 +218,21 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
 
     sockopt_iphdrincl_swab_htosys(&msg->iph);
 
-    msg->hdr = session->header;
-    msg->flags.sta = session->SessionState;
-    msg->flags.p = poll;
-    msg->flags.f = final;
-    msg->flags.c = 0;
-    msg->flags.a = session->bfd_params->AuthType != EIGRP_BFD_NO_AUTH ? 1 : 0;
-    msg->flags.d = session->bfd_params->DemandMode != EIGRP_BFD_NO_DEMAND_MODE ? 1 : 0;
-    msg->flags.m = 0;
-    msg->detect_multi = session->bfd_params->DetectMulti;
-    msg->length = EIGRP_BFD_LENGTH_NO_AUTH;
-    msg->my_descr = htonl(session->LocalDescr);
-    msg->your_descr = htonl(session->RemoteDescr);
-    msg->desired_min_tx_interval = htonl(session->bfd_params->DesiredMinTxInterval);
-    msg->required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
-    msg->required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
+    msg->bfdh.hdr = session->header;
+    msg->bfdh.flags.sta = session->SessionState;
+    msg->bfdh.flags.p = poll;
+    msg->bfdh.flags.f = final;
+    msg->bfdh.flags.c = 0;
+    msg->bfdh.flags.a = session->bfd_params->AuthType != EIGRP_BFD_NO_AUTH ? 1 : 0;
+    msg->bfdh.flags.d = session->bfd_params->DemandMode != EIGRP_BFD_NO_DEMAND_MODE ? 1 : 0;
+    msg->bfdh.flags.m = 0;
+    msg->bfdh.detect_multi = session->bfd_params->DetectMulti;
+    msg->bfdh.length = EIGRP_BFD_LENGTH_NO_AUTH;
+    msg->bfdh.my_descr = htonl(session->LocalDescr);
+    msg->bfdh.your_descr = htonl(session->RemoteDescr);
+    msg->bfdh.desired_min_tx_interval = htonl(session->bfd_params->DesiredMinTxInterval);
+    msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
+    msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 }
 
 void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg) {
@@ -408,7 +408,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     uint16_t udp_length = ntohs(udp_h->uh_ulen);
 
     stream_forward_getp(s, sizeof(struct udphdr));
-    struct eigrp_bfd_ctl_msg *bfd_msg = (struct eigrp_bfd_ctl_msg *) stream_pnt(s);
+    struct eigrp_bfd_hdr *bfd_msg = (struct eigrp_bfd_ctl_msg *) stream_pnt(s);
 
     eigrp_bfd_dump_ctl_msg(bfd_msg);
 

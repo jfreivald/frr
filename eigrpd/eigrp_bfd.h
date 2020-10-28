@@ -86,7 +86,7 @@ struct eigrp_bfd_interface {
     struct eigrp_bfd_params *bfd_params;
 };
 
-struct eigrp_bfd_hdr {
+struct eigrp_bfd_ver_diag_byte {
     uint8_t vers:3;
     uint8_t diag:5;
 };
@@ -107,8 +107,8 @@ struct eigrp_bfd_auth_hdr {
     uint8_t auth_data[0];
 };
 
-struct eigrp_bfd_ctl_msg {
-    struct eigrp_bfd_hdr hdr;
+struct eigrp_bfd_hdr {
+    struct eigrp_bfd_ver_diag_byte hdr;
     struct eigrp_bfd_flags flags;
     uint8_t detect_multi;
     uint8_t length;
@@ -120,6 +120,12 @@ struct eigrp_bfd_ctl_msg {
     struct eigrp_bfd_auth_hdr auth_hdr[0];
 };
 
+struct eigrp_bfd_ctl_msg {
+    struct ip iph;
+    struct udphdr udph;
+    struct eigrp_bfd_hdr bfdh;
+};
+
 #pragma pop
 
 struct eigrp_bfd_session {
@@ -129,7 +135,7 @@ struct eigrp_bfd_session {
     struct eigrp_bfd_ctl_msg *last_ctl_rcv;
     pthread_mutex_t session_mutex;
 
-    struct eigrp_bfd_hdr header;
+    struct eigrp_bfd_ver_diag_byte header;
     uint8_t SessionState;
     uint8_t RemoteSessionState;
     uint32_t LocalDescr;
