@@ -227,7 +227,9 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
     }
 
     for (ALL_LIST_ELEMENTS_RO(eigrp->eigrp_bfd_interface_info, ln, bfd_interface)) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Checking match for interface %s with BFD interface %s", ei->ifp->name, bfd_interface->name);
         if ((strnlen(bfd_interface->name, EIGRP_MAX_INTERFACE_NAME) == strnlen(ei->ifp->name, EIGRP_MAX_INTERFACE_NAME)) && (strncmp(ei->ifp->name, bfd_interface->name, strlen(bfd_interface->name)) == 0)) {
+            L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Configure interface %s for BFD", ei->ifp->name);
             ei->bfd_params = XMALLOC(MTYPE_EIGRP_BFD_PARAMS, sizeof(struct eigrp_bfd_params));
             ei->bfd_params->DesiredMinTxInterval = bfd_interface->bfd_params->DesiredMinTxInterval;
             ei->bfd_params->RequiredMinRxInterval = bfd_interface->bfd_params->RequiredMinRxInterval;
@@ -237,6 +239,8 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
             ei->bfd_params->DemandMode = bfd_interface->bfd_params->DemandMode;
             ei->bfd_params->AuthType = bfd_interface->bfd_params->AuthType;
             ei->bfd_params->RemoteDemandMode = bfd_interface->bfd_params->RemoteDemandMode;
+        } else {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "BFD No Match.");
         }
     }
 
