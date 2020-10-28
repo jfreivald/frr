@@ -202,13 +202,6 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->iph.ip_tos = IPTOS_PREC_INTERNETCONTROL;
     msg->iph.ip_len = (msg->iph.ip_hl << 2) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH;
 
-#if defined(__DragonFly__)
-    /*
-	 * DragonFly's raw socket expects ip_len/ip_off in network byte order.
-	 */
-	iph.ip_len = htons(iph.ip_len);
-#endif
-
     msg->iph.ip_off = 0;
     msg->iph.ip_ttl = EIGRP_BFD_TTL;
     msg->iph.ip_p = IPPROTO_UDP;
@@ -217,6 +210,11 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->iph.ip_dst.s_addr = session->nbr->src.s_addr;
 
     sockopt_iphdrincl_swab_htosys(&msg->iph);
+
+    msg->udph.source = 0;
+    msg->udph.dest = htons(EIGRP_BFD_DEFAULT_PORT);
+    msg->udph.len = sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH;
+    msg->udph.check = 0;
 
     msg->bfdh.hdr = session->header;
     msg->bfdh.flags.sta = session->SessionState;
@@ -245,8 +243,6 @@ void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg) {
 
 int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int final) {
 
-    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "EIGRP_BFD: Send ctl packet to %s", inet_ntoa(session->nbr->src));
-
     pthread_mutex_lock(&session->session_mutex);
     thread_add_write(master, eigrp_bfd_write, eigrp_bfd_ctl_msg_new(session, poll, final), session->nbr->ei->eigrp->fd,
                      &session->nbr->ei->eigrp->t_write);
@@ -262,7 +258,7 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
-    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, (session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)/1000, &session->eigrp_nbr_bfd_ctl_thread);
+    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS, &session->eigrp_nbr_bfd_ctl_thread);
 
     return ret_val;
 }
