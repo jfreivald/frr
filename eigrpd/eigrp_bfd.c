@@ -287,20 +287,46 @@ int eigrp_bfd_write(struct thread *thread){
 }
 
 int eigrp_bfd_read(struct thread *thread) {
-    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "EIGRP_BFD: PACKET PROCESSING NOT IMPLEMENTED");
 
     struct interface *ifp = 0;
     struct eigrp *eigrp = eigrp_lookup();
-
-    eigrp_bfd_server_get(eigrp)->bfd_read_thread = NULL;
-    thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->bfd_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
-
-    stream_reset(eigrp_bfd_server_get(eigrp)->i_stream);
-
+    struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
     struct stream *ibuf;
-    if (!(ibuf = eigrp_bfd_recv_packet(eigrp_bfd_server_get(eigrp)->bfd_fd, &ifp,
-                                       eigrp_bfd_server_get(eigrp)->i_stream))) {
+    struct ip *iph;
+    uint16_t length = 0;
+
+    server->bfd_read_thread = NULL;
+    thread_add_read(master, eigrp_bfd_read, NULL, server->bfd_fd,&server->bfd_read_thread);
+
+    stream_reset(server->i_stream);
+    if (!(ibuf = eigrp_bfd_recv_packet(server->bfd_fd, &ifp, server->i_stream))) {
         return -1;
+    }
+
+    /* Note that there should not be alignment problems with this assignment
+       because this is at the beginning of the stream data buffer. */
+    iph = (struct ip *) STREAM_DATA(ibuf);
+
+    // Substract IPv4 header size from EIGRP Packet itself
+    if (iph->ip_v == 4)
+        length = (iph->ip_len) - 20U;
+
+    /* Note that sockopt_iphdrincl_swab_systoh was called in
+     * eigrp_bfd_recv_packet. */
+    if (ifp == NULL) {
+        struct connected *c;
+        /* Handle cases where the platform does not support retrieving
+           the ifindex,
+           and also platforms (such as Solaris 8) that claim to support
+           ifindex
+           retrieval but do not. */
+        c = if_lookup_address((void *) &iph->ip_src, AF_INET,
+                              VRF_DEFAULT);
+
+        if (c == NULL)
+            return 0;
+
+        ifp = c->ifp;
     }
 
     return eigrp_bfd_process_ctl_msg(ibuf, ifp);
@@ -323,7 +349,7 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
     msgh.msg_control = (caddr_t)buff;
     msgh.msg_controllen = sizeof(buff);
 
-    ret = stream_recvmsg(ibuf, fd, &msgh, 0, (EIGRP_PACKET_MAX_LEN + 1));
+    ret = stream_recvmsg(ibuf, fd, &msgh, 0, (EIGRP_BFD_LENGTH_MAX + 1));
     if (ret < 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvmsg failed: %s", safe_strerror(errno));
         return NULL;
