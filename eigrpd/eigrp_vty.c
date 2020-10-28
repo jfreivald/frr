@@ -334,21 +334,24 @@ DEFUN (no_eigrp_passive_interface,
 
 DEFUN (eigrp_bfd_interface,
        eigrp_bfd_interface_cmd,
-       "bfd interface IFNAME RequiredMinRxInterval DesiredMinTxInterval",
-       "Enable BFD on this interface for EIGRP\n"
+       "bfd interface IFNAME min_rx (0-4294967295) des_tx (0-4294967295)",
+       "bfd commands\n"
+       "interface for BFD and EIGRP interaction\n"
        "Required Minimum Receive Interval\n"
-       "Desired Minimum Transmit Interval\n")
+       "Interval in milliseconds\n"
+       "Desired Minimum Transmit Interval\n"
+       "Interval in milliseconds\n")
 {
     VTY_DECLVAR_CONTEXT(eigrp, eigrp)
 
-    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Using Bi-Forward Detection on interface %s", argv[1]->arg);
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Using Bi-Forward Detection on interface %s", argv[2]->arg);
 
     struct eigrp_bfd_interface *bfd_iface = XMALLOC(MTYPE_EIGRP_BFD_INTERFACE, sizeof(struct eigrp_bfd_interface));
-    strncpy(bfd_iface->name, argv[1]->arg, EIGRP_MAX_INTERFACE_NAME);
+    strncpy(bfd_iface->name, argv[2]->arg, EIGRP_MAX_INTERFACE_NAME);
     bfd_iface->name[EIGRP_MAX_INTERFACE_NAME-1] = 0;
     bfd_iface->bfd_params = eigrp_bfd_params_new();
-    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[2]->arg, NULL, 0);
-    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[3]->arg, NULL, 0);
+    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0);
+    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0);
 
     listnode_add(eigrp->single_neighbor_interface_names, bfd_iface);
 
