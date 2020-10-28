@@ -231,6 +231,8 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.desired_min_tx_interval = htonl(session->bfd_params->DesiredMinTxInterval);
     msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
+    
+    return msg;
 }
 
 void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg) {
