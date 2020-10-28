@@ -97,7 +97,7 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
 
     session->nbr = nbr;
     session->last_ctl_rcv = NULL;
-    pthread_mutex_init(session->session_mutex, NULL);
+    pthread_mutex_init(&session->session_mutex, NULL);
 
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
     session->RemoteSessionState = EIGRP_BFD_STATUS_DOWN;
@@ -236,10 +236,10 @@ int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int fina
 
     L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "EIGRP_BFD: Send ctl packet to %s", inet_ntoa(session->nbr->src));
 
-    pthread_mutex_lock(session->session_mutex);
+    pthread_mutex_lock(&session->session_mutex);
     thread_add_write(master, eigrp_bfd_write, eigrp_bfd_ctl_msg_new(session, poll, final), session->nbr->ei->eigrp->fd,
                      &session->nbr->ei->eigrp->t_write);
-    pthread_mutex_unlock(session->session_mutex);
+    pthread_mutex_unlock(&session->session_mutex);
 
     return 0;
 }
@@ -480,13 +480,13 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     assert(ei != NULL);
     assert(nbr != NULL);
 
-    pthread_mutex_lock(session->session_mutex);
+    pthread_mutex_lock(&session->session_mutex);
 
     //If the A bit is set and no authentication is in use (bfd.AuthType
     //is zero), the packet MUST be discarded.
     if (bfd_msg->flags.a && session->bfd_params->AuthType == 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Bad Message - Authorization requested, but not enabled locally");
-        pthread_mutex_unlock(session->session_mutex);
+        pthread_mutex_unlock(&session->session_mutex);
         return -1;
     }
 
@@ -494,7 +494,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //is nonzero), the packet MUST be discarded.
     if (!bfd_msg->flags.a && session->bfd_params->AuthType != 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Bad Message - No authorization when authorization required locally");
-        pthread_mutex_unlock(session->session_mutex);
+        pthread_mutex_unlock(&session->session_mutex);
         return -1;
     }
 
@@ -503,7 +503,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //(bfd.AuthType).  This may cause the packet to be discarded.
     if (bfd_msg->flags.a) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Authorization not implemented");
-        pthread_mutex_unlock(session->session_mutex);
+        pthread_mutex_unlock(&session->session_mutex);
         return -1;
     }
 
@@ -542,7 +542,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //      Discard the packet
     if (session->SessionState == EIGRP_BFD_STATUS_ADMIN_DOWN) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session Administratively Down. Discard.");
-        pthread_mutex_unlock(session->session_mutex);
+        pthread_mutex_unlock(&session->session_mutex);
         return -1;
     }
 
@@ -554,7 +554,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Remote station Administratively Down. Why we get this packet?");
         session->header.diag = EIGRP_BFD_DIAG_NBR_SESSION_DWN;
         session->SessionState = EIGRP_BFD_STATUS_DOWN;
-        pthread_mutex_unlock(session->session_mutex);
+        pthread_mutex_unlock(&session->session_mutex);
         return -1;
     }
 
@@ -644,7 +644,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //remote system with the Poll (P) bit clear, and the Final (F) bit
     //set (see section 6.8.7).
 
-    pthread_mutex_unlock(session->session_mutex);
+    pthread_mutex_unlock(&session->session_mutex);
 
     if (bfd_msg->flags.p) {
         eigrp_bfd_send_ctl_msg(session,0,1);
@@ -657,7 +657,7 @@ static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg) {
 
 static int eigrp_bfd_session_timer_expired(struct thread *thread) {
     struct eigrp_bfd_session *session = THREAD_ARG(thread);
-    pthread_mutex_lock(session->session_mutex);
+    pthread_mutex_lock(&session->session_mutex);
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
     session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
 }

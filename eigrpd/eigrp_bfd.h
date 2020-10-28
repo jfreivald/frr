@@ -129,7 +129,7 @@ struct eigrp_bfd_session {
     struct thread *eigrp_nbr_bfd_ctl_thread;
     struct thread *eigrp_nbr_bfd_detection_thread;
     struct eigrp_bfd_ctl_msg *last_ctl_rcv;
-    pthread_mutex_t *session_mutex;
+    pthread_mutex_t session_mutex;
 
     struct eigrp_bfd_hdr header;
     uint8_t SessionState;
