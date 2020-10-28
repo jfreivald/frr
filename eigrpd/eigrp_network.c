@@ -49,6 +49,7 @@
 #include "eigrpd/eigrp_vty.h"
 #include "eigrpd/eigrp_network.h"
 #include "eigrpd/eigrp_topology.h"
+#include "eigrpd/eigrp_bfd.h"
 
 static int eigrp_network_match_iface(const struct connected *,
 				     const struct prefix *);
