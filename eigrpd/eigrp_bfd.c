@@ -135,6 +135,9 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
     session->eigrp_nbr_bfd_ctl_thread = NULL;
     session->eigrp_nbr_bfd_detection_thread  = NULL;
 
+    listnode_add(eigrp_bfd_server_get(eigrp_lookup())->sessions, session);
+    nbr->bfd_session = session;
+
     thread_add_timer(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval, &session->eigrp_nbr_bfd_ctl_thread);
 
     return session;
@@ -454,7 +457,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
                 break;
             }
         }
-        if (ei != NULL) {
+        if (ei->bfd_params != NULL) {
             for (ALL_LIST_ELEMENTS_RO(ei->nbrs, n, nbr)) {
                 if (nbr->src.s_addr == iph->ip_src.s_addr) {
                     //Matched interface and IP address. Good enough for me!
@@ -466,7 +469,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
                 return -1;
             }
         }
-        if (ei == NULL) {
+        if (ei->bfd_params == NULL) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP not enabled on interface %s", inet_ntoa(iph->ip_dst));
             return -1;
         }

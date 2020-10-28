@@ -185,8 +185,9 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 
         eigrp_fsm_event(&msg);
 
-        eigrp_bfd_server_get(nbr->ei->eigrp); //Runs to ensure the BFD server is up and running.
-        eigrp_bfd_session_new(nbr);
+        if (ei->bfd_params != NULL) {
+            eigrp_bfd_session_new(nbr);
+        }
 	}
 	return nbr;
 }
