@@ -334,7 +334,7 @@ DEFUN (no_eigrp_passive_interface,
 
 DEFUN (eigrp_bfd_interface,
        eigrp_bfd_interface_cmd,
-       "bfd-interface IFNAME RequiredMinRxInterval DesiredMinTxInterval",
+       "bfd interface IFNAME RequiredMinRxInterval DesiredMinTxInterval",
        "Enable BFD on this interface for EIGRP\n"
        "Required Minimum Receive Interval\n"
        "Desired Minimum Transmit Interval\n")
@@ -357,7 +357,7 @@ DEFUN (eigrp_bfd_interface,
 
 DEFUN (no_eigrp_bfd_interface,
        no_eigrp_bfd_interface_cmd,
-       "no bfd-interface IFNAME",
+       "no bfd interface IFNAME",
        NO_STR
        "Suppress BFD on interface\n"
        "Interface to suppress BFD on\n")
