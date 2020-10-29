@@ -233,11 +233,12 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 
     char buf[16384];
+    memset(buf, 0, 16384);
     char *input = (char *)msg;
     for (int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
-        snprintf(&buf[i*3], 4, "%02x|", input[i]);
+        sprintf(&buf[strnlen(buf, 16300)], "%02x|", input[i]);
     }
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tMESSAGE: %s", buf);
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tNEW MESSAGE: %s", buf);
 
     return msg;
 }
@@ -300,7 +301,7 @@ int eigrp_bfd_write(struct thread *thread){
             for (int i = 0; i < iov[0].iov_len; i++) {
                 snprintf(&buf[i*3], 4, "%02x|", input[i]);
             }
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tMESSAGE: %s", buf);
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
             retval = -1;
         }
     }
