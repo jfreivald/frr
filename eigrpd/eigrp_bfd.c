@@ -22,7 +22,6 @@ static void eigrp_bfd_session_destroy_void_ptr(void *s) {
 }
 
 static int eigrp_bfd_session_cmp_void_ptr(void *n1, void *n2) {
-
     return eigrp_bfd_session_cmp((struct eigrp_bfd_session *)n1, (struct eigrp_bfd_session *)n2);
 }
 
@@ -92,7 +91,7 @@ void eigrp_bfd_server_reset(void) {
     eigrp_bfd_server_singleton = NULL;
 }
 
-struct eigrp_bfd_params * eigrp_bfd_params_new() {
+struct eigrp_bfd_params * eigrp_bfd_params_new(void) {
     struct eigrp_bfd_params *bfd_params = XMALLOC(MTYPE_EIGRP_BFD_PARAMS, sizeof(struct eigrp_bfd_params));
 
     bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
@@ -103,6 +102,8 @@ struct eigrp_bfd_params * eigrp_bfd_params_new() {
     bfd_params->RemoteDemandMode = EIGRP_BFD_NO_DEMAND_MODE;
     bfd_params->DetectMulti = EIGRP_BFD_DEFAULT_DETECT_MULTI;
     bfd_params->AuthType = EIGRP_BFD_NO_AUTH;
+
+    return bfd_params;
 }
 
 struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
@@ -183,7 +184,7 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
     *session = NULL;
 }
 
-static int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2) {
+int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2) {
 
     assert(n1 != NULL);
     assert(n2 != NULL);
@@ -239,7 +240,7 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     char buf[256];
     memset(buf, 0, 256);
     unsigned char *input = (unsigned char *)msg;
-    for (int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
+    for (long unsigned int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
         sprintf(&buf[strnlen(buf, 200)], "%02x|", input[i]);
     }
     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEW MESSAGE: %s", buf);
@@ -291,7 +292,7 @@ int eigrp_bfd_write(struct thread *thread){
     char buf[256];
     memset(buf, 0, 256);
     unsigned char *input = (unsigned char *)msg;
-    for (int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
+    for (long unsigned int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
         sprintf(&buf[strnlen(buf, 200)], "%02x|", input[i]);
     }
     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: %s", buf);
@@ -304,7 +305,7 @@ int eigrp_bfd_write(struct thread *thread){
         iov[0].iov_len = ntohl(msg->iph.ip_len);
 
         struct msghdr message;
-        message.msg_name = msg->iph.ip_dst.s_addr;
+        message.msg_name = NULL;
         message.msg_namelen = sizeof(in_addr_t);
         message.msg_iov = iov;
         message.msg_iovlen = 1;
@@ -315,7 +316,7 @@ int eigrp_bfd_write(struct thread *thread){
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
             char buf[16384];
             char *input = (char *)msg;
-            for (int i = 0; i < iov[0].iov_len; i++) {
+            for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
                 snprintf(&buf[i*3], 4, "%02x|", input[i]);
             }
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
@@ -716,6 +717,8 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     if (bfd_msg->flags.p) {
         eigrp_bfd_send_ctl_msg(session,0,1);
     }
+
+    return 0;
 }
 
 static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg) {
@@ -731,4 +734,5 @@ static int eigrp_bfd_session_timer_expired(struct thread *thread) {
     pthread_mutex_lock(&session->session_mutex);
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
     session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
+    return 0;
 }

@@ -80,8 +80,9 @@
 #define EIGRP_BFD_TTL                               (255)
 
 #define EIGRP_BFD_TIMER_SELECT_MS                   ((session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)/1000)
+#define EIGRP_BFD_DEFAULT_PORT                      (3784)
 
-#pragma pack(push, 1)
+#pragma pack(1)
 
 struct eigrp_bfd_interface {
     char name[20];
@@ -128,7 +129,7 @@ struct eigrp_bfd_ctl_msg {
     struct eigrp_bfd_hdr bfdh;
 };
 
-#pragma pop
+#pragma pack()
 
 struct eigrp_bfd_session {
     struct eigrp_neighbor *nbr;
@@ -158,22 +159,18 @@ struct eigrp_bfd_server {
 
 };
 
-#define EIGRP_BFD_DEFAULT_PORT  (3784)
 
-//TODO: Create initialization and allocation and deallocation functions;
+struct eigrp_bfd_params * eigrp_bfd_params_new(void);
 struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *);
 void eigrp_bfd_server_reset(void);
 struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr);
 void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session);
-static int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2);
+int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2);
 struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *session, int poll, int final);
 int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int final);
 void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg);
 int eigrp_bfd_write(struct thread *thread);
 int eigrp_bfd_read(struct thread *thread);
 int eigrp_bfd_send_ctl_msg_thread(struct thread *t);
-struct eigrp_bfd_params * eigrp_bfd_params_new();
-
-#pragma pack(pop);
 
 #endif //_ZEBRA_EIGRP_BFD_H
