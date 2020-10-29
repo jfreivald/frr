@@ -460,8 +460,8 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
 
     //If the Length field is greater than the payload of the
     //encapsulating protocol, the packet MUST be discarded.
-    if (bfd_msg->length != udp_length) {
-        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Length does not match UDP Length [%d:%d]", bfd_msg->length, udp_length);
+    if (bfd_msg->length != udp_length - sizeof(struct udphdr)) {
+        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Length does not match UDP Length [%d:%d]", bfd_msg->length, udp_length - sizeof(struct udphdr));
         return -1;
     }
 
