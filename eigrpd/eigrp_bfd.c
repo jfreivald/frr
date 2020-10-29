@@ -190,6 +190,7 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     assert(poll == 0 || final == 0);
 
     struct eigrp_bfd_ctl_msg *msg = XMALLOC(MTYPE_EIGRP_BFD_CTL_MSG, sizeof(struct eigrp_bfd_ctl_msg));
+    memset(msg, 0, sizeof(struct eigrp_bfd_ctl_msg));
 
     msg->iph.ip_hl = sizeof(struct ip) >> 2;
     /* it'd be very strange for header to not be 4byte-word aligned but.. */
@@ -254,8 +255,11 @@ void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg) {
 int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int final) {
 
     pthread_mutex_lock(&session->session_mutex);
-    thread_add_write(master, eigrp_bfd_write, eigrp_bfd_ctl_msg_new(session, poll, final), session->nbr->ei->eigrp->fd,
+
+    struct eigrp_bfd_ctl_msg *new_message = eigrp_bfd_ctl_msg_new(session, poll, final);
+    thread_add_write(master, eigrp_bfd_write, new_message, session->nbr->ei->eigrp->fd,
                      &session->nbr->ei->eigrp->t_write);
+
     pthread_mutex_unlock(&session->session_mutex);
 
     return 0;
