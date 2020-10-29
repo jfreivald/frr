@@ -157,6 +157,19 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
         return NULL;
     }
 
+    struct sockaddr_in servaddr;
+    servaddr.sin_addr.s_addr = nbr->src.s_addr;
+    servaddr.sin_port = htons(EIGRP_BFD_DEFAULT_PORT);
+    servaddr.sin_family = AF_INET;
+
+    if (connect(session->client_fd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Connect Error: %s", safe_strerror(errno));
+        close(session->client_fd);
+        list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
+        XFREE(MTYPE_EIGRP_BFD_SESSION, session);
+        return NULL;
+    }
+
     session->eigrp_nbr_bfd_ctl_thread = NULL;
     session->eigrp_nbr_bfd_detection_thread  = NULL;
 
@@ -263,8 +276,8 @@ int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int fina
 
     struct eigrp_bfd_ctl_msg *new_message = eigrp_bfd_ctl_msg_new(session, poll, final);
 
-    thread_add_write(master, eigrp_bfd_write, new_message, session->nbr->ei->eigrp->fd,
-                     &session->nbr->ei->eigrp->t_write);
+    thread_add_write(master, eigrp_bfd_write, new_message, session->client_fd,
+                     &session->t_write);
 
     pthread_mutex_unlock(&session->session_mutex);
 
@@ -289,6 +302,8 @@ int eigrp_bfd_write(struct thread *thread){
 
     struct eigrp_bfd_ctl_msg *msg = (struct eigrp_bfd_ctl_msg *) thread->arg;
     int retval = 0;
+    struct listnode *n1;
+    struct eigrp_bfd_session *session;
 
     assert(msg);
 
@@ -296,11 +311,11 @@ int eigrp_bfd_write(struct thread *thread){
     memset(buf, 0, 2048);
     unsigned char *input = (unsigned char *)msg;
 
-    pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
+    //pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 
     struct iovec iov[1];
-    iov[0].iov_base = msg;
-    iov[0].iov_len = htons(msg->iph.ip_len);
+    iov[0].iov_base = &msg->bfdh;
+    iov[0].iov_len = htons(msg->bfdh.length);
 
     struct msghdr message;
     message.msg_name = NULL;
@@ -310,23 +325,37 @@ int eigrp_bfd_write(struct thread *thread){
     message.msg_control = 0;
     message.msg_controllen = 0;
 
-    if (sendmsg(eigrp_bfd_server_get(eigrp_lookup())->client_fd, &message, 0) < 0) {
-        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
-        memset(buf, 0, 2048);
-        buf[0] = '|';
-        size_t current_length;
-        for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
-            current_length = strnlen(buf, 2048);
-            snprintf(&buf[current_length], 2047-current_length, "%02x|", input[i]);
+    for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n1, session)) {
+        if (session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
+            break;
         }
-        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
-        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tVER[%u] HL[%u] TOS[%02x] L[%u] ID[%u] FO[%u] TTL[%u] P[%u] HC[%04x] S[%s] D[%s] SP[%u] DP[%u] UL[%u]",
-                msg->iph.ip_v, msg->iph.ip_len << 2, msg->iph.ip_tos, ntohs(msg->iph.ip_len), ntohs(msg->iph.ip_id),
-                ntohs(msg->iph.ip_off), msg->iph.ip_ttl, msg->iph.ip_p, htons(msg->iph.ip_sum), inet_ntoa(msg->iph.ip_src), inet_ntoa(msg->iph.ip_dst), ntohs(msg->udph.source), ntohs(msg->udph.dest), ntohs(msg->udph.len) );
+    }
+
+    if (session) {
+        if (sendto(session->client_fd, &message, EIGRP_BFD_LENGTH_NO_AUTH, 0, NULL, 0) < 0) {
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
+            memset(buf, 0, 2048);
+            buf[0] = '|';
+            size_t current_length;
+            for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
+                current_length = strnlen(buf, 2048);
+                snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
+            }
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
+              "\tVER[%u] HL[%u] TOS[%02x] L[%u] ID[%u] FO[%u] TTL[%u] P[%u] HC[%04x] S[%s] D[%s] SP[%u] DP[%u] UL[%u]",
+              msg->iph.ip_v, msg->iph.ip_len << 2, msg->iph.ip_tos, ntohs(msg->iph.ip_len), ntohs(msg->iph.ip_id),
+              ntohs(msg->iph.ip_off), msg->iph.ip_ttl, msg->iph.ip_p, htons(msg->iph.ip_sum),
+              inet_ntoa(msg->iph.ip_src), inet_ntoa(msg->iph.ip_dst), ntohs(msg->udph.source), ntohs(msg->udph.dest),
+              ntohs(msg->udph.len));
+            retval = -1;
+        }
+    } else {
+        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD control message failed: No session found for address %s", inet_ntoa(msg->iph.ip_dst));
         retval = -1;
     }
 
-    pthread_mutex_unlock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
+    //pthread_mutex_unlock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
     return retval;
 }
 
@@ -497,7 +526,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
                 break;
             }
         }
-        if (session == NULL) {
+        if (nbr == NULL) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session [%08x] not found.", ntohl(bfd_msg->your_descr));
             return -1;
         }
@@ -532,9 +561,10 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
                 if (nbr->src.s_addr == iph->ip_src.s_addr) {
                     //Matched interface and IP address. Good enough for me!
                     session = eigrp_bfd_session_new(nbr);
+                    break;
                 }
             }
-            if (session == NULL) {
+            if (nbr == NULL) {
                 L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Unable to find neighbor %s on interface %s", inet_ntoa(iph->ip_src), inet_ntoa(ei->address->u.prefix4));
                 return -1;
             }

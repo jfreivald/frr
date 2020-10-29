@@ -145,6 +145,7 @@ struct eigrp_bfd_session {
     uint32_t RemoteDescr;
 
     int client_fd;
+    struct thread *t_write;
 
     struct eigrp_bfd_params *bfd_params;
 
