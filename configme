@@ -7,10 +7,7 @@
     --sbindir=/usr/local/sbin \
     --sysconfdir=/usr/local/etc \
     --libdir=/usr/local/lib \
-    --enable-pimd \
     --enable-watchfrr \
-    --enable-ospfclient=yes \
-    --enable-ospfapi=yes \
     --enable-multipath=64 \
     --enable-user=frr \
     --enable-group=frr \
@@ -22,5 +19,8 @@
     --enable-systemd=yes \
     --with-pkg-git-version \
     --with-pkg-extra-version=-LTEspeed
-		#--enable-dev-build \
-    		#--runstatedir=/run/frr \
+    #--enable-pimd \
+    #--enable-ospfclient=yes \
+    #--enable-ospfapi=yes \
+    #--enable-dev-build \
+    #--runstatedir=/run/frr \

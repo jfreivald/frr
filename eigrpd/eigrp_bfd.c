@@ -295,7 +295,7 @@ int eigrp_bfd_write(struct thread *thread){
     for (long unsigned int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
         sprintf(&buf[strnlen(buf, 200)], "%02x|", input[i]);
     }
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: %s", buf);
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: [%u:%d] %s", msg, msg->iph.ip_len, buf);
 
     pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 

@@ -280,10 +280,11 @@ extern void list_sort(struct list *list,
  * and remove list_delete_original and the list_delete #define
  * Additionally remove list_free entirely
  */
+/*
 #if defined(VERSION_TYPE_DEV) && CONFDATE > 20181001
 CPP_NOTICE("list_delete without double pointer is deprecated, please fixup")
 #endif
-
+*/
 /*
  * Delete a list and NULL its pointer.
  *
@@ -315,12 +316,15 @@ extern void list_delete_and_null_leave_data(struct list **plist);
  *    pointer to list pointer
  */
 extern void list_delete_original(struct list *list);
+
+/*
 #define list_delete(X)                                                         \
 	list_delete_original((X))                                              \
 		CPP_WARN("Please transition to using list_delete_and_null")
 #define list_free(X)                                                           \
 	list_delete_original((X))                                              \
 		CPP_WARN("Please transition tousing list_delete_and_null")
+*/
 
 /*
  * Delete all nodes from a list without deleting the list itself.

@@ -7322,10 +7322,11 @@ DEFUN (no_debug_msdp,
 	PIM_DONT_DEBUG_MSDP_PACKETS;
 	return CMD_SUCCESS;
 }
-
+/*
 #if CONFDATE > 20190402
 CPP_NOTICE("bgpd: time to remove undebug commands")
 #endif
+ */
 ALIAS_HIDDEN (no_debug_msdp,
               undebug_msdp_cmd,
               "undebug msdp",
@@ -7353,10 +7354,11 @@ DEFUN (no_debug_msdp_events,
 	PIM_DONT_DEBUG_MSDP_EVENTS;
 	return CMD_SUCCESS;
 }
-
+/*
 #if CONFDATE > 20190402
 CPP_NOTICE("bgpd: time to remove undebug commands")
 #endif
+ */
 ALIAS_HIDDEN (no_debug_msdp_events,
               undebug_msdp_events_cmd,
               "undebug msdp events",
@@ -7386,10 +7388,11 @@ DEFUN (no_debug_msdp_packets,
 	PIM_DONT_DEBUG_MSDP_PACKETS;
 	return CMD_SUCCESS;
 }
-
+/*
 #if CONFDATE > 20190402
 CPP_NOTICE("bgpd: time to remove undebug commands")
 #endif
+ */
 ALIAS_HIDDEN (no_debug_msdp_packets,
               undebug_msdp_packets_cmd,
               "undebug msdp packets",

@@ -457,20 +457,22 @@ struct zclient_options {
 extern struct zclient *zclient_new(struct thread_master *);
 
 /* clang-format off */
+/*
 #if defined(VERSION_TYPE_DEV) && CONFDATE > 20181101
 CPP_NOTICE("zclient_new_notify can take over or zclient_new now");
 #endif
+ */
 /* clang-format on */
 
 extern struct zclient_options zclient_options_default;
 
 extern struct zclient *zclient_new_notify(struct thread_master *m,
 					  struct zclient_options *opt);
-
+/*
 #define zclient_new(A)                                                         \
 	zclient_new_notify((A), &zclient_options_default);                     \
 	CPP_WARN("Please transition to using zclient_new_notify");
-
+*/
 extern void zclient_init(struct zclient *, int, unsigned short,
 			 struct zebra_privs_t *privs);
 extern int zclient_start(struct zclient *);
@@ -598,9 +600,11 @@ extern void zebra_interface_if_set_value(struct stream *, struct interface *);
 extern void zebra_router_id_update_read(struct stream *s, struct prefix *rid);
 
 /* clang-format off */
+/*
 #if defined(VERSION_TYPE_DEV) && CONFDATE > 20180823
 CPP_NOTICE("zapi_ipv4_route, zapi_ipv6_route, zapi_ipv4_route_ipv6_nexthop as well as the zapi_ipv4 and zapi_ipv6 data structures should be removed now");
 #endif
+ */
 /* clang-format on */
 
 extern int zapi_ipv4_route(uint8_t, struct zclient *, struct prefix_ipv4 *,
