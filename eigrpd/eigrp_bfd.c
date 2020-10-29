@@ -155,6 +155,10 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
     listnode_add(eigrp_bfd_server_get(eigrp_lookup())->sessions, session);
     nbr->bfd_session = session;
 
+    if (session->eigrp_nbr_bfd_ctl_thread != NULL) {
+        THREAD_OFF(session->eigrp_nbr_bfd_ctl_thread);
+        session->eigrp_nbr_bfd_ctl_thread = NULL;
+    }
     thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval/1000, &session->eigrp_nbr_bfd_ctl_thread);
 
     return session;
@@ -256,6 +260,7 @@ int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int fina
     pthread_mutex_lock(&session->session_mutex);
 
     struct eigrp_bfd_ctl_msg *new_message = eigrp_bfd_ctl_msg_new(session, poll, final);
+
     thread_add_write(master, eigrp_bfd_write, new_message, session->nbr->ei->eigrp->fd,
                      &session->nbr->ei->eigrp->t_write);
 
@@ -282,6 +287,14 @@ int eigrp_bfd_write(struct thread *thread){
 
     struct eigrp_bfd_ctl_msg *msg = (struct eigrp_bfd_ctl_msg *) thread->arg;
     int retval = 0;
+
+    char buf[256];
+    memset(buf, 0, 256);
+    unsigned char *input = (unsigned char *)msg;
+    for (int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
+        sprintf(&buf[strnlen(buf, 200)], "%02x|", input[i]);
+    }
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: %s", buf);
 
     pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 
