@@ -332,6 +332,7 @@ int eigrp_bfd_write(struct thread *thread){
     }
 
     if (session) {
+        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Sending BFD Control to %s", inet_ntoa(msg->iph.ip_dst));
         if (sendto(session->client_fd, &message, EIGRP_BFD_LENGTH_NO_AUTH, 0, NULL, 0) < 0) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
             memset(buf, 0, 2048);
