@@ -46,15 +46,6 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
             XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
             return NULL;
         }
-        if ( (eigrp_bfd_server_singleton->client_fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP) ) < 0) {
-            if (eigrpd_privs.change(ZPRIVS_LOWER))
-                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not lower privilege, %s",
-                  safe_strerror(errno));
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: %s", safe_strerror(errno));
-            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
-            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
-            return NULL;
-        }
 
         struct sockaddr_in sock;
         memset(&sock, 0, sizeof(sock));
@@ -159,6 +150,13 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
         session->bfd_params->RemoteDemandMode = nbr->ei->bfd_params->RemoteDemandMode;
     }
 
+    if ( (session->client_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Socket Error: %s", safe_strerror(errno));
+        list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
+        XFREE(MTYPE_EIGRP_BFD_SESSION, session);
+        return NULL;
+    }
+
     session->eigrp_nbr_bfd_ctl_thread = NULL;
     session->eigrp_nbr_bfd_detection_thread  = NULL;
 
@@ -169,7 +167,7 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
         THREAD_OFF(session->eigrp_nbr_bfd_ctl_thread);
         session->eigrp_nbr_bfd_ctl_thread = NULL;
     }
-    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, session->bfd_params->DesiredMinTxInterval/1000, &session->eigrp_nbr_bfd_ctl_thread);
+    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS, &session->eigrp_nbr_bfd_ctl_thread);
 
     return session;
 }
@@ -187,6 +185,8 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
         (*session)->header.diag = EIGRP_BFD_DIAG_FWD_PLN_RESET;
     }
     eigrp_bfd_send_ctl_msg(*session, 0, 0);
+
+    close((*session)->client_fd);
 
     listnode_delete(active_descriminators, (void *)(*session)->LocalDescr);
     XFREE(MTYPE_EIGRP_BFD_SESSION, *session);
