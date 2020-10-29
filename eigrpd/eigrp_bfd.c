@@ -218,7 +218,7 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
 
     msg->udph.source = 0;
     msg->udph.dest = htons(EIGRP_BFD_DEFAULT_PORT);
-    msg->udph.len = sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH;
+    msg->udph.len = htons(sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH);
     msg->udph.check = 0;
 
     msg->bfdh.hdr = session->header;
@@ -320,7 +320,7 @@ int eigrp_bfd_write(struct thread *thread){
         }
         L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
         L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tVER[%u] HL[%u] TOS[%02x] L[%u] ID[%u] FO[%u] TTL[%u] P[%u] HC[%04x] S[%s] D[%s] SP[%u] DP[%u] UL[%u]",
-                msg->iph.ip_v, msg->iph.ip_len >> 2, msg->iph.ip_tos, ntohs(msg->iph.ip_len), ntohs(msg->iph.ip_id),
+                msg->iph.ip_v, msg->iph.ip_len << 2, msg->iph.ip_tos, ntohs(msg->iph.ip_len), ntohs(msg->iph.ip_id),
                 ntohs(msg->iph.ip_off), msg->iph.ip_ttl, msg->iph.ip_p, htons(msg->iph.ip_sum), inet_ntoa(msg->iph.ip_src), inet_ntoa(msg->iph.ip_dst), ntohs(msg->udph.source), ntohs(msg->udph.dest), ntohs(msg->udph.len) );
         retval = -1;
     }
