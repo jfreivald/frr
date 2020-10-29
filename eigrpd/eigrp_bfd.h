@@ -90,18 +90,18 @@ struct eigrp_bfd_interface {
 };
 
 struct eigrp_bfd_ver_diag_byte {
-    uint8_t vers:3;
     uint8_t diag:5;
+    uint8_t vers:3;
 };
 
 struct eigrp_bfd_flags {
-    uint8_t sta:2;
-    uint8_t p:1;
-    uint8_t f:1;
-    uint8_t c:1;
-    uint8_t a:1;
     uint8_t d:1;
     uint8_t m:1;
+    uint8_t a:1;
+    uint8_t c:1;
+    uint8_t f:1;
+    uint8_t p:1;
+    uint8_t sta:2;
 };
 
 struct eigrp_bfd_auth_hdr {
