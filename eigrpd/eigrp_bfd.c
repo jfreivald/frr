@@ -64,6 +64,10 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
             return NULL;
         } else {
             L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Server bound to socket %u", ntohs(sock.sin_port));
+            if (eigrp_bfd_server_get(eigrp)->bfd_read_thread != NULL) {
+                THREAD_OFF(eigrp_bfd_server_get(eigrp)->bfd_read_thread);
+                eigrp_bfd_server_get(eigrp)->bfd_read_thread = NULL;
+            }
             thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->bfd_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
         }
 
@@ -106,6 +110,7 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
     assert(nbr != NULL);
 
     struct eigrp_bfd_session *session = XMALLOC(MTYPE_EIGRP_BFD_SESSION, sizeof(struct eigrp_bfd_session));
+    memset(session, 0, sizeof(struct eigrp_bfd_session));
 
     session->nbr = nbr;
     session->last_ctl_rcv = NULL;
@@ -193,12 +198,6 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     memset(msg, 0, sizeof(struct eigrp_bfd_ctl_msg));
 
     msg->iph.ip_hl = sizeof(struct ip) >> 2;
-    /* it'd be very strange for header to not be 4byte-word aligned but.. */
-    if (sizeof(struct ip)
-        > (unsigned int)(msg->iph.ip_hl << 2))
-        msg->iph.ip_hl++; /* we presume sizeof struct ip cant overflow
-				ip_hl.. */
-
     msg->iph.ip_v = IPVERSION;
     msg->iph.ip_tos = IPTOS_PREC_INTERNETCONTROL;
     msg->iph.ip_len = (msg->iph.ip_hl << 2) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH;
@@ -233,11 +232,11 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 
-    char buf[16384];
-    memset(buf, 0, 16384);
+    char buf[256];
+    memset(buf, 0, 256);
     unsigned char *input = (unsigned char *)msg;
     for (int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
-        sprintf(&buf[strnlen(buf, 16300)], "%02x|", input[i]);
+        sprintf(&buf[strnlen(buf, 200)], "%02x|", input[i]);
     }
     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEW MESSAGE: %s", buf);
 
@@ -272,6 +271,7 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
+    session->eigrp_nbr_bfd_ctl_thread = NULL;
     thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS,
             &session->eigrp_nbr_bfd_ctl_thread);
 
@@ -689,7 +689,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
         if (session->eigrp_nbr_bfd_detection_thread) {
             THREAD_OFF(session->eigrp_nbr_bfd_detection_thread);
         }
-
+        session->eigrp_nbr_bfd_detection_thread = NULL;
         thread_add_timer_msec(master, eigrp_bfd_session_timer_expired, session, detection_timer,
                          &session->eigrp_nbr_bfd_detection_thread);
     }
