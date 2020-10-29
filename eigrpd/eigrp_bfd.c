@@ -289,38 +289,40 @@ int eigrp_bfd_write(struct thread *thread){
     struct eigrp_bfd_ctl_msg *msg = (struct eigrp_bfd_ctl_msg *) thread->arg;
     int retval = 0;
 
+    assert(msg);
+
     char buf[2048];
     memset(buf, 0, 2048);
     unsigned char *input = (unsigned char *)msg;
-    for (long unsigned int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
-        sprintf(&buf[strnlen(buf, 200)], "%02x|", input[i]);
-    }
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: [%u:%d] %s", msg, htons(msg->iph.ip_len), buf);
 
     pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 
-    if (msg) {
-        struct iovec iov[1];
-        iov[0].iov_base = msg;
-        iov[0].iov_len = htons(msg->iph.ip_len);
+    struct iovec iov[1];
+    iov[0].iov_base = msg;
+    iov[0].iov_len = htons(msg->iph.ip_len);
 
-        struct msghdr message;
-        message.msg_name = NULL;
-        message.msg_namelen = sizeof(in_addr_t);
-        message.msg_iov = iov;
-        message.msg_iovlen = 1;
-        message.msg_control = 0;
-        message.msg_controllen = 0;
+    struct msghdr message;
+    message.msg_name = NULL;
+    message.msg_namelen = 0;
+    message.msg_iov = iov;
+    message.msg_iovlen = 1;
+    message.msg_control = 0;
+    message.msg_controllen = 0;
 
-        if (sendmsg(eigrp_bfd_server_get(eigrp_lookup())->bfd_fd, &message, 0) < 0) {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
-            memset(buf, 0, 2048);
-            for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
-                snprintf(&buf[i*3], 4, "%02x|", input[i]);
-            }
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
-            retval = -1;
+    if (sendmsg(eigrp_bfd_server_get(eigrp_lookup())->bfd_fd, &message, 0) < 0) {
+        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
+        memset(buf, 0, 2048);
+        buf[0] = '|';
+        size_t current_length;
+        for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
+            current_length = strnlen(buf, 2048);
+            snprintf(&buf[current_length], 2047-current_length, "%02x|", input[i]);
         }
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tVER[%u] HL[%u] TOS[%02x] L[%u] ID[%u] FO[%u] TTL[%u] P[%u] HC[%04x] S[%s] D[%s] SP[%u] DP[%u] UL[%u]",
+                msg->iph.ip_v, msg->iph.ip_len >> 2, msg->iph.ip_tos, ntohs(msg->iph.ip_len), ntohs(msg->iph.ip_id),
+                ntohs(msg->iph.ip_off), msg->iph.ip_ttl, msg->iph.ip_p, htons(msg->iph.ip_sum), inet_ntoa(msg->iph.ip_src), inet_ntoa(msg->iph.ip_dst), ntohs(msg->udph.source), ntohs(msg->udph.dest), ntohs(msg->udph.len) );
+        retval = -1;
     }
 
     pthread_mutex_unlock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
