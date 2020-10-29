@@ -152,7 +152,8 @@ struct eigrp_bfd_server {
     uint16_t port;
     struct list *sessions;
     struct thread *bfd_read_thread;
-    int bfd_fd;
+    int server_fd;
+    int client_fd;
     pthread_mutex_t port_write_mutex;
 
     struct stream *i_stream;

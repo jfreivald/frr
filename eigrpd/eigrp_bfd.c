@@ -37,7 +37,16 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
         if (eigrpd_privs.change(ZPRIVS_RAISE))
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not raise privilege, %s",
               safe_strerror(errno));
-        if ( (eigrp_bfd_server_singleton->bfd_fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP) ) < 0) {
+        if ( (eigrp_bfd_server_singleton->server_fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP) ) < 0) {
+            if (eigrpd_privs.change(ZPRIVS_LOWER))
+                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not lower privilege, %s",
+                  safe_strerror(errno));
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: %s", safe_strerror(errno));
+            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
+            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
+            return NULL;
+        }
+        if ( (eigrp_bfd_server_singleton->client_fd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP) ) < 0) {
             if (eigrpd_privs.change(ZPRIVS_LOWER))
                 L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not lower privilege, %s",
                   safe_strerror(errno));
@@ -56,7 +65,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
 
         eigrp_bfd_server_singleton->i_stream = stream_new(EIGRP_BFD_LENGTH_MAX + 1);
 
-        if (bind(eigrp_bfd_server_singleton->bfd_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
+        if (bind(eigrp_bfd_server_singleton->server_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Bind Error: %s", strerror(errno));
             list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
             XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
@@ -67,7 +76,7 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
                 THREAD_OFF(eigrp_bfd_server_get(eigrp)->bfd_read_thread);
                 eigrp_bfd_server_get(eigrp)->bfd_read_thread = NULL;
             }
-            thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->bfd_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
+            thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->server_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
         }
 
         if (eigrpd_privs.change(ZPRIVS_LOWER))
@@ -237,14 +246,6 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 
-    char buf[2048];
-    memset(buf, 0, 2048);
-    unsigned char *input = (unsigned char *)msg;
-    for (long unsigned int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
-        sprintf(&buf[strnlen(buf, 200)], "%02x|", input[i]);
-    }
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEW MESSAGE: %s", buf);
-
     return msg;
 }
 
@@ -309,7 +310,7 @@ int eigrp_bfd_write(struct thread *thread){
     message.msg_control = 0;
     message.msg_controllen = 0;
 
-    if (sendmsg(eigrp_bfd_server_get(eigrp_lookup())->bfd_fd, &message, 0) < 0) {
+    if (sendmsg(eigrp_bfd_server_get(eigrp_lookup())->client_fd, &message, 0) < 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
         memset(buf, 0, 2048);
         buf[0] = '|';
@@ -339,10 +340,10 @@ int eigrp_bfd_read(struct thread *thread) {
     uint16_t length = 0;
 
     server->bfd_read_thread = NULL;
-    thread_add_read(master, eigrp_bfd_read, NULL, server->bfd_fd,&server->bfd_read_thread);
+    thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd,&server->bfd_read_thread);
 
     stream_reset(server->i_stream);
-    if (!(ibuf = eigrp_bfd_recv_packet(server->bfd_fd, &ifp, server->i_stream))) {
+    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, server->i_stream))) {
         return -1;
     }
 
@@ -725,7 +726,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
 static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg) {
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "IP Length[%u], UDP Length [%u], BFD Length [%u]",
             msg->iph.ip_len, ntohs(msg->udph.len), msg->bfdh.length);
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "V[%u] D[%u] S[%u] ME[%08x] YOU [%08x] DMIN [%u] RMIN [%u] EMIN [%u] ",
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "V[%u] D[%u] S[%u] ME[%08x] YOU[%08x] DMIN[%u] RMIN[%u] EMIN[%u] ",
             msg->bfdh.hdr.vers, msg->bfdh.hdr.diag, msg->bfdh.flags.sta, ntohl(msg->bfdh.my_descr), ntohl(msg->bfdh.your_descr),
             ntohl(msg->bfdh.desired_min_tx_interval), ntohl(msg->bfdh.required_min_rx_interval), ntohl(msg->bfdh.required_min_echo_rx_interval));
 }
