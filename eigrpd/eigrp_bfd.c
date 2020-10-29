@@ -234,11 +234,11 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
 
     char buf[16384];
     memset(buf, 0, 16384);
-    char *input = (char *)msg;
+    unsigned char *input = (unsigned char *)msg;
     for (int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
         sprintf(&buf[strnlen(buf, 16300)], "%02x|", input[i]);
     }
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tNEW MESSAGE: %s", buf);
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEW MESSAGE: %s", buf);
 
     return msg;
 }
