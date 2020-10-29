@@ -453,7 +453,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
 
     //If the Length field is less than the minimum correct value (24 if  the A bit is clear,
     //or 26 if the A bit is set), the packet MUST be discarded.
-    if ((bfd_msg->flags.a == 0 && bfd_msg->length < 24) || (bfd_msg->length < 26)) {
+    if ((bfd_msg->length < EIGRP_BFD_LENGTH_NO_AUTH) || (bfd_msg->flags.a == 1 && bfd_msg->length < EIGRP_BFD_LENGTH_NO_AUTH + 2)) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: length too short [%d]", bfd_msg->length);
         return -1;
     }
