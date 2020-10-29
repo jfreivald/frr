@@ -232,6 +232,13 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 
+    char buf[16384];
+    char *input = (char *)msg;
+    for (int i = 0; i < (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH); i++) {
+        snprintf(&buf[i*3], 4, "%02x|", input[i]);
+    }
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tMESSAGE: %s", buf);
+
     return msg;
 }
 
@@ -260,13 +267,13 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
-    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS, &session->eigrp_nbr_bfd_ctl_thread);
+    thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS,
+            &session->eigrp_nbr_bfd_ctl_thread);
 
     return ret_val;
 }
 
 int eigrp_bfd_write(struct thread *thread){
-
 
     struct eigrp_bfd_ctl_msg *msg = (struct eigrp_bfd_ctl_msg *) thread->arg;
     int retval = 0;
@@ -277,6 +284,7 @@ int eigrp_bfd_write(struct thread *thread){
         struct iovec iov[1];
         iov[0].iov_base = msg;
         iov[0].iov_len = ntohl(msg->iph.ip_len);
+
         struct msghdr message;
         message.msg_name = msg->iph.ip_dst.s_addr;
         message.msg_namelen = sizeof(in_addr_t);
