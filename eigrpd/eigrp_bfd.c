@@ -386,18 +386,18 @@ int eigrp_bfd_write(struct thread *thread){
 
 int eigrp_bfd_read(struct thread *thread) {
 
-    struct sockaddr_in *cliaddr = malloc(sizeof(struct sockaddr_in));
     struct interface *ifp = NULL;
     int retval = 0;
 
-    memset(&cliaddr, 0, sizeof(cliaddr));
+    struct sockaddr_in *cliaddr = malloc(sizeof(struct sockaddr_in));
+    memset(cliaddr, 0, sizeof(struct sockaddr_in));
 
     struct eigrp *eigrp = eigrp_lookup();
     struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
     struct stream *ibuf;
 
     server->bfd_read_thread = NULL;
-    thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd,&server->bfd_read_thread);
+    thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd, &server->bfd_read_thread);
 
     stream_reset(server->i_stream);
     if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, cliaddr, server->i_stream))) {
