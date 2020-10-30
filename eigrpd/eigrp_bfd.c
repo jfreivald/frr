@@ -354,8 +354,8 @@ int eigrp_bfd_write(struct thread *thread){
     }
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "V[%u] D[%02x] S[%u] DM[%u] L[%u] ME[%u] YOU[%u] DMT[%u] RMR[%u] RME[%u]",
             msg->bfdh.hdr.vers, msg->bfdh.hdr.diag, msg->bfdh.flags.sta, msg->bfdh.detect_multi, msg->bfdh.length,
-            msg->bfdh.my_descr, msg->bfdh.your_descr, msg->bfdh.desired_min_tx_interval, msg->bfdh.required_min_rx_interval,
-            msg->bfdh.required_min_echo_rx_interval);
+            ntohl(msg->bfdh.my_descr), ntohl(msg->bfdh.your_descr), ntohl(msg->bfdh.desired_min_tx_interval), ntohl(msg->bfdh.required_min_rx_interval),
+            ntohl(msg->bfdh.required_min_echo_rx_interval));
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: %s", buf);
 
     struct msghdr message;
