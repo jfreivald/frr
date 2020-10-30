@@ -269,7 +269,8 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->udph.len = htons(sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH);
     msg->udph.check = 0;
 
-    msg->bfdh.hdr = session->header;
+    msg->bfdh.hdr.vers = 1;
+    msg->bfdh.hdr.diag = 0;
     msg->bfdh.flags.sta = session->SessionState;
     msg->bfdh.flags.p = poll;
     msg->bfdh.flags.f = final;
@@ -334,8 +335,6 @@ int eigrp_bfd_write(struct thread *thread){
 
     assert(msg);
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Starting write", inet_ntoa(msg->iph.ip_dst));
-
     char buf[2048];
     memset(buf, 0, 2048);
     unsigned char *input = (unsigned char *)msg;
@@ -343,8 +342,17 @@ int eigrp_bfd_write(struct thread *thread){
     //pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 
     struct iovec iov[1];
-    iov[0].iov_base = &msg->bfdh;
+    iov[0].iov_base = &(msg->bfdh);
     iov[0].iov_len = htons(msg->bfdh.length);
+
+    memset(buf, 0, 2048);
+    buf[0] = '|';
+    size_t current_length;
+    for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
+        current_length = strnlen(buf, 2048);
+        snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
+    }
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tSENDING MESSAGE: %s", buf);
 
     struct msghdr message;
     message.msg_name = NULL;
@@ -372,12 +380,6 @@ int eigrp_bfd_write(struct thread *thread){
                 snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
             }
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
-              "\tVER[%u] HL[%u] TOS[%02x] L[%u] ID[%u] FO[%u] TTL[%u] P[%u] HC[%04x] S[%s] D[%s] SP[%u] DP[%u] UL[%u]",
-              msg->iph.ip_v, msg->iph.ip_len << 2, msg->iph.ip_tos, ntohs(msg->iph.ip_len), ntohs(msg->iph.ip_id),
-              ntohs(msg->iph.ip_off), msg->iph.ip_ttl, msg->iph.ip_p, htons(msg->iph.ip_sum),
-              inet_ntoa(msg->iph.ip_src), inet_ntoa(msg->iph.ip_dst), ntohs(msg->udph.source), ntohs(msg->udph.dest),
-              ntohs(msg->udph.len));
             retval = -1;
         }
     } else {
