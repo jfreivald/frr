@@ -473,7 +473,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     stream_forward_getp(s, sizeof(struct udphdr));
     struct eigrp_bfd_hdr *bfd_msg = (struct eigrp_bfd_hdr *) stream_pnt(s);
 
-    eigrp_bfd_dump_ctl_msg((struct eigrp_bfd_ctl_msg *)iph);
+    //eigrp_bfd_dump_ctl_msg((struct eigrp_bfd_ctl_msg *)iph);
 
     //If the version number is not correct (1), the packet MUST be discarded.
     if (bfd_msg->hdr.vers != 1) {
