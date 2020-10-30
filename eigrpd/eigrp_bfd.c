@@ -341,10 +341,6 @@ int eigrp_bfd_write(struct thread *thread){
 
     //pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 
-    struct iovec iov[1];
-    iov[0].iov_base = &(msg->bfdh);
-    iov[0].iov_len = msg->bfdh.length;
-
     memset(buf, 0, 2048);
     buf[0] = '|';
     size_t current_length;
@@ -358,14 +354,6 @@ int eigrp_bfd_write(struct thread *thread){
             ntohl(msg->bfdh.required_min_echo_rx_interval));
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: %s", buf);
 
-    struct msghdr message;
-    message.msg_name = NULL;
-    message.msg_namelen = 0;
-    message.msg_iov = iov;
-    message.msg_iovlen = 1;
-    message.msg_control = 0;
-    message.msg_controllen = 0;
-
     for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n1, session)) {
         if (session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
             break;
@@ -374,12 +362,12 @@ int eigrp_bfd_write(struct thread *thread){
 
     if (session) {
         L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Sending BFD Control to %s", inet_ntoa(msg->iph.ip_dst));
-        if (sendto(session->client_fd, &message, EIGRP_BFD_LENGTH_NO_AUTH, 0, NULL, 0) < 0) {
+        if (sendto(session->client_fd, &msg->bfdh, msg->bfdh.length, 0, NULL, 0) < 0) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
             memset(buf, 0, 2048);
             buf[0] = '|';
             size_t current_length;
-            for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
+            for (long unsigned int i = 0; i < msg->bfdh.length; i++) {
                 current_length = strnlen(buf, 2048);
                 snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
             }
