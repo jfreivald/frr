@@ -110,6 +110,8 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 
     assert(nbr != NULL);
 
+    L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Creating new session for %s", inet_ntoa(nbr->src));
+
     struct eigrp_bfd_session *session = XMALLOC(MTYPE_EIGRP_BFD_SESSION, sizeof(struct eigrp_bfd_session));
     memset(session, 0, sizeof(struct eigrp_bfd_session));
 
@@ -329,6 +331,8 @@ int eigrp_bfd_write(struct thread *thread){
 
     assert(msg);
 
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Starting write", inet_ntoa(msg->iph.ip_dst));
+
     char buf[2048];
     memset(buf, 0, 2048);
     unsigned char *input = (unsigned char *)msg;
@@ -389,7 +393,6 @@ int eigrp_bfd_read(struct thread *thread) {
     struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
     struct stream *ibuf;
     struct ip *iph;
-    uint16_t length = 0;
 
     server->bfd_read_thread = NULL;
     thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd,&server->bfd_read_thread);
@@ -402,10 +405,6 @@ int eigrp_bfd_read(struct thread *thread) {
     /* Note that there should not be alignment problems with this assignment
        because this is at the beginning of the stream data buffer. */
     iph = (struct ip *) STREAM_DATA(ibuf);
-
-    // Substract IPv4 header size from EIGRP Packet itself
-    if (iph->ip_v == 4)
-        length = (iph->ip_len) - 20U;
 
     /* Note that sockopt_iphdrincl_swab_systoh was called in
      * eigrp_bfd_recv_packet. */
@@ -445,22 +444,20 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
     msgh.msg_control = (caddr_t)buff;
     msgh.msg_controllen = sizeof(buff);
 
-    ret = stream_recvmsg(ibuf, fd, &msgh, 0, (EIGRP_BFD_LENGTH_MAX + 1));
+    ret = stream_recvmsg(ibuf, fd, &msgh, 0, (EIGRP_BFD_LENGTH_NO_AUTH));
     if (ret < 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvmsg failed: %s", safe_strerror(errno));
         return NULL;
     }
-    if ((unsigned int)ret < sizeof(iph)) /* ret must be > 0 now */
+    if ((unsigned int)ret < sizeof(EIGRP_BFD_LENGTH_NO_AUTH)) /* ret must be > 0 now */
     {
         L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
           "eigrp_recv_packet: discarding runt packet of length %d "
-          "(ip header size is %u)",
+          "(size is %u)",
           ret, (unsigned int)sizeof(iph));
         return NULL;
     }
 
-    /* Note that there should not be alignment problems with this assignment
-       because this is at the beginning of the stream data buffer. */
     iph = (struct ip *)STREAM_DATA(ibuf);
     sockopt_iphdrincl_swab_systoh(iph);
 
@@ -578,7 +575,6 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP interface does not exist [%s]", inet_ntoa(iph->ip_dst));
             return -1;
         }
-        //TODO: First find any existing session for this neighbor!!!
         if (ei->bfd_params != NULL) {
             for (ALL_LIST_ELEMENTS_RO(ei->nbrs, n, nbr)) {
                 if (nbr->src.s_addr == iph->ip_src.s_addr) {
@@ -590,8 +586,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
                 L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Unable to find neighbor %s on interface %s", inet_ntoa(iph->ip_src), inet_ntoa(ei->address->u.prefix4));
                 return -1;
             }
-        } else
-        if (ei->bfd_params == NULL) {
+        } else {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP not enabled on interface %s", inet_ntoa(iph->ip_dst));
             return -1;
         }

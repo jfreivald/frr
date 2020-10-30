@@ -67,10 +67,10 @@
 
 
 //NOTE: All times in this module are in milliseconds.
-#define EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL  (1000)
-#define EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL       (100)
-#define EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL       (50)
-#define EIGRP_BFD_DEFAULT_REQ_MIN_ECHO_RX_INTERVAL  (0)
+#define EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL  (1000000)
+#define EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL       (100000)
+#define EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL       (50000)
+#define EIGRP_BFD_DEFAULT_REQ_MIN_ECHO_RX_INTERVAL  (100000)
 #define EIGRP_BFD_DEFAULT_DETECT_MULTI              (3)
 #define EIGRP_BFD_DEFAULT_REM_MIN_RX_INTERVAL       (1)
 #define EIGRP_BFD_DEMAND_MODE                       (1)
@@ -79,7 +79,7 @@
 #define EIGRP_BFD_NO_AUTH                           (0)
 #define EIGRP_BFD_TTL                               (255)
 
-#define EIGRP_BFD_TIMER_SELECT_MS                   (session->SessionState == EIGRP_BFD_STATUS_UP ? ((session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)/1000) : 1000000 )
+#define EIGRP_BFD_TIMER_SELECT_MS                   (session->SessionState == EIGRP_BFD_STATUS_UP ? ((session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)/1000) : 1000 )
 #define EIGRP_BFD_DEFAULT_PORT                      (3784)
 
 #pragma pack(1)
