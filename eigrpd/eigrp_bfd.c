@@ -210,7 +210,8 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Set neighbor NULL");
     if (*session && (*session)->nbr) {
-        (*session)->nbr->bfd_session = NULL;
+        if ((*session)->nbr->bfd_session)
+            (*session)->nbr->bfd_session = NULL;
         (*session)->nbr = NULL;
     }
 
