@@ -13,7 +13,7 @@ static struct eigrp_bfd_server *eigrp_bfd_server_singleton = NULL;
 static struct list *active_descriminators = NULL;
 
 static struct stream *
-eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in *cliaddr, struct stream *ibuf);
+eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in **cliaddr, struct stream *ibuf);
 static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp, struct sockaddr_in *cliaddr);
 static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg);
 static int eigrp_bfd_session_timer_expired(struct thread *thread);
@@ -181,7 +181,6 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
         session->eigrp_nbr_bfd_ctl_thread = NULL;
     }
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Timer %d", EIGRP_BFD_TIMER_SELECT_MS);
     thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS, &session->eigrp_nbr_bfd_ctl_thread);
 
     return session;
@@ -383,9 +382,7 @@ int eigrp_bfd_read(struct thread *thread) {
     struct interface *ifp = NULL;
     int retval = 0;
 
-    struct sockaddr_in *cliaddr = malloc(sizeof(struct sockaddr_in));
-    memset(cliaddr, 0, sizeof(struct sockaddr_in));
-
+    struct sockaddr_in *cliaddr = NULL;
     struct eigrp *eigrp = eigrp_lookup();
     struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
     struct stream *ibuf;
@@ -394,7 +391,7 @@ int eigrp_bfd_read(struct thread *thread) {
     thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd, &server->bfd_read_thread);
 
     stream_reset(server->i_stream);
-    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, cliaddr, server->i_stream))) {
+    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, &cliaddr, server->i_stream))) {
         return -1;
     }
 
@@ -404,7 +401,7 @@ int eigrp_bfd_read(struct thread *thread) {
     return retval;
 }
 
-struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in *cliaddr, struct stream *ibuf)
+struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in **cliaddr, struct stream *ibuf)
 {
     ssize_t ret;
 
@@ -412,6 +409,9 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sock
     struct iovec io[1];
     struct in_pktinfo pktinfo;
     ifindex_t ifindex;
+
+    *cliaddr = malloc(sizeof(struct sockaddr_in));
+    memset(cliaddr, 0, sizeof(struct sockaddr_in));
 
     msgh.msg_iovlen = 1;
     msgh.msg_iov = io;
@@ -434,13 +434,14 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sock
         current_length = strnlen(buf, 16384);
         snprintf(&buf[current_length], 16383 - current_length, "%02x|", input[i]);
     }
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "INCOMING MESSAGE: %s", buf);
 
-    cliaddr->sin_addr.s_addr = pktinfo.ipi_addr.s_addr;
+    (*cliaddr)->sin_addr.s_addr = pktinfo.ipi_addr.s_addr;
 
     ifindex = getsockopt_ifindex(AF_INET, &msgh);
 
     *ifp = if_lookup_by_index(ifindex, VRF_DEFAULT);
+
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "MESSAGE from %s on %s: %s", (*cliaddr) ? inet_ntoa((*cliaddr)->sin_addr) : "--NO ADDRESS--", (*ifp) ? (*ifp)->name : "--NO INTERFACE--", buf);
 
     if (ret < EIGRP_BFD_LENGTH_NO_AUTH)
     {
