@@ -441,7 +441,19 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
     msgh.msg_control = (caddr_t)buff;
     msgh.msg_controllen = sizeof(buff);
 
-    ret = stream_recvmsg(ibuf, fd, &msgh, 0, (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH));
+    ret = stream_recvmsg(ibuf, fd, &msgh, 0, ibuf->size);
+    
+    char buf[16384];
+    unsigned char *input = STREAM_DATA(ibuf);
+    memset(buf, 0, 16384);
+    buf[0] = '|';
+    size_t current_length;
+    for (long unsigned int i = 0; i < ret; i++) {
+        current_length = strnlen(buf, 16384);
+        snprintf(&buf[current_length], 16384 - current_length, "%02x|", input[i]);
+    }
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "INCOMING MESSAGE: %s", buf);
+
     if (ret < 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvmsg failed: %s", safe_strerror(errno));
         return NULL;
