@@ -486,6 +486,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     struct ip *iph = (struct ip *) stream_pnt(s);
     struct eigrp_neighbor *nbr = NULL;
     struct eigrp_interface *ei = NULL;
+    struct listnode *n;
 
     stream_forward_getp(s, (iph->ip_hl * 4));
 
@@ -540,18 +541,14 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //If the Your Discriminator field is nonzero, it MUST be used to
     //select the session with which this BFD packet is associated.  If
     //no session is found, the packet MUST be discarded.
-    if (bfd_msg->my_descr != 0) {
+    if (bfd_msg->your_descr != 0) {
         struct listnode *n;
         for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n, session)) {
-            if (session->RemoteDescr == ntohl(bfd_msg->my_descr)) {
+            if (session->LocalDescr == ntohl(bfd_msg->your_descr)) {
                 nbr = session->nbr;
                 ei = session->nbr->ei;
                 break;
             }
-        }
-        if (nbr == NULL) {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session [%08x] not found.", ntohl(bfd_msg->your_descr));
-            return -1;
         }
     } else
 
@@ -572,18 +569,20 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //discarded.  This choice is outside the scope of this
     //specification.
     {
-        struct listnode *n;
-
         for (ALL_LIST_ELEMENTS_RO(eigrp_lookup()->eiflist, n, ei)) {
             if (ei->ifp == ifp) {
                 break;
             }
         }
-        if (ei && ei->bfd_params != NULL) {
+        if (!ei) {
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP interface does not exist [%s]", inet_ntoa(iph->ip_dst));
+            return -1;
+        }
+        //TODO: First find any existing session for this neighbor!!!
+        if (ei->bfd_params != NULL) {
             for (ALL_LIST_ELEMENTS_RO(ei->nbrs, n, nbr)) {
                 if (nbr->src.s_addr == iph->ip_src.s_addr) {
                     //Matched interface and IP address. Good enough for me!
-                    session = eigrp_bfd_session_new(nbr, bfd_msg->my_descr);
                     break;
                 }
             }
@@ -591,11 +590,25 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
                 L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Unable to find neighbor %s on interface %s", inet_ntoa(iph->ip_src), inet_ntoa(ei->address->u.prefix4));
                 return -1;
             }
-        }
+        } else
         if (ei->bfd_params == NULL) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP not enabled on interface %s", inet_ntoa(iph->ip_dst));
             return -1;
         }
+    }
+
+    if (!session) {
+        for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n, session)) {
+            if(session->nbr == nbr) {
+                //Gotcha!
+                break;
+            }
+        }
+    }
+
+    if (!session) {
+        //No session exists for this neighbor. Create one.
+        session = eigrp_bfd_session_new(nbr, bfd_msg->my_descr);
     }
 
     //NOTE: From here on out, there is a session associated with this packet, even if we had to create it.
