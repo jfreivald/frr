@@ -379,9 +379,9 @@ int eigrp_bfd_write(struct thread *thread){
 
 int eigrp_bfd_read(struct thread *thread) {
 
-    struct interface *ifp = NULL;
     int retval = 0;
 
+    struct interface *ifp = NULL;
     struct sockaddr_in *cliaddr = NULL;
     struct eigrp *eigrp = eigrp_lookup();
     struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
@@ -396,7 +396,8 @@ int eigrp_bfd_read(struct thread *thread) {
     }
 
     retval = eigrp_bfd_process_ctl_msg(ibuf, ifp, cliaddr);
-    free(cliaddr);
+    if (cliaddr)
+        free(cliaddr);
 
     return retval;
 }
@@ -411,14 +412,17 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sock
     ifindex_t ifindex;
 
     *cliaddr = malloc(sizeof(struct sockaddr_in));
-    memset(cliaddr, 0, sizeof(struct sockaddr_in));
+    memset(*cliaddr, 0, sizeof(struct sockaddr_in));
+
+    io[0].iov_base = stream_pnt(ibuf);
+    io[0].iov_len = EIGRP_BFD_LENGTH_MAX;
 
     msgh.msg_iovlen = 1;
     msgh.msg_iov = io;
     msgh.msg_control = (caddr_t)&pktinfo;
     msgh.msg_controllen = sizeof(struct in_pktinfo);
 
-    ret = stream_recvmsg(ibuf, fd, &msgh, 0, ibuf->size);
+    ret = stream_recvmsg(ibuf, fd, &msgh, 0, EIGRP_BFD_LENGTH_MAX);
 
     if (ret < 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvfrom failed: %s", safe_strerror(errno));
