@@ -349,12 +349,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
-    if (nbr->bfd_session) {
-        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stopping BFD Session");
-        eigrp_bfd_session_destroy(&nbr->bfd_session);
-    }
-
-
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ( (rn = route_table_iter_next(&it)) ) {
 		if (!rn)
@@ -417,7 +411,12 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 	/* Cancel all events. */ /* Thread lookup cost would be negligible. */
 	thread_cancel_event(master, nbr);
 
-	//Remove nbr from all interfaces
+    if (nbr->bfd_session) {
+        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stopping BFD Session");
+        eigrp_bfd_session_destroy(&nbr->bfd_session);
+    }
+
+    //Remove nbr from all interfaces
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
 	    if (tei->nbrs)
 		    listnode_delete(tei->nbrs, nbr);

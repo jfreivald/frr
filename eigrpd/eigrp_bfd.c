@@ -197,9 +197,14 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
         (*session)->SessionState = EIGRP_BFD_STATUS_DOWN;
         (*session)->header.diag = EIGRP_BFD_DIAG_FWD_PLN_RESET;
     }
+
     eigrp_bfd_send_ctl_msg(*session, 0, 0);
 
+    (*session)->nbr->bfd_session = NULL;
+
     close((*session)->client_fd);
+
+    (*session)->nbr = NULL;
 
     listnode_delete(active_descriminators, (void *)(*session)->LocalDescr);
     XFREE(MTYPE_EIGRP_BFD_SESSION, *session);
