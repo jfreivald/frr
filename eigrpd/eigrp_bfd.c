@@ -389,7 +389,6 @@ int eigrp_bfd_read(struct thread *thread) {
     struct eigrp *eigrp = eigrp_lookup();
     struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
     struct stream *ibuf;
-    struct ip *iph;
 
     server->bfd_read_thread = NULL;
     thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd,&server->bfd_read_thread);
@@ -399,26 +398,8 @@ int eigrp_bfd_read(struct thread *thread) {
         return -1;
     }
 
-    /* Note that there should not be alignment problems with this assignment
-       because this is at the beginning of the stream data buffer. */
-    iph = (struct ip *) STREAM_DATA(ibuf);
-
-    /* Note that sockopt_iphdrincl_swab_systoh was called in
-     * eigrp_bfd_recv_packet. */
     if (ifp == NULL) {
-        struct connected *c;
-        /* Handle cases where the platform does not support retrieving
-           the ifindex,
-           and also platforms (such as Solaris 8) that claim to support
-           ifindex
-           retrieval but do not. */
-        c = if_lookup_address((void *) &iph->ip_src, AF_INET,
-                              VRF_DEFAULT);
-
-        if (c == NULL)
-            return 0;
-
-        ifp = c->ifp;
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to determine BFD packet source");
     }
 
     return eigrp_bfd_process_ctl_msg(ibuf, ifp);
@@ -442,7 +423,7 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
     msgh.msg_controllen = sizeof(buff);
 
     ret = stream_recvmsg(ibuf, fd, &msgh, 0, ibuf->size);
-    
+
     char buf[16384];
     unsigned char *input = STREAM_DATA(ibuf);
     memset(buf, 0, 16384);
@@ -450,7 +431,7 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
     size_t current_length;
     for (long unsigned int i = 0; i < ret; i++) {
         current_length = strnlen(buf, 16384);
-        snprintf(&buf[current_length], 16384 - current_length, "%02x|", input[i]);
+        snprintf(&buf[current_length], 16383 - current_length, "%02x|", input[i]);
     }
     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "INCOMING MESSAGE: %s", buf);
 
@@ -458,7 +439,8 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvmsg failed: %s", safe_strerror(errno));
         return NULL;
     }
-    if ((unsigned int)ret < sizeof((sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH)))
+
+    if (ret < EIGRP_BFD_LENGTH_NO_AUTH)
     {
         L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
           "eigrp_recv_packet: discarding runt packet of length %d "
