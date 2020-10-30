@@ -12,8 +12,9 @@ static struct eigrp_bfd_server *eigrp_bfd_server_singleton = NULL;
 
 static struct list *active_descriminators = NULL;
 
-static struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stream *ibuf);
-static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp);
+static struct stream *
+eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in *cliaddr, struct stream *ibuf);
+static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp, struct sockaddr_in *cliaddr);
 static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg);
 static int eigrp_bfd_session_timer_expired(struct thread *thread);
 
@@ -385,7 +386,11 @@ int eigrp_bfd_write(struct thread *thread){
 
 int eigrp_bfd_read(struct thread *thread) {
 
-    struct interface *ifp = 0;
+    struct sockaddr_in cliaddr;
+    struct interface *ifp;
+
+    memset(&cliaddr, 0, sizeof(cliaddr));
+
     struct eigrp *eigrp = eigrp_lookup();
     struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
     struct stream *ibuf;
@@ -394,35 +399,33 @@ int eigrp_bfd_read(struct thread *thread) {
     thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd,&server->bfd_read_thread);
 
     stream_reset(server->i_stream);
-    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, server->i_stream))) {
+    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, &cliaddr, server->i_stream))) {
         return -1;
     }
 
-    if (ifp == NULL) {
-        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Unable to determine BFD packet source");
-    }
-
-    return eigrp_bfd_process_ctl_msg(ibuf, ifp);
+    return eigrp_bfd_process_ctl_msg(ibuf, ifp, &cliaddr);
 }
 
-struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stream *ibuf)
+struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in *cliaddr, struct stream *ibuf)
 {
-    int ret;
-    struct ip *iph;
-    uint16_t ip_len;
-    unsigned int ifindex = 0;
-    struct iovec iov;
-    /* Header and data both require alignment. */
-    char buff[CMSG_SPACE(SOPT_SIZE_CMSG_IFINDEX_IPV4())];
-    struct msghdr msgh;
+    ssize_t ret;
 
-    memset(&msgh, 0, sizeof(struct msghdr));
-    msgh.msg_iov = &iov;
+    struct msghdr msgh;
+    struct iovec io[1];
+    struct in_pktinfo pktinfo;
+    ifindex_t ifindex;
+
     msgh.msg_iovlen = 1;
-    msgh.msg_control = (caddr_t)buff;
-    msgh.msg_controllen = sizeof(buff);
+    msgh.msg_iov = io;
+    msgh.msg_control = (caddr_t)&pktinfo;
+    msgh.msg_controllen = sizeof(struct in_pktinfo);
 
     ret = stream_recvmsg(ibuf, fd, &msgh, 0, ibuf->size);
+
+    if (ret < 0) {
+        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvfrom failed: %s", safe_strerror(errno));
+        return NULL;
+    }
 
     char buf[16384];
     unsigned char *input = STREAM_DATA(ibuf);
@@ -435,51 +438,29 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
     }
     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "INCOMING MESSAGE: %s", buf);
 
-    if (ret < 0) {
-        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvmsg failed: %s", safe_strerror(errno));
-        return NULL;
-    }
-
-    if (ret < EIGRP_BFD_LENGTH_NO_AUTH)
-    {
-        L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
-          "eigrp_recv_packet: discarding runt packet of length %d "
-          "(size is %u)",
-          ret, (unsigned int)sizeof(iph));
-        return NULL;
-    }
-
-    iph = (struct ip *)STREAM_DATA(ibuf);
-    sockopt_iphdrincl_swab_systoh(iph);
-
-    ip_len = iph->ip_len;
+    cliaddr->sin_addr.s_addr = pktinfo.ipi_addr.s_addr;
 
     ifindex = getsockopt_ifindex(AF_INET, &msgh);
 
     *ifp = if_lookup_by_index(ifindex, VRF_DEFAULT);
 
-    if (ret != ip_len) {
+    if (ret < EIGRP_BFD_LENGTH_NO_AUTH)
+    {
         L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
-          "Read length mismatch: ip_len is %d, but recvmsg returned %d", ip_len, ret);
+          "Discarding runt packet of length %d", ret);
         return NULL;
     }
 
     return ibuf;
 }
 
-static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
+static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp, struct sockaddr_in *cliaddr) {
 
     //RFC 5880 Section 6.8.6 - Reception of BFD Control Packet: Processing Procedure:
 
-    struct ip *iph = (struct ip *) stream_pnt(s);
     struct eigrp_neighbor *nbr = NULL;
     struct eigrp_interface *ei = NULL;
     struct listnode *n;
-
-    stream_forward_getp(s, (iph->ip_hl * 4));
-
-    struct udphdr *udp_h = (struct udphdr * ) stream_pnt(s);
-    uint16_t udp_length = ntohs(udp_h->uh_ulen);
 
     stream_forward_getp(s, sizeof(struct udphdr));
     struct eigrp_bfd_hdr *bfd_msg = (struct eigrp_bfd_hdr *) stream_pnt(s);
@@ -496,13 +477,6 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //or 26 if the A bit is set), the packet MUST be discarded.
     if ((bfd_msg->length < EIGRP_BFD_LENGTH_NO_AUTH) || (bfd_msg->flags.a == 1 && bfd_msg->length < EIGRP_BFD_LENGTH_NO_AUTH + 2)) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: length too short [%d]", bfd_msg->length);
-        return -1;
-    }
-
-    //If the Length field is greater than the payload of the
-    //encapsulating protocol, the packet MUST be discarded.
-    if (bfd_msg->length != udp_length - sizeof(struct udphdr)) {
-        L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Length does not match UDP Length [%d:%d]", bfd_msg->length, udp_length - sizeof(struct udphdr));
         return -1;
     }
 
@@ -530,7 +504,6 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //select the session with which this BFD packet is associated.  If
     //no session is found, the packet MUST be discarded.
     if (bfd_msg->your_descr != 0) {
-        struct listnode *n;
         for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n, session)) {
             if (session->LocalDescr == ntohl(bfd_msg->your_descr)) {
                 nbr = session->nbr;
@@ -563,22 +536,22 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
             }
         }
         if (!ei) {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP interface does not exist [%s]", inet_ntoa(iph->ip_dst));
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP interface does not exist [%s]", inet_ntoa(((struct sockaddr_in *)cliaddr)->sin_addr));
             return -1;
         }
         if (ei->bfd_params != NULL) {
             for (ALL_LIST_ELEMENTS_RO(ei->nbrs, n, nbr)) {
-                if (nbr->src.s_addr == iph->ip_src.s_addr) {
+                if (nbr->src.s_addr == ((struct sockaddr_in *)cliaddr)->sin_addr.s_addr) {
                     //Matched interface and IP address. Good enough for me!
                     break;
                 }
             }
             if (nbr == NULL) {
-                L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Unable to find neighbor %s on interface %s", inet_ntoa(iph->ip_src), inet_ntoa(ei->address->u.prefix4));
+                L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Unable to find neighbor %s on interface %s", inet_ntoa(((struct sockaddr_in *)cliaddr)->sin_addr), ei->ifp->name);
                 return -1;
             }
         } else {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP not enabled on interface %s", inet_ntoa(iph->ip_dst));
+            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP not enabled on interface %s", ei->ifp->name);
             return -1;
         }
     }
