@@ -180,6 +180,8 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
         THREAD_OFF(session->eigrp_nbr_bfd_ctl_thread);
         session->eigrp_nbr_bfd_ctl_thread = NULL;
     }
+
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Timer %d", EIGRP_BFD_TIMER_SELECT_MS);
     thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS, &session->eigrp_nbr_bfd_ctl_thread);
 
     return session;
@@ -297,6 +299,7 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
     session->eigrp_nbr_bfd_ctl_thread = NULL;
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Timer %d", EIGRP_BFD_TIMER_SELECT_MS);
     thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS,
             &session->eigrp_nbr_bfd_ctl_thread);
 
