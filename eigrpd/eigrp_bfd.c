@@ -106,7 +106,7 @@ struct eigrp_bfd_params * eigrp_bfd_params_new(void) {
     return bfd_params;
 }
 
-struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
+struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint32_t rem_descrim) {
 
     assert(nbr != NULL);
 
@@ -125,15 +125,15 @@ struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr) {
         srand(time(NULL));
     }
 
-    uint32_t descrim;
+    uint32_t my_descrim;
 
     do {
-        descrim = rand();
-    } while (NULL != listnode_lookup(active_descriminators, (void *)descrim));
-    listnode_add(active_descriminators, (void *)descrim);
+        my_descrim = rand();
+    } while (NULL != listnode_lookup(active_descriminators, (void *)my_descrim));
+    listnode_add(active_descriminators, (void *)my_descrim);
 
-    session->LocalDescr = descrim;
-    session->RemoteDescr = 0;
+    session->LocalDescr = my_descrim;
+    session->RemoteDescr = rem_descrim;
     session->header.vers = EIGRP_BFD_VERSION;
     session->header.diag = EIGRP_BFD_DIAG_NONE;
 
@@ -540,10 +540,10 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
     //If the Your Discriminator field is nonzero, it MUST be used to
     //select the session with which this BFD packet is associated.  If
     //no session is found, the packet MUST be discarded.
-    if (bfd_msg->your_descr != 0) {
+    if (bfd_msg->my_descr != 0) {
         struct listnode *n;
         for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n, session)) {
-            if (session->LocalDescr == ntohl(bfd_msg->your_descr)) {
+            if (session->RemoteDescr == ntohl(bfd_msg->my_descr)) {
                 nbr = session->nbr;
                 ei = session->nbr->ei;
                 break;
@@ -579,11 +579,11 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp) {
                 break;
             }
         }
-        if (ei->bfd_params != NULL) {
+        if (ei && ei->bfd_params != NULL) {
             for (ALL_LIST_ELEMENTS_RO(ei->nbrs, n, nbr)) {
                 if (nbr->src.s_addr == iph->ip_src.s_addr) {
                     //Matched interface and IP address. Good enough for me!
-                    session = eigrp_bfd_session_new(nbr);
+                    session = eigrp_bfd_session_new(nbr, bfd_msg->my_descr);
                     break;
                 }
             }

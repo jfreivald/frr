@@ -188,7 +188,7 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 
     if (ei->bfd_params != NULL) {
         L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"Starting BFD Session for Neighbor %s", inet_ntoa(nbr->src));
-        eigrp_bfd_session_new(nbr);
+        eigrp_bfd_session_new(nbr, 0);
     }
 
     return nbr;

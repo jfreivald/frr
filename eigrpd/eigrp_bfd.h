@@ -166,7 +166,7 @@ struct eigrp_bfd_server {
 struct eigrp_bfd_params * eigrp_bfd_params_new(void);
 struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *);
 void eigrp_bfd_server_reset(void);
-struct eigrp_bfd_session * eigrp_bfd_session_new(struct eigrp_neighbor *nbr);
+struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint32_t rem_descrim);
 void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session);
 int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2);
 struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *session, int poll, int final);
