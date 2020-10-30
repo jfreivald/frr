@@ -42,6 +42,14 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
             return NULL;
         }
 
+        int yes = 1;
+        if (setsockopt(eigrp_bfd_server_singleton->server_fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0 ) {
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Socket option IP_PKTINFO failed. Socket Error: %s", safe_strerror(errno));
+            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
+            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
+            return NULL;
+        }
+
         struct sockaddr_in sock;
         memset(&sock, 0, sizeof(sock));
 
@@ -313,7 +321,6 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
     session->eigrp_nbr_bfd_ctl_thread = NULL;
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Timer %d", EIGRP_BFD_TIMER_SELECT_MS);
     thread_add_timer_msec(master, eigrp_bfd_send_ctl_msg_thread, session, EIGRP_BFD_TIMER_SELECT_MS,
             &session->eigrp_nbr_bfd_ctl_thread);
 
