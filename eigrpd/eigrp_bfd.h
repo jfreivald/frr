@@ -72,7 +72,7 @@
 #define EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL       (1000000)
 #define EIGRP_BFD_DEFAULT_REQ_MIN_ECHO_RX_INTERVAL  (200000)
 #define EIGRP_BFD_DEFAULT_DETECT_MULTI              (3)
-#define EIGRP_BFD_DEFAULT_REM_MIN_RX_INTERVAL       (1)
+#define EIGRP_BFD_DEFAULT_REM_MIN_RX_INTERVAL       (1000)
 #define EIGRP_BFD_DEMAND_MODE                       (1)
 #define EIGRP_BFD_NO_DEMAND_MODE                    (0)
 #define EIGRP_BFD_VERSION                           (1)
