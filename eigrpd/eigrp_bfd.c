@@ -386,8 +386,9 @@ int eigrp_bfd_write(struct thread *thread){
 
 int eigrp_bfd_read(struct thread *thread) {
 
-    struct sockaddr_in cliaddr;
-    struct interface *ifp;
+    struct sockaddr_in *cliaddr = malloc(sizeof(struct sockaddr_in));
+    struct interface *ifp = NULL;
+    int retval = 0;
 
     memset(&cliaddr, 0, sizeof(cliaddr));
 
@@ -399,11 +400,14 @@ int eigrp_bfd_read(struct thread *thread) {
     thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd,&server->bfd_read_thread);
 
     stream_reset(server->i_stream);
-    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, &cliaddr, server->i_stream))) {
+    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, cliaddr, server->i_stream))) {
         return -1;
     }
 
-    return eigrp_bfd_process_ctl_msg(ibuf, ifp, &cliaddr);
+    retval = eigrp_bfd_process_ctl_msg(ibuf, ifp, cliaddr);
+    free(cliaddr);
+
+    return retval;
 }
 
 struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in *cliaddr, struct stream *ibuf)
@@ -462,6 +466,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp, st
     struct eigrp_interface *ei = NULL;
     struct listnode *n;
 
+    stream_forward_getp(s, sizeof(struct ip));
     stream_forward_getp(s, sizeof(struct udphdr));
     struct eigrp_bfd_hdr *bfd_msg = (struct eigrp_bfd_hdr *) stream_pnt(s);
 
