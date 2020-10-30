@@ -208,6 +208,12 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Send final message");
     eigrp_bfd_send_ctl_msg(*session, 0, 0);
 
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close socket");
+    close((*session)->client_fd);
+
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete node");
+    listnode_delete(active_descriminators, (void *)(*session)->LocalDescr);
+
     if (*session && (*session)->nbr) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NULL neighbor session");
         if ((*session)->nbr->bfd_session) {
@@ -215,14 +221,9 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
         }
     }
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close socket");
-    close((*session)->client_fd);
-
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete node");
-    listnode_delete(active_descriminators, (void *)(*session)->LocalDescr);
-
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Free session");
     XFREE(MTYPE_EIGRP_BFD_SESSION, *session);
+
     *session = NULL;
 }
 
