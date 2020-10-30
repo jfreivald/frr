@@ -337,7 +337,7 @@ int eigrp_bfd_write(struct thread *thread){
 
     char buf[2048];
     memset(buf, 0, 2048);
-    unsigned char *input = (unsigned char *)msg;
+    unsigned char *input = (unsigned char *)&msg->bfdh;
 
     //pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
 
@@ -352,7 +352,11 @@ int eigrp_bfd_write(struct thread *thread){
         current_length = strnlen(buf, 2048);
         snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
     }
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tSENDING MESSAGE: %s", buf);
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "V[%u] D[%02x] S[%u] DM[%u] L[%u] ME[%u] YOU[%u] DMT[%u] RMR[%u] RME[%u]",
+            msg->bfdh.hdr.vers, msg->bfdh.hdr.diag, msg->bfdh.flags.sta, msg->bfdh.detect_multi, msg->bfdh.length,
+            msg->bfdh.my_descr, msg->bfdh.your_descr, msg->bfdh.desired_min_tx_interval, msg->bfdh.required_min_rx_interval,
+            msg->bfdh.required_min_echo_rx_interval);
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SENDING MESSAGE: %s", buf);
 
     struct msghdr message;
     message.msg_name = NULL;
