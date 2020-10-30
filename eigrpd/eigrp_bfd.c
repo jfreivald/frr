@@ -202,11 +202,11 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
 
     eigrp_bfd_send_ctl_msg(*session, 0, 0);
 
-    (*session)->nbr->bfd_session = NULL;
-
+    if (*session && (*session)->nbr) {
+        (*session)->nbr->bfd_session = NULL;
+        (*session)->nbr = NULL;
+    }
     close((*session)->client_fd);
-
-    (*session)->nbr = NULL;
 
     listnode_delete(active_descriminators, (void *)(*session)->LocalDescr);
     XFREE(MTYPE_EIGRP_BFD_SESSION, *session);
