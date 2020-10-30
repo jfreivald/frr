@@ -343,7 +343,7 @@ int eigrp_bfd_write(struct thread *thread){
 
     struct iovec iov[1];
     iov[0].iov_base = &(msg->bfdh);
-    iov[0].iov_len = htons(msg->bfdh.length);
+    iov[0].iov_len = msg->bfdh.length;
 
     memset(buf, 0, 2048);
     buf[0] = '|';
