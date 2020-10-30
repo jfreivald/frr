@@ -152,6 +152,9 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
         session->bfd_params->RemoteDemandMode = nbr->ei->bfd_params->RemoteDemandMode;
     }
 
+    session->header.diag = 0;
+    session->header.vers = 1;
+
     if ( (session->client_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
         L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Socket Error: %s", safe_strerror(errno));
         list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
@@ -444,12 +447,12 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct stre
     msgh.msg_control = (caddr_t)buff;
     msgh.msg_controllen = sizeof(buff);
 
-    ret = stream_recvmsg(ibuf, fd, &msgh, 0, (EIGRP_BFD_LENGTH_NO_AUTH));
+    ret = stream_recvmsg(ibuf, fd, &msgh, 0, (sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH));
     if (ret < 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvmsg failed: %s", safe_strerror(errno));
         return NULL;
     }
-    if ((unsigned int)ret < sizeof(EIGRP_BFD_LENGTH_NO_AUTH)) /* ret must be > 0 now */
+    if ((unsigned int)ret < sizeof((sizeof(struct ip) + sizeof(struct udphdr) + EIGRP_BFD_LENGTH_NO_AUTH)))
     {
         L(zlog_warn,LOGGER_EIGRP,LOGGER_EIGRP_PACKET,
           "eigrp_recv_packet: discarding runt packet of length %d "
