@@ -191,7 +191,8 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
 
     assert(session != NULL && *session != NULL);
 
-    THREAD_TIMER_OFF((*session)->eigrp_nbr_bfd_ctl_thread);
+    if ((*session)->eigrp_nbr_bfd_ctl_thread != NULL)
+        THREAD_TIMER_OFF((*session)->eigrp_nbr_bfd_ctl_thread);
     // Not sure if we should send one last message or leave that to the upper layer. I tend to think the upper layer
     // should set the DIAG code to why it is down, but this destroy should send the last message.
     // I reserve the right to change my mind during testing!
