@@ -213,8 +213,6 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
         if ((*session)->nbr->bfd_session) {
             (*session)->nbr->bfd_session = NULL;
         }
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NULL session neighbor ");
-        (*session)->nbr = NULL;
     }
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close socket");
