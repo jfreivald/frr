@@ -628,7 +628,7 @@ int eigrp_read(struct thread *thread) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Adding prefix %s to interface %s.", pstr, ifp->name);
 
             struct prefix *pref = prefix_new();
-            PREFIX_COPY_IPV4(pref, &rn->p);
+            PREFIX_COPY_IPV4(pref, &rn->p)
             rn->info = (void *) pref;
 
             eigrp_network_run_interface(eigrp, &rn->p, ifp);
@@ -636,7 +636,6 @@ int eigrp_read(struct thread *thread) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Completed %s initialization.", ifp->name);
         eigrp_if_up(ei);
     }
-
 
     /* eigrp_verify_header() relies on a valid "ei" and thus can be called
        only

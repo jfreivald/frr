@@ -130,7 +130,6 @@ static struct eigrp_neighbor *eigrp_nbr_add(struct eigrp_interface *ei,
 
 	char addr_buf[PREFIX2STR_BUFFER];
 
-
     assert(ei);
     assert(ei->eigrp);
 
@@ -340,7 +339,13 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 	if (!nbr)
 		return;
 
-	if (nbr->state == EIGRP_NEIGHBOR_UP) {
+    //Remove nbr from all interfaces
+    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
+        if (tei->nbrs)
+            listnode_delete(tei->nbrs, nbr);
+    }
+
+    if (nbr->state == EIGRP_NEIGHBOR_UP) {
         eigrp_hello_send_reset(nbr);
 	}
 
@@ -415,12 +420,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
         L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stopping BFD Session");
         eigrp_bfd_session_destroy(&nbr->bfd_session);
     }
-
-    //Remove nbr from all interfaces
-	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
-	    if (tei->nbrs)
-		    listnode_delete(tei->nbrs, nbr);
-	}
 
 	if (nbr->multicast_queue) {
 		eigrp_fifo_free(nbr->multicast_queue);
