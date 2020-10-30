@@ -344,7 +344,7 @@ int eigrp_bfd_write(struct thread *thread){
     memset(buf, 0, 2048);
     buf[0] = '|';
     size_t current_length;
-    for (long unsigned int i = 0; i < iov[0].iov_len; i++) {
+    for (long unsigned int i = 0; i < msg->bfdh.length; i++) {
         current_length = strnlen(buf, 2048);
         snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
     }
