@@ -571,6 +571,12 @@ struct eigrp_bfd_params {
     uint8_t RemoteDemandMode;
     uint8_t DetectMulti;
     uint8_t AuthType;
+
+    int server_fd;
+
+    struct thread *bfd_read_thread;
+    pthread_mutex_t port_write_mutex;
+    struct stream *i_stream;
 };
 
 #endif /* _ZEBRA_EIGRP_STRUCTURES_H_ */

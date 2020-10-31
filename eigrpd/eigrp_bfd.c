@@ -13,8 +13,8 @@ static struct eigrp_bfd_server *eigrp_bfd_server_singleton = NULL;
 static struct list *active_descriminators = NULL;
 
 static struct stream *
-eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in **cliaddr, struct stream *ibuf);
-static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp, struct sockaddr_in *cliaddr);
+eigrp_bfd_recv_packet(int fd, struct eigrp_interface *ei, struct stream *ibuf, struct in_addr *client_address);
+static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *ei, struct in_addr *client_address);
 static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg);
 static int eigrp_bfd_session_timer_expired(struct thread *thread);
 
@@ -32,50 +32,11 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
 
     if (eigrp_bfd_server_singleton == NULL) {
         eigrp_bfd_server_singleton = XCALLOC(MTYPE_EIGRP_BFD_SERVER, sizeof(struct eigrp_bfd_server));
-        pthread_mutex_init(&eigrp_bfd_server_singleton->port_write_mutex, NULL);
+
         eigrp_bfd_server_singleton->port = EIGRP_BFD_DEFAULT_PORT;
         eigrp_bfd_server_singleton->sessions = list_new_cb(eigrp_bfd_session_cmp_void_ptr, eigrp_bfd_session_destroy_void_ptr, NULL, 0);
-        if ( (eigrp_bfd_server_singleton->server_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: %s", safe_strerror(errno));
-            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
-            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
-            return NULL;
-        }
-
-        int yes = 1;
-        if (setsockopt(eigrp_bfd_server_singleton->server_fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0 ) {
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Socket option IP_PKTINFO failed. Socket Error: %s", safe_strerror(errno));
-            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
-            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
-            return NULL;
-        }
-
-        struct sockaddr_in sock;
-        memset(&sock, 0, sizeof(sock));
-
-        sock.sin_addr.s_addr = INADDR_ANY;
-        sock.sin_family = AF_INET;
-        sock.sin_port = htons(EIGRP_BFD_DEFAULT_PORT);
 
         eigrp_bfd_server_singleton->i_stream = stream_new(EIGRP_BFD_LENGTH_MAX + 1);
-
-        if (bind(eigrp_bfd_server_singleton->server_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Bind Error: %s", strerror(errno));
-            list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
-            XFREE(MTYPE_EIGRP_BFD_SERVER, eigrp_bfd_server_singleton);
-            return NULL;
-        } else {
-            L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Server bound to socket %u", ntohs(sock.sin_port));
-            if (eigrp_bfd_server_get(eigrp)->bfd_read_thread != NULL) {
-                THREAD_OFF(eigrp_bfd_server_get(eigrp)->bfd_read_thread);
-                eigrp_bfd_server_get(eigrp)->bfd_read_thread = NULL;
-            }
-            thread_add_read(master, eigrp_bfd_read, NULL, eigrp_bfd_server_get(eigrp)->server_fd,&eigrp_bfd_server_get(eigrp)->bfd_read_thread);
-        }
-
-        if (eigrpd_privs.change(ZPRIVS_LOWER))
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not lower privilege, %s",
-              safe_strerror(errno));
 
     }
 
@@ -105,6 +66,7 @@ struct eigrp_bfd_params * eigrp_bfd_params_new(void) {
     bfd_params->RemoteDemandMode = EIGRP_BFD_NO_DEMAND_MODE;
     bfd_params->DetectMulti = EIGRP_BFD_DEFAULT_DETECT_MULTI;
     bfd_params->AuthType = EIGRP_BFD_NO_AUTH;
+    bfd_params->server_fd = -1;
 
     return bfd_params;
 }
@@ -388,38 +350,32 @@ int eigrp_bfd_read(struct thread *thread) {
 
     int retval = 0;
 
-    struct interface *ifp = NULL;
-    struct sockaddr_in *cliaddr = NULL;
-    struct eigrp *eigrp = eigrp_lookup();
-    struct eigrp_bfd_server *server = eigrp_bfd_server_get(eigrp);
     struct stream *ibuf;
+    struct eigrp_interface *ei = thread->arg;
+    struct in_addr *client_address = malloc(sizeof(struct in_addr));
 
-    server->bfd_read_thread = NULL;
-    thread_add_read(master, eigrp_bfd_read, NULL, server->server_fd, &server->bfd_read_thread);
+    ei->bfd_params->bfd_read_thread = NULL;
+    thread_add_read(master, eigrp_bfd_read, ei, ei->bfd_params->server_fd, &ei->bfd_params->bfd_read_thread);
 
-    stream_reset(server->i_stream);
-    if (!(ibuf = eigrp_bfd_recv_packet(server->server_fd, &ifp, &cliaddr, server->i_stream))) {
+    stream_reset(ei->bfd_params->i_stream);
+
+    if (!(ibuf = eigrp_bfd_recv_packet(ei->bfd_params->server_fd, ei, ei->bfd_params->i_stream, client_address))) {
         return -1;
     }
 
-    retval = eigrp_bfd_process_ctl_msg(ibuf, ifp, cliaddr);
-    if (cliaddr)
-        free(cliaddr);
+    retval = eigrp_bfd_process_ctl_msg(ibuf, ei, client_address);
 
     return retval;
 }
 
-struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sockaddr_in **cliaddr, struct stream *ibuf)
+struct stream *
+eigrp_bfd_recv_packet(int fd, struct eigrp_interface *ei, struct stream *ibuf, struct in_addr *client_address)
 {
     ssize_t ret;
 
     struct msghdr msgh;
     struct iovec io[1];
     struct in_pktinfo pktinfo;
-    ifindex_t ifindex;
-
-    *cliaddr = malloc(sizeof(struct sockaddr_in));
-    memset(*cliaddr, 0, sizeof(struct sockaddr_in));
 
     io[0].iov_base = stream_pnt(ibuf);
     io[0].iov_len = EIGRP_BFD_LENGTH_MAX;
@@ -446,13 +402,9 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sock
         snprintf(&buf[current_length], 16383 - current_length, "%02x|", input[i]);
     }
 
-    (*cliaddr)->sin_addr.s_addr = pktinfo.ipi_addr.s_addr;
+    client_address->s_addr = pktinfo.ipi_addr.s_addr;
 
-    ifindex = getsockopt_ifindex(AF_INET, &msgh);
-
-    *ifp = if_lookup_by_index(ifindex, VRF_DEFAULT);
-
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "MESSAGE from %s on %s: %s", (*cliaddr) ? inet_ntoa((*cliaddr)->sin_addr) : "--NO ADDRESS--", (*ifp) ? (*ifp)->name : "--NO INTERFACE--", buf);
+    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "MESSAGE from %s on %s: %s", inet_ntoa(*client_address), ei->ifp->name, buf);
 
     if (ret < EIGRP_BFD_LENGTH_NO_AUTH)
     {
@@ -464,12 +416,11 @@ struct stream *eigrp_bfd_recv_packet(int fd, struct interface **ifp, struct sock
     return ibuf;
 }
 
-static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp, struct sockaddr_in *cliaddr) {
+static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *ei, struct in_addr *client_address) {
 
     //RFC 5880 Section 6.8.6 - Reception of BFD Control Packet: Processing Procedure:
 
     struct eigrp_neighbor *nbr = NULL;
-    struct eigrp_interface *ei = NULL;
     struct listnode *n;
 
     struct eigrp_bfd_hdr *bfd_msg = (struct eigrp_bfd_hdr *) stream_pnt(s);
@@ -539,24 +490,15 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct interface *ifp, st
     //discarded.  This choice is outside the scope of this
     //specification.
     {
-        for (ALL_LIST_ELEMENTS_RO(eigrp_lookup()->eiflist, n, ei)) {
-            if (ei->ifp == ifp) {
-                break;
-            }
-        }
-        if (!ei) {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: EIGRP interface does not exist [%s]", inet_ntoa(((struct sockaddr_in *)cliaddr)->sin_addr));
-            return -1;
-        }
         if (ei->bfd_params != NULL) {
             for (ALL_LIST_ELEMENTS_RO(ei->nbrs, n, nbr)) {
-                if (nbr->src.s_addr == ((struct sockaddr_in *)cliaddr)->sin_addr.s_addr) {
+                if (nbr->src.s_addr == client_address->s_addr) {
                     //Matched interface and IP address. Good enough for me!
                     break;
                 }
             }
             if (nbr == NULL) {
-                L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Unable to find neighbor %s on interface %s", inet_ntoa(((struct sockaddr_in *)cliaddr)->sin_addr), ei->ifp->name);
+                L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Unable to find neighbor %s on interface %s", inet_ntoa(*client_address), ei->ifp->name);
                 return -1;
             }
         } else {

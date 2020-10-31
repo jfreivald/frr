@@ -154,14 +154,13 @@ struct eigrp_bfd_session {
 struct eigrp_bfd_server {
     uint16_t port;
     struct list *sessions;
-    struct thread *bfd_read_thread;
-    int server_fd;
-    pthread_mutex_t port_write_mutex;
 
     struct stream *i_stream;
 
 };
 
+
+//TODO: Add interfaces to server and bind ports for that server.
 
 struct eigrp_bfd_params * eigrp_bfd_params_new(void);
 struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *);

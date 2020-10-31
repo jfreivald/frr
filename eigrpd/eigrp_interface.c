@@ -59,6 +59,7 @@
 #include "eigrpd/eigrp_bfd.h"
 
 #include <sys/mman.h>
+#include <lib/prefix.h>
 
 struct mmap_status_t {
     unsigned char dns_status_version;
@@ -238,6 +239,36 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
             ei->bfd_params->DemandMode = bfd_interface->bfd_params->DemandMode;
             ei->bfd_params->AuthType = bfd_interface->bfd_params->AuthType;
             ei->bfd_params->RemoteDemandMode = bfd_interface->bfd_params->RemoteDemandMode;
+
+            pthread_mutex_init(&ei->bfd_params->port_write_mutex, NULL);
+            ei->bfd_params->bfd_read_thread = NULL;
+
+            if ( (ei->bfd_params->server_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
+                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: %s", safe_strerror(errno));
+            }
+
+            int yes = 1;
+            if (setsockopt(ei->bfd_params->server_fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0 ) {
+                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Socket option IP_PKTINFO failed. Socket Error: %s", safe_strerror(errno));
+            }
+
+            struct sockaddr_in sock;
+            memset(&sock, 0, sizeof(sock));
+
+            sock.sin_addr.s_addr = ei->address->u.prefix4.s_addr;
+            sock.sin_family = AF_INET;
+            sock.sin_port = htons(eigrp_bfd_server_get(eigrp)->port);
+
+            if (bind(ei->bfd_params->server_fd, (const struct sockaddr *)&sock, sizeof(sock)) < 0) {
+                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Bind Error: %s", strerror(errno));
+            } else {
+                L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Server bound to socket %u", ntohs(sock.sin_port));
+                if (ei->bfd_params->bfd_read_thread != NULL) {
+                    THREAD_OFF(ei->bfd_params->bfd_read_thread);
+                    ei->bfd_params->bfd_read_thread = NULL;
+                }
+                thread_add_read(master, eigrp_bfd_read, ei, ei->bfd_params->server_fd,&ei->bfd_params->bfd_read_thread);
+            }
             break;
         }
     }
