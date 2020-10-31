@@ -480,6 +480,8 @@ int eigrp_fsm_sort_prefix_entries(struct eigrp_prefix_entry *prefix) {
     } else {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s has no successor", pbuf);
     }
+
+    return 0;
 }
 
 static enum metric_change
@@ -844,7 +846,7 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
     struct eigrp_neighbor *data;
     struct listnode *node1, *node2;
     struct eigrp *eigrp = eigrp_lookup();
-    struct eigrp_prefix_nbr_sia_query *naq;
+    //struct eigrp_prefix_nbr_sia_query *naq;
 
     //Cancel all SIA activities for this route
 
@@ -874,6 +876,8 @@ int eigrp_fsm_transition_to_passive(struct eigrp_prefix_entry *prefix) {
         eigrp_send_reply(data, prefix);
     }
     list_delete_all_node(prefix->active_queries);
+
+    return 0;
 }
 
 /*
@@ -1011,7 +1015,7 @@ int eigrp_fsm_event(struct eigrp_fsm_action_message *msg)
                 }
             }
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%d queries sent", queries);
-            send_flags & ~EIGRP_FSM_NEED_QUERY;
+            send_flags &= ~EIGRP_FSM_NEED_QUERY;
 		}
 	}
 
@@ -1125,7 +1129,7 @@ int eigrp_fsm_event_NQE_SE(struct eigrp_fsm_action_message *msg){
 int eigrp_fsm_event_Q_SDNE(struct eigrp_fsm_action_message *msg){
     ///Event 3
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 3");
-    int queries;
+    //int queries;
 
     //Go Active 3 (oij = 3)
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_3;
@@ -1148,7 +1152,7 @@ int eigrp_fsm_event_NQE_SDNE(struct eigrp_fsm_action_message *msg){
     ///Event 4
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "FSM EVENT 4");
 
-    int queries;
+    //int queries;
 
     //Go Active 1 (oij = 1)
     msg->prefix->state = EIGRP_FSM_STATE_ACTIVE_1;
@@ -1283,4 +1287,6 @@ int eigrp_fsm_event_SIA(struct eigrp_fsm_action_message *msg) {
         //This is a non-successor query on an already active route (Event 6)
         eigrp_fsm_event_NSQ_AAR(msg);
     }
+
+    return 0;
 }

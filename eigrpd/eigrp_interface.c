@@ -242,6 +242,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
 
             pthread_mutex_init(&ei->bfd_params->port_write_mutex, NULL);
             ei->bfd_params->bfd_read_thread = NULL;
+            ei->bfd_params->i_stream = stream_new(EIGRP_BFD_LENGTH_MAX);
 
             if ( (ei->bfd_params->server_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
                 L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: %s", safe_strerror(errno));
