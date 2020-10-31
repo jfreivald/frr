@@ -324,7 +324,6 @@ int eigrp_bfd_write(struct thread *thread){
     }
 
     if (session) {
-        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Sending BFD Control to %s", inet_ntoa(msg->iph.ip_dst));
         if (sendto(session->client_fd, &msg->bfdh, msg->bfdh.length, 0, NULL, 0) < 0) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
             memset(buf, 0, 2048);
@@ -373,19 +372,9 @@ eigrp_bfd_recv_packet(int fd, struct eigrp_interface *ei, struct stream *ibuf, s
 {
     ssize_t ret;
 
-    struct msghdr msgh;
-    struct iovec io[1];
-    struct in_pktinfo pktinfo;
-
-    io[0].iov_base = stream_pnt(ibuf);
-    io[0].iov_len = EIGRP_BFD_LENGTH_MAX;
-
-    msgh.msg_iovlen = 1;
-    msgh.msg_iov = io;
-    msgh.msg_control = (caddr_t)&pktinfo;
-    msgh.msg_controllen = sizeof(struct in_pktinfo);
-
-    ret = stream_recvmsg(ibuf, fd, &msgh, 0, EIGRP_BFD_LENGTH_MAX);
+    struct sockaddr_in addr;
+    socklen_t addr_size = sizeof(struct sockaddr_in);
+    ret = stream_recvfrom(ibuf, fd, EIGRP_BFD_LENGTH_MAX, 0, (struct sockaddr *)&addr, &addr_size);
 
     if (ret < 0) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"stream_recvfrom failed: %s", safe_strerror(errno));
@@ -402,7 +391,7 @@ eigrp_bfd_recv_packet(int fd, struct eigrp_interface *ei, struct stream *ibuf, s
         snprintf(&buf[current_length], 16383 - current_length, "%02x|", input[i]);
     }
 
-    client_address->s_addr = pktinfo.ipi_addr.s_addr;
+    client_address->s_addr = addr.sin_addr.s_addr;
 
     L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "MESSAGE from %s on %s: %s", inet_ntoa(*client_address), ei->ifp->name, buf);
 

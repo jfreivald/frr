@@ -243,11 +243,18 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
             pthread_mutex_init(&ei->bfd_params->port_write_mutex, NULL);
             ei->bfd_params->bfd_read_thread = NULL;
             ei->bfd_params->i_stream = stream_new(EIGRP_BFD_LENGTH_MAX);
-
+/*
+            if (eigrpd_privs.change(ZPRIVS_RAISE))
+                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrp_sock_init: could not raise privs, %s",
+                  safe_strerror(errno));
+*/
             if ( (ei->bfd_params->server_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
                 L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Socket Error: %s", safe_strerror(errno));
             }
-
+/*            if (eigrpd_privs.change(ZPRIVS_LOWER))
+                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"eigrp_sock_init: could not lower privs, %s",
+                  safe_strerror(errno));
+*/
             int yes = 1;
             if (setsockopt(ei->bfd_params->server_fd, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes)) < 0 ) {
                 L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Socket option IP_PKTINFO failed. Socket Error: %s", safe_strerror(errno));
