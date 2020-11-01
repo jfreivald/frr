@@ -81,6 +81,7 @@
 
 #define EIGRP_BFD_TIMER_SELECT_MS                   (session->SessionState == EIGRP_BFD_STATUS_UP ? ((session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)/1000) : 1000 )
 #define EIGRP_BFD_DEFAULT_PORT                      (3784)
+#define EIGRP_BFD_SOURCE_PORT                       (49152)
 
 #pragma pack(1)
 

@@ -122,7 +122,6 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 
     if ( (session->client_fd = socket(AF_INET, SOCK_DGRAM, 0) ) < 0) {
         L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Socket Error: %s", safe_strerror(errno));
-        list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
         XFREE(MTYPE_EIGRP_BFD_SESSION, session);
         return NULL;
     }
@@ -132,10 +131,31 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     servaddr.sin_port = htons(EIGRP_BFD_DEFAULT_PORT);
     servaddr.sin_family = AF_INET;
 
+    struct sockaddr_in sourceaddr;
+    sourceaddr.sin_addr.s_addr = nbr->ei->address->u.prefix4.s_addr;
+    sourceaddr.sin_port = htons(EIGRP_BFD_SOURCE_PORT);
+    sourceaddr.sin_family = AF_INET;
+
+    unsigned short int i;
+
+    for (i = 49152; i < 65535; i++) {
+        if (bind(session->client_fd, (struct sockaddr *) &sourceaddr, sizeof(struct sockaddr_in)) < 0) {
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Bind Error: %u:%s", i, safe_strerror(errno));
+        } else {
+            L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client %s bound to %u", inet_ntoa(nbr->src), i);
+        }
+    }
+
+    if (i < 49152) {
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "No ports left on device");
+        close(session->client_fd);
+        XFREE(MTYPE_EIGRP_BFD_SESSION, session);
+        return NULL;
+    }
+
     if (connect(session->client_fd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Connect Error: %s", safe_strerror(errno));
         close(session->client_fd);
-        list_delete_and_null(&eigrp_bfd_server_singleton->sessions);
         XFREE(MTYPE_EIGRP_BFD_SESSION, session);
         return NULL;
     }
