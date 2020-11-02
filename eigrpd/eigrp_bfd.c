@@ -94,9 +94,9 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 
     do {
         my_descrim = server->next_discrim++;
-    } while (NULL != listnode_lookup(server->active_descriminators, (void *)htonl(my_descrim)));
+    } while (NULL != listnode_lookup(server->active_descriminators, (void *)my_descrim));
 
-    session->LocalDescr = htonl(my_descrim);
+    session->LocalDescr = my_descrim;
     listnode_add(server->active_descriminators, (void *)my_descrim);
 
     session->RemoteDescr = rem_descrim;
@@ -265,7 +265,7 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.flags.m = 0;
     msg->bfdh.detect_multi = session->bfd_params->DetectMulti;
     msg->bfdh.length = EIGRP_BFD_LENGTH_NO_AUTH;
-    msg->bfdh.my_descr = session->LocalDescr;
+    msg->bfdh.my_descr = htonl(session->LocalDescr);
     msg->bfdh.your_descr = session->RemoteDescr;
     msg->bfdh.desired_min_tx_interval = htonl(session->bfd_params->DesiredMinTxInterval);
     msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
