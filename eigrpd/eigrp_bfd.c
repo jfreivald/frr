@@ -137,12 +137,13 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 
     unsigned short int i;
 
-    for (i = 49152; i < 65535; i++) {
+    for (i = 49152; i <= 65535; i++) {
         sourceaddr.sin_port = htons(i);
         if (bind(session->client_fd, (struct sockaddr *) &sourceaddr, sizeof(struct sockaddr_in)) < 0) {
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Bind Error: %u:%s", i, safe_strerror(errno));
         } else {
             L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client %s bound to %u", inet_ntoa(nbr->src), i);
+            break;
         }
     }
 
