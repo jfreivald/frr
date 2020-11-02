@@ -133,12 +133,12 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 
     struct sockaddr_in sourceaddr;
     sourceaddr.sin_addr.s_addr = nbr->ei->address->u.prefix4.s_addr;
-    sourceaddr.sin_port = htons(EIGRP_BFD_SOURCE_PORT);
     sourceaddr.sin_family = AF_INET;
 
     unsigned short int i;
 
     for (i = 49152; i < 65535; i++) {
+        sourceaddr.sin_port = htons(i);
         if (bind(session->client_fd, (struct sockaddr *) &sourceaddr, sizeof(struct sockaddr_in)) < 0) {
             L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Bind Error: %u:%s", i, safe_strerror(errno));
         } else {
