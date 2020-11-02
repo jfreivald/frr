@@ -10,8 +10,6 @@
 
 static struct eigrp_bfd_server *eigrp_bfd_server_singleton = NULL;
 
-static struct list *active_descriminators = NULL;
-
 static struct stream *
 eigrp_bfd_recv_packet(int fd, struct eigrp_interface *ei, struct stream *ibuf, struct in_addr *client_address);
 static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *ei, struct in_addr *client_address);
@@ -35,6 +33,9 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
 
         eigrp_bfd_server_singleton->port = EIGRP_BFD_DEFAULT_PORT;
         eigrp_bfd_server_singleton->sessions = list_new_cb(eigrp_bfd_session_cmp_void_ptr, eigrp_bfd_session_destroy_void_ptr, NULL, 0);
+
+        eigrp_bfd_server_singleton->active_descriminators = list_new();
+        eigrp_bfd_server_singleton->next_discrim = 1;
 
         eigrp_bfd_server_singleton->i_stream = stream_new(EIGRP_BFD_LENGTH_MAX + 1);
 
@@ -80,6 +81,8 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     struct eigrp_bfd_session *session = XMALLOC(MTYPE_EIGRP_BFD_SESSION, sizeof(struct eigrp_bfd_session));
     memset(session, 0, sizeof(struct eigrp_bfd_session));
 
+    struct eigrp_bfd_server *server = eigrp_bfd_server_get(nbr->ei->eigrp);
+
     session->nbr = nbr;
     session->last_ctl_rcv = NULL;
     pthread_mutex_init(&session->session_mutex, NULL);
@@ -87,19 +90,15 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
     session->RemoteSessionState = EIGRP_BFD_STATUS_DOWN;
 
-    if (!active_descriminators) {
-        active_descriminators = list_new();
-        srand(time(NULL));
-    }
-
     uint32_t my_descrim;
 
     do {
-        my_descrim = rand();
-    } while (NULL != listnode_lookup(active_descriminators, (void *)my_descrim));
-    listnode_add(active_descriminators, (void *)my_descrim);
+        my_descrim = server->next_discrim++;
+    } while (NULL != listnode_lookup(server->active_descriminators, (void *)my_descrim));
 
     session->LocalDescr = my_descrim;
+    listnode_add(server->active_descriminators, (void *)my_descrim);
+
     session->RemoteDescr = rem_descrim;
     session->header.vers = EIGRP_BFD_VERSION;
     session->header.diag = EIGRP_BFD_DIAG_NONE;
@@ -148,7 +147,8 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     }
 
     if (i < 49152) {
-        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "No ports left on device");
+        L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "No UDP ports left on device. Disable this BFD session.");
+        //TODO: This should reuse existing session ports to multiplex sessions as described in RFC 5881, but most installations will never hit this limit.
         close(session->client_fd);
         XFREE(MTYPE_EIGRP_BFD_SESSION, session);
         return NULL;
@@ -202,7 +202,7 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
     close((*session)->client_fd);
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete node");
-    listnode_delete(active_descriminators, (void *)(*session)->LocalDescr);
+    listnode_delete(eigrp_bfd_server_get((*session)->nbr->ei->eigrp)->active_descriminators, (void *)(*session)->LocalDescr);
 
     if (*session && (*session)->nbr) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NULL neighbor session");

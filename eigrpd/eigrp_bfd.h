@@ -156,6 +156,9 @@ struct eigrp_bfd_server {
     uint16_t port;
     struct list *sessions;
 
+    struct list *active_descriminators;
+    uint32_t next_discrim;
+
     struct stream *i_stream;
 
 };
