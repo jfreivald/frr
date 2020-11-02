@@ -85,7 +85,7 @@ void listnode_add_cf(struct list *list, void *val, const char *file, const char 
 
 	if (!val || !list || val == (void *)-1 || val == (void *)1) {
 		L(zlog_err, LOGGER_LIB, LOGGER_LIB_LIST, "Invalid parameters passed to list[%d], val[%d] CF[%s:%s:%d]", list, val, file, func, line);
-		assert(list != NULL && val != NULL && val != (void *)-1 && val != (void *)1);
+		assert(list != NULL && val != NULL);
 	}
 
 	node = listnode_new();
