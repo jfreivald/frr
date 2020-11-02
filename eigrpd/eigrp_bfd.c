@@ -94,9 +94,9 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 
     do {
         my_descrim = server->next_discrim++;
-    } while (NULL != listnode_lookup(server->active_descriminators, (void *)my_descrim));
+    } while (NULL != listnode_lookup(server->active_descriminators, (void *)htonl(my_descrim)));
 
-    session->LocalDescr = my_descrim;
+    session->LocalDescr = htonl(my_descrim);
     listnode_add(server->active_descriminators, (void *)my_descrim);
 
     session->RemoteDescr = rem_descrim;
