@@ -336,6 +336,7 @@ DEFUN (eigrp_bfd_interface,
        eigrp_bfd_interface_cmd,
        "bfd interface IFNAME min_rx (0-4294967295) des_tx (0-4294967295)",
        "bfd commands\n"
+       "bfd interface command\n"
        "interface for BFD and EIGRP interaction\n"
        "Required Minimum Receive Interval\n"
        "Interval in microseconds\n"
@@ -362,7 +363,8 @@ DEFUN (no_eigrp_bfd_interface,
        no_eigrp_bfd_interface_cmd,
        "no bfd interface IFNAME",
        NO_STR
-       "Suppress BFD on interface\n"
+       "bfd command\n"
+       "bfd interface command\n"
        "Interface to suppress BFD on\n")
 {
     VTY_DECLVAR_CONTEXT(eigrp, eigrp)
