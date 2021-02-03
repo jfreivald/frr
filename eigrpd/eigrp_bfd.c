@@ -106,8 +106,8 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     session->bfd_params = eigrp_bfd_params_new();
 
     if (nbr->ei->bfd_params) {
-        session->bfd_params->DesiredMinTxInterval = nbr->ei->bfd_params->DesiredMinTxInterval;
-        session->bfd_params->RequiredMinRxInterval = nbr->ei->bfd_params->RequiredMinRxInterval;
+        session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
+        session->bfd_params->RequiredMinRxInterval = EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL;
         session->bfd_params->RemoteDemandMode = nbr->ei->bfd_params->RemoteDemandMode;
         session->bfd_params->RequiredMinEchoRxInterval = nbr->ei->bfd_params->RequiredMinEchoRxInterval;
         session->bfd_params->AuthType = nbr->ei->bfd_params->AuthType;
