@@ -280,8 +280,8 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.length = EIGRP_BFD_LENGTH_NO_AUTH;
     msg->bfdh.my_descr = htonl(session->LocalDescr);
     msg->bfdh.your_descr = session->RemoteDescr;
-    msg->bfdh.desired_min_tx_interval = session->SessionState == EIGRP_BFD_STATUS_INIT ? htonl(EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL) : htonl(session->bfd_params->DesiredMinTxInterval);
-    msg->bfdh.required_min_rx_interval = session->SessionState == EIGRP_BFD_STATUS_INIT ? htonl(EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL) : htonl(session->bfd_params->RequiredMinRxInterval);
+    msg->bfdh.desired_min_tx_interval = htonl(session->bfd_params->DesiredMinTxInterval);
+    msg->bfdh.required_min_rx_interval = htonl(session->bfd_params->RequiredMinRxInterval);
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 
     return msg;
@@ -611,6 +611,8 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
     //      Discard the packet
     if (session->SessionState == EIGRP_BFD_STATUS_ADMIN_DOWN) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session Administratively Down. Discard.");
+	session->bfd_params->DesiredMinTxInterval = 1000;
+	session->bfd_params->RequiredMinRxInterval = 1000;
         pthread_mutex_unlock(&session->session_mutex);
         return -1;
     }
@@ -623,7 +625,9 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Remote station Administratively Down. Why we get this packet?");
         session->header.diag = EIGRP_BFD_DIAG_NBR_SESSION_DWN;
         session->SessionState = EIGRP_BFD_STATUS_DOWN;
-        pthread_mutex_unlock(&session->session_mutex);
+	session->bfd_params->DesiredMinTxInterval = 1000;
+	session->bfd_params->RequiredMinRxInterval = 1000;
+	pthread_mutex_unlock(&session->session_mutex);
         return -1;
     }
 
@@ -649,7 +653,8 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
         } else if (bfd_msg->flags.sta == EIGRP_BFD_STATUS_INIT) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session UP");
             session->SessionState = EIGRP_BFD_STATUS_UP;
-            session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
+	    session->bfd_params->RequiredMinRxInterval = session->nbr->ei->bfd_params->RequiredMinRxInterval;
+	    session->bfd_params->DesiredMinTxInterval = session->nbr->ei->bfd_params->DesiredMinTxInterval;
         }
     } else if(session->SessionState == EIGRP_BFD_STATUS_INIT) {
         if (bfd_msg->flags.sta == EIGRP_BFD_STATUS_INIT || bfd_msg->flags.sta == EIGRP_BFD_STATUS_UP) {

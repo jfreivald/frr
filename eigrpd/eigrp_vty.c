@@ -354,6 +354,9 @@ DEFUN (eigrp_bfd_interface,
     bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0);
     bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0);
 
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "RequiredMinRx: %u; DesiredMinTx: %u", bfd_iface->bfd_params->RequiredMinRxInterval,
+      bfd_iface->bfd_params->DesiredMinTxInterval);
+
     listnode_add(eigrp->eigrp_bfd_interface_info, bfd_iface);
 
     return CMD_SUCCESS;
