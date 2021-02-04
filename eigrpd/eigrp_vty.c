@@ -351,8 +351,8 @@ DEFUN (eigrp_bfd_interface,
     strncpy(bfd_iface->name, argv[2]->arg, EIGRP_MAX_INTERFACE_NAME);
     bfd_iface->name[EIGRP_MAX_INTERFACE_NAME-1] = 0;
     bfd_iface->bfd_params = eigrp_bfd_params_new();
-    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0);
-    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0);
+    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0)*1000;
+    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0)*1000;
 
     L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "RequiredMinRx: %u; DesiredMinTx: %u", bfd_iface->bfd_params->RequiredMinRxInterval,
       bfd_iface->bfd_params->DesiredMinTxInterval);
