@@ -13,8 +13,10 @@ static struct eigrp_bfd_server *eigrp_bfd_server_singleton = NULL;
 static struct stream *
 eigrp_bfd_recv_packet(int fd, struct eigrp_interface *ei, struct stream *ibuf, struct in_addr *client_address);
 static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *ei, struct in_addr *client_address);
-static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg);
 static int eigrp_bfd_session_timer_expired(struct thread *thread);
+
+static void eigrp_bfd_session_dump_cf(struct eigrp_bfd_session *s, const char *file, const char *fn, int line);
+#define eigrp_bfd_session_dump(s)		    eigrp_bfd_session_dump_cf(s, __FILE__, __PRETTY_FUNCTION__, __LINE__)
 
 static void eigrp_bfd_session_destroy_void_ptr(void *s) {
     eigrp_bfd_session_destroy((struct eigrp_bfd_session **)&s);
@@ -22,6 +24,15 @@ static void eigrp_bfd_session_destroy_void_ptr(void *s) {
 
 static int eigrp_bfd_session_cmp_void_ptr(void *n1, void *n2) {
     return eigrp_bfd_session_cmp((struct eigrp_bfd_session *)n1, (struct eigrp_bfd_session *)n2);
+}
+
+void eigrp_bfd_session_dump_cf(struct eigrp_bfd_session *s, const char *file, const char *fn, int line) {
+	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Session: %s DMT[%u] RMR[%u] RDM[%u] RMER[%u] AT[%u] DMM[%u] DTM[%u] RDM[%u]",
+	  inet_ntoa(s->nbr->src), s->bfd_params->DesiredMinTxInterval, s->bfd_params->RequiredMinRxInterval,
+	  s->bfd_params->RemoteDemandMode, s->bfd_params->RequiredMinEchoRxInterval,
+	  s->bfd_params->AuthType, s->bfd_params->DemandMode, s->bfd_params->DetectMulti,
+	  s->bfd_params->RemoteDemandMode
+	);
 }
 
 struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
@@ -93,11 +104,11 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     uint32_t my_descrim;
 
     do {
-        my_descrim = server->next_discrim++;
-    } while (NULL != listnode_lookup(server->active_descriminators, (void *)my_descrim));
+	my_descrim = server->next_discrim++;
+    } while(NULL != listnode_lookup(server->active_descriminators, (void *)(uint64_t)my_descrim));
 
     session->LocalDescr = my_descrim;
-    listnode_add(server->active_descriminators, (void *)my_descrim);
+    listnode_add(server->active_descriminators, (void *)(uint64_t)my_descrim);
 
     session->RemoteDescr = rem_descrim;
     session->header.vers = EIGRP_BFD_VERSION;
@@ -114,7 +125,11 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
         session->bfd_params->DemandMode = nbr->ei->bfd_params->DemandMode;
         session->bfd_params->DetectMulti = nbr->ei->bfd_params->DetectMulti;
         session->bfd_params->RemoteDemandMode = nbr->ei->bfd_params->RemoteDemandMode;
+    } else {
+	    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "BFD: NO PARAMS ON INTERFACE FOR SESSION. USING DEFAULTS");
     }
+
+    eigrp_bfd_session_dump(session);
 
     session->header.diag = 0;
     session->header.vers = 1;
@@ -208,14 +223,14 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
         (*session)->header.diag = EIGRP_BFD_DIAG_FWD_PLN_RESET;
     }
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Send final message");
-    eigrp_bfd_send_ctl_msg(*session, 0, 0);
+    //L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Send final message");
+    //eigrp_bfd_send_ctl_msg(*session, 0, 0);
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close socket");
     close((*session)->client_fd);
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete node");
-    listnode_delete(eigrp_bfd_server_get((*session)->nbr->ei->eigrp)->active_descriminators, (void *)(*session)->LocalDescr);
+    listnode_delete(eigrp_bfd_server_get((*session)->nbr->ei->eigrp)->active_descriminators, (void *)(uint64_t)(*session)->LocalDescr);
 
     if (*session && (*session)->nbr) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NULL neighbor session");
@@ -448,8 +463,6 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
 
     struct eigrp_bfd_hdr *bfd_msg = (struct eigrp_bfd_hdr *) stream_pnt(s);
 
-    //eigrp_bfd_dump_ctl_msg((struct eigrp_bfd_ctl_msg *)iph);
-
     //If the version number is not correct (1), the packet MUST be discarded.
     if (bfd_msg->hdr.vers != 1) {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Incorrect version[%d]", bfd_msg->hdr.vers);
@@ -649,6 +662,8 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
     if (session->SessionState == EIGRP_BFD_STATUS_DOWN) {
         if (bfd_msg->flags.sta == EIGRP_BFD_STATUS_DOWN) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session INIT");
+	    session->bfd_params->RequiredMinRxInterval = 1000;
+	    session->bfd_params->DesiredMinTxInterval = 1000;
             session->SessionState = EIGRP_BFD_STATUS_INIT;
         } else if (bfd_msg->flags.sta == EIGRP_BFD_STATUS_INIT) {
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session UP");
@@ -725,14 +740,6 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
     }
 
     return 0;
-}
-
-static void eigrp_bfd_dump_ctl_msg(struct eigrp_bfd_ctl_msg *msg) {
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "IP Length[%u], UDP Length [%u], BFD Length [%u]",
-            msg->iph.ip_len, ntohs(msg->udph.len), msg->bfdh.length);
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "V[%u] D[%u] S[%u] ME[%08x] YOU[%08x] DMIN[%u] RMIN[%u] EMIN[%u] ",
-            msg->bfdh.hdr.vers, msg->bfdh.hdr.diag, msg->bfdh.flags.sta, ntohl(msg->bfdh.my_descr), ntohl(msg->bfdh.your_descr),
-            ntohl(msg->bfdh.desired_min_tx_interval), ntohl(msg->bfdh.required_min_rx_interval), ntohl(msg->bfdh.required_min_echo_rx_interval));
 }
 
 static int eigrp_bfd_session_timer_expired(struct thread *thread) {

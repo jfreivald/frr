@@ -281,6 +281,7 @@ int eigrp_if_up_cf(struct eigrp_interface *ei, const char *file, const char *fun
         }
     }
 
+    //TODO: Add interface commands to update the delay and bandwidth
     if ((strncmp(ei->ifp->name, "dnsTun", 6) == 0 )) {
         L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "Found %s. Configure Delay and Bandwidth for T1.", ei->ifp->name);
         ei->params.delay = eigrp_calculate_delay(20000);
