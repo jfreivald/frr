@@ -267,8 +267,8 @@ struct eigrp_bfd_ctl_msg * eigrp_bfd_ctl_msg_new(struct eigrp_bfd_session *sessi
     msg->bfdh.length = EIGRP_BFD_LENGTH_NO_AUTH;
     msg->bfdh.my_descr = htonl(session->LocalDescr);
     msg->bfdh.your_descr = session->RemoteDescr;
-    msg->bfdh.desired_min_tx_interval = session->SessionState == EIGRP_BFD_STATUS_INIT ? EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL : htonl(session->bfd_params->DesiredMinTxInterval);
-    msg->bfdh.required_min_rx_interval = session->SessionState == EIGRP_BFD_STATUS_INIT ? EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL : htonl(session->bfd_params->RequiredMinRxInterval);
+    msg->bfdh.desired_min_tx_interval = session->SessionState == EIGRP_BFD_STATUS_INIT ? htonl(EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL) : htonl(session->bfd_params->DesiredMinTxInterval);
+    msg->bfdh.required_min_rx_interval = session->SessionState == EIGRP_BFD_STATUS_INIT ? htonl(EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL) : htonl(session->bfd_params->RequiredMinRxInterval);
     msg->bfdh.required_min_echo_rx_interval = htonl(session->bfd_params->RequiredMinEchoRxInterval);
 
     return msg;

@@ -351,12 +351,8 @@ DEFUN (eigrp_bfd_interface,
     strncpy(bfd_iface->name, argv[2]->arg, EIGRP_MAX_INTERFACE_NAME);
     bfd_iface->name[EIGRP_MAX_INTERFACE_NAME-1] = 0;
     bfd_iface->bfd_params = eigrp_bfd_params_new();
-    bfd_iface->bfd_params->RequiredMinRxInterval = 1000;//strtoul(argv[4]->arg, NULL, 0);
-    bfd_iface->bfd_params->DesiredMinTxInterval = 1000;//strtoul(argv[6]->arg, NULL, 0);
-    if (bfd_iface->bfd_params->RequiredMinRxInterval < 50)
-	    bfd_iface->bfd_params->RequiredMinRxInterval = 50;
-    if (bfd_iface->bfd_params->DesiredMinTxInterval < 50)
-	    bfd_iface->bfd_params->DesiredMinTxInterval = 50;
+    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0);
+    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0);
 
     listnode_add(eigrp->eigrp_bfd_interface_info, bfd_iface);
 
