@@ -129,7 +129,10 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 	L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not raise privilege, %s",
 	  safe_strerror(errno));
 
-    setsockopt(session->client_fd, IPPROTO_IP, IP_TOS, IPTOS_PREC_INTERNETCONTROL, sizeof(IPTOS_PREC_INTERNETCONTROL));
+    int my_tos = IPTOS_PREC_INTERNETCONTROL;
+    setsockopt(session->client_fd, IPPROTO_IP, IP_TOS, &my_tos, sizeof(my_tos));
+    int my_ttl = 255;
+    setsockopt(session->client_fd, IPPROTO_IP, IP_TTL, &my_ttl, sizeof(my_ttl));
 
     if (eigrpd_privs.change(ZPRIVS_LOWER))
 	L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NETWORK,"Could not lower privilege, %s",
