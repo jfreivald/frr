@@ -70,7 +70,7 @@ void eigrp_bfd_server_reset(void) {
 struct eigrp_bfd_params * eigrp_bfd_params_new(void) {
     struct eigrp_bfd_params *bfd_params = XMALLOC(MTYPE_EIGRP_BFD_PARAMS, sizeof(struct eigrp_bfd_params));
 
-    bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
+    bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
     bfd_params->RequiredMinRxInterval = EIGRP_BFD_DEFAULT_REQ_MIN_RX_INTERVAL;
     bfd_params->RemoteMinRxInterval = EIGRP_BFD_DEFAULT_REM_MIN_RX_INTERVAL;
     bfd_params->RequiredMinEchoRxInterval = EIGRP_BFD_DEFAULT_REQ_MIN_ECHO_RX_INTERVAL;
@@ -370,14 +370,6 @@ int eigrp_bfd_write(struct thread *thread){
     if (session) {
         if (sendto(session->client_fd, &msg->bfdh, msg->bfdh.length, 0, NULL, 0) < 0) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
-            memset(buf, 0, 2048);
-            buf[0] = '|';
-            size_t current_length;
-            for (long unsigned int i = 0; i < msg->bfdh.length; i++) {
-                current_length = strnlen(buf, 2048);
-                snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
-            }
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "\tERRORED MESSAGE: %s", buf);
             retval = -1;
         }
     } else {
@@ -729,6 +721,5 @@ static int eigrp_bfd_session_timer_expired(struct thread *thread) {
     struct eigrp_bfd_session *session = THREAD_ARG(thread);
     pthread_mutex_lock(&session->session_mutex);
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
-    session->bfd_params->DesiredMinTxInterval = EIGRP_BFD_DEFAULT_DOWN_DES_MIN_TX_INTERVAL;
     return 0;
 }
