@@ -360,11 +360,6 @@ int eigrp_bfd_write(struct thread *thread){
         current_length = strnlen(buf, 2048);
         snprintf(&buf[current_length], 2047 - current_length, "%02x|", input[i]);
     }
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "V[%u] D[%02x] S[%u] DM[%u] L[%u] ME[%u] YOU[%u] DMT[%u] RMR[%u] RME[%u] to %s",
-            msg->bfdh.hdr.vers, msg->bfdh.hdr.diag, msg->bfdh.flags.sta, msg->bfdh.detect_multi, msg->bfdh.length,
-            ntohl(msg->bfdh.my_descr), ntohl(msg->bfdh.your_descr), ntohl(msg->bfdh.desired_min_tx_interval), ntohl(msg->bfdh.required_min_rx_interval),
-            ntohl(msg->bfdh.required_min_echo_rx_interval), inet_ntoa(msg->iph.ip_dst));
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "HEX DUMP: %s", buf);
 
     for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n1, session)) {
         if (session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
@@ -441,8 +436,6 @@ eigrp_bfd_recv_packet(int fd, struct eigrp_interface *ei, struct stream *ibuf, s
     }
 
     client_address->s_addr = addr.sin_addr.s_addr;
-
-    L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "MESSAGE from %s on %s: %s", inet_ntoa(*client_address), ei->ifp->name, buf);
 
     if (ret < EIGRP_BFD_LENGTH_NO_AUTH)
     {
