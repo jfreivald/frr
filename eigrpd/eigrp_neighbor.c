@@ -351,7 +351,7 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
         if (maxwait <= 0) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
               "Timeout waiting for interface queue. Terminating neighbor %s.", inet_ntoa(nbr->src));
-            
+
         }
     }
 
