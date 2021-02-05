@@ -339,17 +339,11 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 	if (!nbr)
 		return;
 
-    //Remove nbr from all interfaces
-    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
-        if (tei->nbrs)
-            listnode_delete(tei->nbrs, nbr);
-    }
 
     if (nbr->state == EIGRP_NEIGHBOR_UP) {
         eigrp_hello_send_reset(nbr);
-	}
-
-	nbr->state = EIGRP_NEIGHBOR_DOWN;
+    }
+    nbr->state = EIGRP_NEIGHBOR_DOWN;
     THREAD_OFF(nbr->t_holddown);
 
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
@@ -441,7 +435,13 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
         nbr->ei = NULL;
     }
 
-	L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
+    //Remove nbr from all interfaces
+    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, tei)) {
+        if (tei->nbrs)
+            listnode_delete(tei->nbrs, nbr);
+    }
+
+    L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
 	eigrp_nbr_delete(nbr);
 

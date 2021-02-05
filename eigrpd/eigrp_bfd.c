@@ -226,10 +226,10 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
     //L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Send final message");
     //eigrp_bfd_send_ctl_msg(*session, 0, 0);
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close socket");
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close BFD socket");
     close((*session)->client_fd);
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete node");
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete BFD descriminator");
     listnode_delete(eigrp_bfd_server_get((*session)->nbr->ei->eigrp)->active_descriminators, (void *)(uint64_t)(*session)->LocalDescr);
 
     if (*session && (*session)->nbr) {
