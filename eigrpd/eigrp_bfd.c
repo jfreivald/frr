@@ -741,5 +741,7 @@ static int eigrp_bfd_session_timer_expired(struct thread *thread) {
     struct eigrp_bfd_session *session = THREAD_ARG(thread);
     pthread_mutex_lock(&session->session_mutex);
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
+    pthread_mutex_unlock(&session->session_mutex);
+    eigrp_bfd_send_ctl_msg(session, 0, 0);
     return 0;
 }

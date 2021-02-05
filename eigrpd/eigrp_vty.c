@@ -334,14 +334,18 @@ DEFUN (no_eigrp_passive_interface,
 
 DEFUN (eigrp_bfd_interface,
        eigrp_bfd_interface_cmd,
-       "bfd interface IFNAME min_rx (0-4294967295) des_tx (0-4294967295)",
+       "bfd interface IFNAME min_rx (50-4294967295) des_tx (50-4294967295) echo (50-4294967295) multi (3-255)",
        "bfd commands\n"
        "bfd interface command\n"
        "interface for BFD and EIGRP interaction\n"
        "Required Minimum Receive Interval\n"
        "Interval in microseconds\n"
        "Desired Minimum Transmit Interval\n"
-       "Interval in microseconds\n")
+       "Interval in microseconds\n"
+       "Echo interval\n"
+       "Interval in microseconds\n"
+       "Detection multiplier\n"
+       "Number of packets missed before shutdown\n")
 {
     VTY_DECLVAR_CONTEXT(eigrp, eigrp)
 
@@ -351,11 +355,22 @@ DEFUN (eigrp_bfd_interface,
     strncpy(bfd_iface->name, argv[2]->arg, EIGRP_MAX_INTERFACE_NAME);
     bfd_iface->name[EIGRP_MAX_INTERFACE_NAME-1] = 0;
     bfd_iface->bfd_params = eigrp_bfd_params_new();
-    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0)*1000;
-    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0)*1000;
+    bfd_iface->bfd_params->RequiredMinRxInterval = strtoul(argv[4]->arg, NULL, 0) * 1000;
+    if (bfd_iface->bfd_params->RequiredMinRxInterval < 50000)
+        bfd_iface->bfd_params->RequiredMinRxInterval = 50000;
+    bfd_iface->bfd_params->DesiredMinTxInterval = strtoul(argv[6]->arg, NULL, 0) * 1000;
+    if (bfd_iface->bfd_params->DesiredMinTxInterval < 50000)
+        bfd_iface->bfd_params->DesiredMinTxInterval = 50000;
+    bfd_iface->bfd_params->RequiredMinEchoRxInterval = strtoul(argv[8]->arg, NULL, 0) * 1000;
+    if (bfd_iface->bfd_params->RequiredMinEchoRxInterval < 50000)
+        bfd_iface->bfd_params->RequiredMinEchoRxInterval = 50000;
+    bfd_iface->bfd_params->DetectMulti = strtoul(argv[10]->arg, NULL, 0);
+    if (bfd_iface->bfd_params->DetectMulti < 3)
+        bfd_iface->bfd_params->DetectMulti = 3;
 
-    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "RequiredMinRx: %u; DesiredMinTx: %u", bfd_iface->bfd_params->RequiredMinRxInterval,
-      bfd_iface->bfd_params->DesiredMinTxInterval);
+    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_INTERFACE, "%s MinRx[%u] DesTx[%u] ReqEcho[%u] DetMul[%u]",
+      bfd_iface->name, bfd_iface->bfd_params->RequiredMinRxInterval, bfd_iface->bfd_params->DesiredMinTxInterval,
+      bfd_iface->bfd_params->RequiredMinEchoRxInterval, bfd_iface->bfd_params->DetectMulti);
 
     listnode_add(eigrp->eigrp_bfd_interface_info, bfd_iface);
 
