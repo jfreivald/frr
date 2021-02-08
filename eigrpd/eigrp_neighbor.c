@@ -343,16 +343,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
     if (nbr->state == EIGRP_NEIGHBOR_UP) {
         eigrp_hello_send_reset(nbr);
-        int maxwait = 10;
-        while (nbr->ei->obuf->count > 0 && --maxwait > 0) {
-            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Tick...");
-            usleep(100000);
-        }
-        if (maxwait <= 0) {
-            L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR,
-              "Timeout waiting for interface queue. Terminating neighbor %s.", inet_ntoa(nbr->src));
-
-        }
     }
 
     nbr->state = EIGRP_NEIGHBOR_DOWN;
