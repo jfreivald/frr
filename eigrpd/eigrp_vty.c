@@ -406,10 +406,9 @@ DEFUN (no_eigrp_bfd_interface,
 DEFUN (show_ip_eigrp_bfd_neighbors,
        show_ip_eigrp_bfd_neighbors_cmd,
        "show ip eigrp bfd neighbors",
-       "Show the current BFD neighbor status for the EIGRPD Process\n"
        SHOW_STR
        IP_STR
-       "EIGRP\n"
+       "EIGRP-IP\n"
        "BFD\n"
        "Neighbors\n")
 {
