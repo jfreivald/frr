@@ -403,6 +403,37 @@ DEFUN (no_eigrp_bfd_interface,
     return CMD_SUCCESS;
 }
 
+DEFUN (show_ip_eigrp_bfd_neighbors,
+       show_ip_eigrp_bfd_neighbors_cmd,
+       "show ip eigrp bfd neighbors",
+       SHOW_STR
+       IP_STR
+       "EIGRP"
+       "BFD\n"
+       "Neighbors\n")
+{
+    VTY_DECLVAR_CONTEXT(eigrp, eigrp);
+    struct listnode *ein, *nbrn;
+    struct eigrp_interface *ei;
+    struct eigrp_neighbor *nbr;
+
+    for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, ei)) {
+        for (ALL_LIST_ELEMENTS_RO(ei->nbrs, nbrn, nbr)) {
+            if (nbr->bfd_session != NULL) {
+                vty_out(vty, "BFD NBR %s: %s [%u:%u]\n", inet_ntoa(nbr->src),
+                        (nbr->bfd_session->SessionState == EIGRP_BFD_STATUS_DOWN ? "DOWN" :
+                         (nbr->bfd_session->SessionState == EIGRP_BFD_STATUS_INIT ? "INIT" :
+                          (nbr->bfd_session->SessionState == EIGRP_BFD_STATUS_ADMIN_DOWN ? "ADMIN DOWN" :
+                           (nbr->bfd_session->SessionState == EIGRP_BFD_STATUS_UP ? "UP" : "INVALID"
+                          )))),
+                          nbr->bfd_session->LocalDescr,
+                          ntohl(nbr->bfd_session->RemoteDescr)
+                          );
+            }
+        }
+    }
+}
+
 DEFUN (eigrp_single_neighbor,
        eigrp_single_neighbor_cmd,
        "single-neighbor IFNAME",
@@ -1647,6 +1678,8 @@ void eigrp_vty_show_init(void)
 	install_element(VIEW_NODE, &show_ip_eigrp_topology_cmd);
 
 	install_element(VIEW_NODE, &show_ip_eigrp_topology_detail_cmd);
+
+	install_element(VIEW_NODE, &show_ip_eigrp_bfd_neighbors_cmd);
 }
 
 /* eigrpd's interface node. */
