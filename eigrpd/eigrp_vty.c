@@ -409,7 +409,7 @@ DEFUN (show_ip_eigrp_bfd_neighbors,
        "Show the current BFD neighbor status for the EIGRPD Process\n"
        SHOW_STR
        IP_STR
-       "EIGRP"
+       "EIGRP\n"
        "BFD\n"
        "Neighbors\n")
 {
