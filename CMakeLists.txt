@@ -44,6 +44,10 @@ add_executable(zebra
         zebra/ipforward_solaris.c  zebra/rtread_netlink.c    zebra/zebra_mpls.c          zebra/zebra_rib.c)
 target_link_libraries(zebra libfrr.a criterion pthread dl crypt m json-c rt cap)
 
+add_executable(vtysh
+        vtysh/vtysh.c       vtysh/vtysh_cmd.c       vtysh/vtysh_main.c      vtysh/vtysh_user.c      vtysh/vtysh_config.c)
+target_link_libraries(vtysh libfrr.a pthread dl crypt m json-c rt cap readline)
+
 #[[
 add_executable(eigrp_fsm_test eigrpd/test/eigrp_fsm_test.c eigrpd/eigrp_network.c eigrpd/eigrp_interface.c)
 link_directories(eigrpd . lib/.libs)
