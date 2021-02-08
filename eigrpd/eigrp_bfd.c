@@ -656,8 +656,8 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session UP");
             session->SessionState = EIGRP_BFD_STATUS_UP;
 	    struct timeval tv;
-	    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
-	    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
+	    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US(session) / 1000000;
+	    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US(session) % 1000000;
 
 	    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets[%u:%u]", tv.tv_sec, tv.tv_usec);
 	    thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session, &tv, &session->eigrp_nbr_bfd_ctl_thread);
@@ -667,10 +667,10 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Session UP");
             session->SessionState = EIGRP_BFD_STATUS_UP;
 	    struct timeval tv;
-	    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
-	    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
+	    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US(session) / 1000000;
+	    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US(session) % 1000000;
 
-	    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets[%u:%u]", tv.tv_sec, tv.tv_usec);
+	    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets[%u:%u:%u]", EIGRP_BFD_TIMER_SELECT_US(session), tv.tv_sec, tv.tv_usec);
 	    thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session, &tv, &session->eigrp_nbr_bfd_ctl_thread);
         }
     }  else if(session->SessionState == EIGRP_BFD_STATUS_UP) {
@@ -697,7 +697,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Entering DEMAND MODE");
             THREAD_OFF(session->eigrp_nbr_bfd_ctl_thread);
         }
-        detection_timer = (session->bfd_params->DetectMulti * EIGRP_BFD_TIMER_SELECT_US);
+        detection_timer = (session->bfd_params->DetectMulti * EIGRP_BFD_TIMER_SELECT_US(session));
     }
 
     //If bfd.RemoteDemandMode is 0, or bfd.SessionState is not Up, or
@@ -707,14 +707,14 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
     else {
         if (session->eigrp_nbr_bfd_ctl_thread == NULL) {
 	    struct timeval tv;
-	    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
-	    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
+	    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US(session) / 1000000;
+	    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US(session) % 1000000;
 
             L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets[%u:%u]", tv.tv_sec, tv.tv_usec);
 
 	    thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session, &tv, &session->eigrp_nbr_bfd_ctl_thread);
         }
-        detection_timer = (bfd_msg->detect_multi * EIGRP_BFD_TIMER_SELECT_US);
+        detection_timer = (bfd_msg->detect_multi * EIGRP_BFD_TIMER_SELECT_US(session));
     }
 
     //If the packet was not discarded, it has been received for purposes
@@ -726,7 +726,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
         }
         session->eigrp_nbr_bfd_detection_thread = NULL;
 
-	detection_timer = (bfd_msg->detect_multi * EIGRP_BFD_TIMER_SELECT_US);
+	detection_timer = (bfd_msg->detect_multi * EIGRP_BFD_TIMER_SELECT_US(session));
 
 	struct timeval tv;
     	tv.tv_sec = detection_timer / 1000000;

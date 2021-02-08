@@ -78,8 +78,8 @@
 #define EIGRP_BFD_NO_AUTH                           (0)
 #define EIGRP_BFD_TTL                               (255)
 
-#define EIGRP_BFD_TIMER_SELECT_US                                              \
-	(session->SessionState == EIGRP_BFD_STATUS_UP ? ((session->bfd_params->DesiredMinTxInterval > session->bfd_params->RemoteMinRxInterval ? session->bfd_params->DesiredMinTxInterval : session->bfd_params->RemoteMinRxInterval)) : 1000000 )
+#define EIGRP_BFD_TIMER_SELECT_US(s)                                              \
+	((s)->SessionState == EIGRP_BFD_STATUS_UP ? (((s)->bfd_params->DesiredMinTxInterval > (s)->bfd_params->RemoteMinRxInterval ? (s)->bfd_params->DesiredMinTxInterval : (s)->bfd_params->RemoteMinRxInterval)) : 1000000 )
 #define EIGRP_BFD_DEFAULT_PORT                      (3784)
 #define EIGRP_BFD_SOURCE_PORT                       (49152)
 
