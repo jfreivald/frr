@@ -609,7 +609,7 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
     session->bfd_params->RemoteDemandMode = bfd_msg->flags.d;
 
     //Set bfd.RemoteMinRxInterval to the value of Required Min RX Interval.
-    session->bfd_params->RemoteMinRxInterval = bfd_msg->required_min_rx_interval;
+    session->bfd_params->RemoteMinRxInterval = ntohl(bfd_msg->required_min_rx_interval);
 
     //If the Required Min Echo RX Interval field is zero, the
     //transmission of Echo packets, if any, MUST cease.
