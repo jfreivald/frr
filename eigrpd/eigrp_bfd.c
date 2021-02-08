@@ -336,11 +336,11 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
     session->eigrp_nbr_bfd_ctl_thread = NULL;
-	struct timeval tv;
-	tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
-	tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
+    struct timeval tv;
+    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
+    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
 
-	thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session,
+    thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session,
 			  &tv, &session->eigrp_nbr_bfd_ctl_thread);
 
     return ret_val;
@@ -694,13 +694,13 @@ static int eigrp_bfd_process_ctl_msg(struct stream *s, struct eigrp_interface *e
     //packets (see section 6.8.7).
     else {
         if (session->eigrp_nbr_bfd_ctl_thread == NULL) {
-            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets");
-
 	    struct timeval tv;
 	    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
 	    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
 
-            thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session, &tv, &session->eigrp_nbr_bfd_ctl_thread);
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "BFD: Starting periodic packets[%u:%u]", tv.tv_sec, tv.tv_usec);
+
+	    thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session, &tv, &session->eigrp_nbr_bfd_ctl_thread);
         }
         detection_timer = (bfd_msg->detect_multi * EIGRP_BFD_TIMER_SELECT_US);
     }
