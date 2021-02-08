@@ -413,7 +413,7 @@ DEFUN (show_ip_eigrp_bfd_neighbors,
        "BFD\n"
        "Neighbors\n")
 {
-    VTY_DECLVAR_CONTEXT(eigrp, eigrp);
+    struct eigrp *eigrp = eigrp_lookup();
     struct listnode *ein, *nbrn;
     struct eigrp_interface *ei;
     struct eigrp_neighbor *nbr;
