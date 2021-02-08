@@ -201,8 +201,8 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     }
 
     struct timeval tv;
-    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
-    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
+    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US(session) / 1000000;
+    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US(session) % 1000000;
 
     thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session, &tv, &session->eigrp_nbr_bfd_ctl_thread);
 
@@ -337,8 +337,8 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     session->eigrp_nbr_bfd_ctl_thread = NULL;
     struct timeval tv;
-    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US / 1000000;
-    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US % 1000000;
+    tv.tv_sec = EIGRP_BFD_TIMER_SELECT_US(session) / 1000000;
+    tv.tv_usec = EIGRP_BFD_TIMER_SELECT_US(session) % 1000000;
 
     thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session,
 			  &tv, &session->eigrp_nbr_bfd_ctl_thread);
