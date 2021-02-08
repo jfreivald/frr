@@ -57,12 +57,19 @@ struct eigrp_bfd_server * eigrp_bfd_server_get(struct eigrp *eigrp) {
 
 static inline uint32_t eigrp_bfd_timer_select_us(struct eigrp_bfd_session *s)
 {
-	return (((s)->SessionState == EIGRP_BFD_STATUS_UP)
-		 ? (((s)->bfd_params->DesiredMinTxInterval
-		     > (s)->bfd_params->RemoteMinRxInterval)
-			    ? ((s)->bfd_params->DesiredMinTxInterval)
-			    : ((s)->bfd_params->RemoteMinRxInterval))
-		 : (1000000));
+	uint32_t t = 0;
+	if ((s)->SessionState == EIGRP_BFD_STATUS_UP) {
+		if ((s)->bfd_params->DesiredMinTxInterval > (s)->bfd_params->RemoteMinRxInterval) {
+			t = (s)->bfd_params->DesiredMinTxInterval;
+		} else {
+			t = (s)->bfd_params->RemoteMinRxInterval;
+		}
+	} else {
+		t = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
+	}
+	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Timers: %u:%u:%u", (s)->bfd_params->DesiredMinTxInterval, (s)->bfd_params->RemoteMinRxInterval, t);
+
+	return t;
 }
 
 void eigrp_bfd_server_reset(void) {
