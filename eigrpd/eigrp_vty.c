@@ -409,8 +409,8 @@ DEFUN (show_ip_eigrp_bfd_neighbors,
        SHOW_STR
        IP_STR
        "EIGRP-IP\n"
-       "BFD\n"
-       "Neighbors\n")
+       "IP-EIGRP bfd information\n"
+       "BFD Neighbors\n")
 {
     struct eigrp *eigrp = eigrp_lookup();
     struct listnode *ein, *nbrn;
