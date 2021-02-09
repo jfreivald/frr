@@ -420,8 +420,7 @@ DEFUN (show_ip_eigrp_bfd_neighbors,
     for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, ein, ei)) {
         for (ALL_LIST_ELEMENTS_RO(ei->nbrs, nbrn, nbr)) {
             if (nbr->bfd_session != NULL) {
-                vty_out(vty, "NBR %s  BFD State: %s  LD/RD: %u/%u  Int: %s]\n"
-                             "",
+                vty_out(vty, "NBR %s  BFD State: %s  LD/RD: %u/%u  Int: %s\n",
                              inet_ntoa(nbr->src),
                         (nbr->bfd_session->SessionState == EIGRP_BFD_STATUS_DOWN ? "DOWN" :
                          (nbr->bfd_session->SessionState == EIGRP_BFD_STATUS_INIT ? "INIT" :
