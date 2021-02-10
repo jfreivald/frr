@@ -132,6 +132,7 @@ struct eigrp_bfd_ctl_msg {
 
 struct eigrp_bfd_session {
     struct eigrp_neighbor *nbr;
+    struct eigrp_interface *ei;
     struct thread *eigrp_nbr_bfd_ctl_thread;
     struct thread *eigrp_nbr_bfd_detection_thread;
     struct eigrp_bfd_ctl_msg *last_ctl_rcv;

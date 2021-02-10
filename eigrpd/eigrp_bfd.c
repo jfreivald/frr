@@ -111,6 +111,7 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     struct eigrp_bfd_server *server = eigrp_bfd_server_get(nbr->ei->eigrp);
 
     session->nbr = nbr;
+    session->ei = nbr->ei;
     session->last_ctl_rcv = NULL;
     pthread_mutex_init(&session->session_mutex, NULL);
 
@@ -386,7 +387,7 @@ int eigrp_bfd_write(struct thread *thread){
     }
 
     for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n1, session)) {
-        if (session->nbr && listnode_lookup(eigrp_lookup()->all_neighbors, session->nbr) && session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
+        if (session->nbr && listnode_lookup(session->ei->nbrs, session->nbr) && session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
             break;
         }
     }

@@ -138,7 +138,6 @@ struct eigrp {
 
     /*Neighbor self*/
 	struct eigrp_neighbor *neighbor_self;
-	struct list *all_neighbors;
 
 	/*Configured metric for redistributed routes*/
 	struct eigrp_metrics dmetric[ZEBRA_ROUTE_MAX + 1];

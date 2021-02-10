@@ -391,10 +391,6 @@ int eigrp_write(struct thread *thread)
 	eigrph = (struct eigrp_header *)STREAM_DATA(ep->s);
 
 	if (ep->nbr && !(IN_MULTICAST(htonl(ep->dst.s_addr)))) {
-	    if (listnode_lookup(eigrp->all_neighbors, ep->nbr) == NULL) {
-	        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Attempted to send a packet to neighbor that is down. Discard.");
-	        goto out;
-	    }
 		eigrph->ack = htonl(ep->nbr->recv_sequence_number);
 		eigrph->checksum = 0;
 		eigrp_packet_checksum(ei, ep->s, ep->length);

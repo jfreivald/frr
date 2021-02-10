@@ -107,8 +107,6 @@ struct eigrp_neighbor *eigrp_nbr_new(struct eigrp_interface *ei, struct in_addr 
 	nbr->crypt_seqnum = 0;
 	nbr->bfd_session = NULL;
 
-	listnode_add(eigrp_lookup()->all_neighbors, nbr);
-
 	return nbr;
 }
 
@@ -314,8 +312,6 @@ static void eigrp_nbr_delete(struct eigrp_neighbor *nbr)
 		//Somebody called this on a live neighbor. Tear it down.
         eigrp_topology_neighbor_down(nbr);
 	}
-
-	listnode_delete(eigrp_lookup()->all_neighbors, nbr);
 
 	XFREE(MTYPE_EIGRP_NEIGHBOR, nbr);
 }
