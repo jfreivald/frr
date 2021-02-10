@@ -948,6 +948,8 @@ void eigrp_fifo_clear_nbr_packets(struct eigrp_fifo *fifo, struct eigrp_neighbor
 
             eigrp_packet_free(tp);
             tp = tp->next;
+        } else {
+            tp = tp->next;
         }
     }
 
