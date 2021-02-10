@@ -1168,7 +1168,12 @@ void eigrp_fifo_push(struct eigrp_fifo *fifo, struct eigrp_packet *ep)
 /* Return last fifo entry. */
 struct eigrp_packet *eigrp_fifo_next(struct eigrp_fifo *fifo)
 {
-	return fifo->tail;
+    struct eigrp_packet *ep;
+    pthread_mutex_lock(&fifo->m);
+	ep = fifo->tail;
+	pthread_mutex_unlock(&fifo->m);
+	return ep;
+	
 }
 
 void eigrp_packet_delete(struct eigrp_interface *ei)
