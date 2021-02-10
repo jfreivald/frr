@@ -350,8 +350,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
-    eigrp_fifo_clear_nbr_packets(nbr->ei->obuf, nbr);
-
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ( (rn = route_table_iter_next(&it)) ) {
 		if (!rn)
@@ -405,21 +403,22 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
         eigrp_sia_unlock(eigrp);
 	}
 
-
     //Finish this sequence.
     eigrp_fsm_initialize_action_message(&msg, EIGRP_OPC_UPDATE, eigrp, nbr, NULL, NULL, EIGRP_FSM_DONE, EIGRP_INFINITE_METRIC, NULL);
 
 	eigrp_fsm_event(&msg);
 
 	/* Cancel all events. */ /* Thread lookup cost would be negligible. */
-	thread_cancel_event(master, nbr);
+    eigrp_fifo_clear_nbr_packets(nbr->ei->obuf, nbr);
+
+    thread_cancel_event(master, nbr);
 
     if (nbr->bfd_session) {
         L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stopping BFD Session");
         eigrp_bfd_session_destroy(&nbr->bfd_session);
     }
 
-	if (nbr->multicast_queue) {
+    if (nbr->multicast_queue) {
 		eigrp_fifo_free(nbr->multicast_queue);
 		nbr->multicast_queue = NULL;
 	}
