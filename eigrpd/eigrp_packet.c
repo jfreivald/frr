@@ -1241,6 +1241,8 @@ int eigrp_unack_packet_retrans(struct thread *thread)
 	struct eigrp_neighbor *nbr;
 	nbr = (struct eigrp_neighbor *)THREAD_ARG(thread);
 
+	eigrp_hello_send(nbr->ei, EIGRP_HELLO_SEND_IMMEDIATE, nbr->src.s_addr);
+
 	struct eigrp_packet *ep;
 	ep = eigrp_fifo_next(nbr->retrans_queue);
 
