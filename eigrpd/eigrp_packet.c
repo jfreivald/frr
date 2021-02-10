@@ -1070,7 +1070,7 @@ void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr)
         }
 
         /*Start retransmission timer*/
-		thread_add_timer(master, eigrp_unack_packet_retrans, nbr,
+		thread_add_timer_msec(master, eigrp_unack_packet_retrans, nbr,
 				 EIGRP_PACKET_RETRANS_TIME,
 				 &ep->t_retrans_timer);
 
@@ -1255,7 +1255,7 @@ int eigrp_unack_packet_retrans(struct thread *thread)
 
 		/*Start retransmission timer*/
 		ep->t_retrans_timer = NULL;
-		thread_add_timer(master, eigrp_unack_packet_retrans, nbr,
+		thread_add_timer_msec(master, eigrp_unack_packet_retrans, nbr,
 				 EIGRP_PACKET_RETRANS_TIME,
 				 &ep->t_retrans_timer);
 
@@ -1291,7 +1291,7 @@ int eigrp_unack_multicast_packet_retrans(struct thread *thread)
 
 		/*Start retransmission timer*/
 		ep->t_retrans_timer = NULL;
-		thread_add_timer(master, eigrp_unack_multicast_packet_retrans,
+		thread_add_timer_msec(master, eigrp_unack_multicast_packet_retrans,
 				 nbr, EIGRP_PACKET_RETRANS_TIME,
 				 &ep->t_retrans_timer);
 

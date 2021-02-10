@@ -43,7 +43,7 @@
 #define EIGRP_NEIGHBOR_UP				0xFF
 
 /*Packet requiring ack will be retransmitted again after this time*/
-#define EIGRP_PACKET_RETRANS_TIME        1 /* in seconds */
+#define EIGRP_PACKET_RETRANS_TIME        150 /* in milliseconds */
 #define EIGRP_PACKET_RETRANS_MAX         15 /* number of retrans attempts */
 #define PLAINTEXT_LENGTH                 81
 #define EIGRP_SIA_TIMEOUT                90 /* in seconds - note that this is half the total timeout */ //TODO: Change to configurable parameter
