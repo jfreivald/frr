@@ -54,6 +54,8 @@ extern struct eigrp_packet *eigrp_fifo_next(struct eigrp_fifo *);
 extern struct eigrp_packet *eigrp_fifo_pop(struct eigrp_fifo *);
 extern void eigrp_fifo_push(struct eigrp_fifo *, struct eigrp_packet *);
 extern void eigrp_fifo_free(struct eigrp_fifo *);
+extern void eigrp_fifo_remove(struct eigrp_fifo *, struct eigrp_packet *);
+extern void eigrp_fifo_clear_nbr_packets(struct eigrp_fifo *, struct eigrp_neighbor *);
 extern void eigrp_fifo_reset(struct eigrp_fifo *);
 
 extern void eigrp_place_on_nbr_queue(struct eigrp_neighbor *nbr,

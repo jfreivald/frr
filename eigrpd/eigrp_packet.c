@@ -913,7 +913,45 @@ struct eigrp_fifo *eigrp_fifo_new(void)
 	struct eigrp_fifo *new;
 
 	new = XCALLOC(MTYPE_EIGRP_FIFO, sizeof(struct eigrp_fifo));
+
+	pthread_mutex_init(&new->m, NULL);
+
 	return new;
+}
+
+void eigrp_fifo_remove(struct eigrp_fifo *f, struct eigrp_packet *p) {
+
+    pthread_mutex_lock(&f->m);
+    if (p->previous)
+        p->previous->next = p->next;
+    if (p->next)
+        p->next->previous = p->previous;
+
+    eigrp_packet_free(p);
+    p = p->next;
+    pthread_mutex_unlock(&f->m);
+}
+
+void eigrp_fifo_clear_nbr_packets(struct eigrp_fifo *fifo, struct eigrp_neighbor *nbr) {
+
+    pthread_mutex_lock(&fifo->m);
+
+    struct eigrp_packet *tp = fifo->head;
+
+    while (tp) {
+        if (tp->nbr == nbr) {
+            L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Deleting outgoing packet to neighbor %s", inet_ntoa(nbr->src));
+            if (tp->previous)
+                tp->previous->next = tp->next;
+            if (tp->next)
+                tp->next->previous = tp->previous;
+
+            eigrp_packet_free(tp);
+            tp = tp->next;
+        }
+    }
+
+    pthread_mutex_unlock(&fifo->m);
 }
 
 /* Free eigrp packet fifo. */
@@ -922,12 +960,16 @@ void eigrp_fifo_free(struct eigrp_fifo *fifo)
 	struct eigrp_packet *ep;
 	struct eigrp_packet *next;
 
+	pthread_mutex_lock(&fifo->m);
+
 	for (ep = fifo->head; ep; ep = next) {
 		next = ep->next;
 		eigrp_packet_free(ep);
 	}
 	fifo->head = fifo->tail = NULL;
 	fifo->count = 0;
+
+	pthread_mutex_unlock(&fifo->m);
 
 	XFREE(MTYPE_EIGRP_FIFO, fifo);
 }
@@ -938,12 +980,16 @@ void eigrp_fifo_reset(struct eigrp_fifo *fifo)
 	struct eigrp_packet *ep;
 	struct eigrp_packet *next;
 
+	pthread_mutex_lock(&fifo->m);
+
 	for (ep = fifo->head; ep; ep = next) {
 		next = ep->next;
 		eigrp_packet_free(ep);
 	}
 	fifo->head = fifo->tail = NULL;
 	fifo->count = 0;
+
+	pthread_mutex_unlock(&fifo->m);
 }
 
 struct eigrp_packet *eigrp_packet_new(size_t size, struct eigrp_neighbor *nbr)
@@ -1041,7 +1087,6 @@ void eigrp_packet_header_init(int type, struct eigrp *eigrp, struct eigrp_packet
 {
 	struct eigrp_header *eigrph;
 
-
 	stream_reset(p->s);
 	eigrph = (struct eigrp_header *)STREAM_DATA(p->s);
 
@@ -1085,6 +1130,8 @@ void eigrp_packet_header_set_flags(bool set, struct stream *s, uint32_t flags)
 /* Add new packet to head of fifo. */
 void eigrp_fifo_push(struct eigrp_fifo *fifo, struct eigrp_packet *ep)
 {
+    pthread_mutex_lock(&fifo->m);
+
 	ep->next = fifo->head;
 	ep->previous = NULL;
 
@@ -1097,6 +1144,8 @@ void eigrp_fifo_push(struct eigrp_fifo *fifo, struct eigrp_packet *ep)
 	fifo->head = ep;
 
 	fifo->count++;
+
+	pthread_mutex_unlock(&fifo->m);
 }
 
 /* Return last fifo entry. */
@@ -1248,6 +1297,8 @@ struct eigrp_packet *eigrp_fifo_pop(struct eigrp_fifo *fifo)
 {
 	struct eigrp_packet *ep = NULL;
 
+	pthread_mutex_lock(&fifo->m);
+
 	ep = fifo->tail;
 
 	if (ep) {
@@ -1263,6 +1314,8 @@ struct eigrp_packet *eigrp_fifo_pop(struct eigrp_fifo *fifo)
 		ep->next = NULL;
 		ep->previous = NULL;
 	}
+
+	pthread_mutex_unlock(&fifo->m);
 
 	return ep;
 }

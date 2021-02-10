@@ -347,22 +347,10 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
     }
 
     nbr->state = EIGRP_NEIGHBOR_DOWN;
-    struct eigrp_packet *tp = nbr->ei->obuf->head;
 
-
-    while (tp) {
-        if (tp->nbr == nbr) {
-            L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Deleting outgoing packet to neighbor %s", inet_ntoa(nbr->src));
-            if (tp->previous)
-                tp->previous->next = tp->next;
-            if (tp->next)
-                tp->next->previous = tp->previous;
-
-            eigrp_packet_free(tp);
-            tp = tp->next;
-        }
-    }
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
+
+    eigrp_fifo_clear_nbr_packets(nbr->ei->obuf, nbr);
 
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);
 	while ( (rn = route_table_iter_next(&it)) ) {
@@ -440,9 +428,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 		eigrp_fifo_free(nbr->retrans_queue);
 		nbr->retrans_queue = NULL;
 	}
-//
-//	nbr->retrans_queue = eigrp_fifo_new();
-//	nbr->multicast_queue = eigrp_fifo_new();
 
 	nbr->crypt_seqnum = 0;
 

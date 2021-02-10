@@ -35,6 +35,7 @@
 #define _ZEBRA_EIGRP_STRUCTS_H_
 
 #include "filter.h"
+#include <pthread.h>
 
 #include "eigrpd/eigrp_const.h"
 #include "eigrpd/eigrp_macros.h"
@@ -340,6 +341,8 @@ struct eigrp_packet {
 };
 
 struct eigrp_fifo {
+	pthread_mutex_t m;
+
 	struct eigrp_packet *head;
 	struct eigrp_packet *tail;
 
