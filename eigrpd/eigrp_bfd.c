@@ -67,7 +67,7 @@ static inline uint32_t eigrp_bfd_timer_select_us(struct eigrp_bfd_session *s)
 	} else {
 		t = EIGRP_BFD_DEFAULT_DES_MIN_TX_INTERVAL;
 	}
-	
+
 	return t;
 }
 
@@ -386,7 +386,7 @@ int eigrp_bfd_write(struct thread *thread){
     }
 
     for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n1, session)) {
-        if (session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
+        if (session->nbr && listnode_lookup(eigrp_lookup()->all_neighbors, session->nbr) && session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
             break;
         }
     }

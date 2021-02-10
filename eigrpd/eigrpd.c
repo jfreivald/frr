@@ -223,6 +223,8 @@ static struct eigrp *eigrp_new(const char *AS)
 
 	/* init internal data structures */
 	eigrp->eiflist = list_new();
+	eigrp->all_neighbors = list_new();
+
 	eigrp->passive_interface_default = EIGRP_IF_ACTIVE;
 	eigrp->networks = eigrp_topology_new();
 
