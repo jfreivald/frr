@@ -344,6 +344,11 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
     nbr->state = EIGRP_NEIGHBOR_DOWN;
 
+    if (nbr->bfd_session) {
+        eigrp_bfd_session_destroy(&(nbr->bfd_session));
+        nbr->bfd_session = NULL;
+    }
+
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
 
 	route_table_iter_init(&it, nbr->ei->eigrp->topology_table);

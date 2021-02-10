@@ -232,20 +232,23 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
 
     if ((*session)->eigrp_nbr_bfd_ctl_thread != NULL) {
         THREAD_TIMER_OFF((*session)->eigrp_nbr_bfd_ctl_thread);
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Shutdown thread timer");
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Shutdown BFD control timer");
     }
-    // Not sure if we should send one last message or leave that to the upper layer. I tend to think the upper layer
-    // should set the DIAG code to why it is down, but this destroy should send the last message.
-    // I reserve the right to change my mind during testing!
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Set shutdown status");
+
+    if ((*session)->t_write != NULL) {
+	THREAD_OFF((*session)->t_write);
+	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Shutdown BFD write thread");
+    }
+
+    (*session)->ei = NULL;
+    (*session)->nbr = NULL;
+
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Set BFD status to DOWN");
 
     if ((*session)->SessionState != EIGRP_BFD_STATUS_DOWN && (*session)->SessionState != EIGRP_BFD_STATUS_ADMIN_DOWN) {
         (*session)->SessionState = EIGRP_BFD_STATUS_DOWN;
         (*session)->header.diag = EIGRP_BFD_DIAG_FWD_PLN_RESET;
     }
-
-    //L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Send final message");
-    //eigrp_bfd_send_ctl_msg(*session, 0, 0);
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close BFD socket");
     close((*session)->client_fd);
