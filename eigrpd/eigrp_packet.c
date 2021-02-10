@@ -937,6 +937,7 @@ void eigrp_fifo_clear_nbr_packets(struct eigrp_fifo *fifo, struct eigrp_neighbor
     pthread_mutex_lock(&fifo->m);
 
     struct eigrp_packet *tp = fifo->head;
+    struct eigrp_packet *tp_next;
 
     while (tp) {
         if (tp->nbr == nbr) {
@@ -946,8 +947,9 @@ void eigrp_fifo_clear_nbr_packets(struct eigrp_fifo *fifo, struct eigrp_neighbor
             if (tp->next)
                 tp->next->previous = tp->previous;
 
+            tp_next = tp->next;
             eigrp_packet_free(tp);
-            tp = tp->next;
+            tp = tp_next;
         } else {
             tp = tp->next;
         }
