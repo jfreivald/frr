@@ -648,7 +648,7 @@ static uint16_t eigrp_hello_parameter_encode(struct eigrp_interface *ei,
 
 	// if graceful shutdown is needed to be announced, send all 255 in K
 	// values
-	if (flags & EIGRP_HELLO_GRACEFUL_SHUTDOWN) {
+	if (flags & EIGRP_HELLO_TERMINATE_PEER) {
 		stream_putc(s, 0xff); /* K1 */
 		stream_putc(s, 0xff); /* K2 */
 		stream_putc(s, 0xff); /* K3 */
@@ -700,7 +700,11 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 
 	if (ep) {
 		// encode common header fields
-		eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep, 0);
+		if(flags & EIGRP_HELLO_GRACEFUL_RESTART) {
+            eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep, EIGRP_GRACEFUL_RESTART_BIT);
+        } else {
+            eigrp_packet_header_init(EIGRP_OPC_HELLO, ei->eigrp, ep, 0);
+		}
 
 		// encode Authentication TLV
 		if ((ei->params.auth_type == EIGRP_AUTH_TYPE_MD5)
@@ -712,20 +716,15 @@ static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
 		}
 
 		/* encode appropriate parameters to Hello packet */
-		if (flags & EIGRP_HELLO_GRACEFUL_SHUTDOWN)
+		if (flags & EIGRP_HELLO_TERMINATE_PEER)
 			length += eigrp_hello_parameter_encode(
-					ei, ep->s, EIGRP_HELLO_GRACEFUL_SHUTDOWN);
+                    ei, ep->s, EIGRP_HELLO_TERMINATE_PEER);
 		else
 			length += eigrp_hello_parameter_encode(
-					ei, ep->s, EIGRP_HELLO_NORMAL);
+					ei, ep->s, flags);
 
 		// figure out the version of code we're running
 		length += eigrp_sw_version_encode(ep->s);
-
-		if (flags & EIGRP_HELLO_ADD_SEQUENCE) {
-			length += eigrp_sequence_encode(ep->s);
-			length += eigrp_next_sequence_encode(ep->s);
-		}
 
 		// add in the TID list if doing multi-topology
 		length += eigrp_tidlist_encode(ep->s);
@@ -802,7 +801,7 @@ void eigrp_hello_send_reset(struct eigrp_neighbor *nbr)
     struct eigrp_header *hdr;
 
     /* if packet successfully created, add it to the interface queue */
-    ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
+    ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_TERMINATE_PEER, NULL);
 
     if (ep) {
         if (IS_DEBUG_EIGRP_PACKET(0, SEND))
@@ -872,10 +871,10 @@ void eigrp_hello_send(struct eigrp_interface *ei, uint8_t flags,
 		}
 
 		if (ei->eigrp->t_write == NULL) {
-			if (flags & EIGRP_HELLO_GRACEFUL_SHUTDOWN) {
-				thread_execute(master, eigrp_write, ei->eigrp,
-						ei->eigrp->fd);
-			} else {
+			if (flags & EIGRP_HELLO_TERMINATE_PEER || flags & EIGRP_HELLO_GRACEFUL_RESTART) {
+                thread_execute(master, eigrp_write, ei->eigrp,
+                               ei->eigrp->fd);
+            } else {
 				thread_add_write(master, eigrp_write, ei->eigrp,
 						ei->eigrp->fd,
 						&ei->eigrp->t_write);

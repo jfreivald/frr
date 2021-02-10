@@ -534,8 +534,8 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 	}
 
 	/* send Hello with Peer Termination TLV */
-	eigrp_hello_send(nbr->ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN_NBR,
-			&(nbr->src));
+	eigrp_hello_send(nbr->ei, EIGRP_HELLO_TERMINATE_PEER,
+                     &(nbr->src));
 	/* set neighbor to DOWN */
 	eigrp_nbr_down(nbr);
 }

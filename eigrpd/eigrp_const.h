@@ -107,10 +107,13 @@ enum metric_change { METRIC_DECREASE, METRIC_SAME, METRIC_INCREASE };
 #define INTERFACE_DOWN_BY_VTY         2
 #define INTERFACE_DOWN_BY_FINAL       3
 
+#define EIGRP_INIT_BIT                        0x01
+#define EIGRP_CONDITIONAL_RECEIVE_BIT         0x02
+#define EIGRP_GRACEFUL_RESTART_BIT            0x04
+
 #define EIGRP_HELLO_NORMAL                    0x00
-#define EIGRP_HELLO_GRACEFUL_SHUTDOWN         0x01
-#define EIGRP_HELLO_ADD_SEQUENCE              0x02
-#define EIGRP_HELLO_GRACEFUL_SHUTDOWN_NBR     0x04
+#define EIGRP_HELLO_TERMINATE_PEER            0x01
+#define EIGRP_HELLO_GRACEFUL_RESTART          0x02
 
 /* EIGRP Network Type. */
 #define EIGRP_IFTYPE_NONE 0

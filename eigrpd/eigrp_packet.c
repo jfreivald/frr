@@ -537,9 +537,11 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
 		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
         eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
 	} else if (eigrph->opcode != EIGRP_OPC_HELLO) {
-		/* Some other non-init packet. The other router probably thinks we're up. Reset them. */
-		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INVALID STARTUP SEQUENCE: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
-		eigrp_nbr_hard_restart(nbr, NULL);
+		/* Some other non-init packet. The other router probably thinks we're up. Perform an NSF exchange by setting the restart bit. */
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s GRACEFUL RESTART: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
+		nbr->state = EIGRP_NEIGHBOR_UP;
+		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_RESTART, &nbr->src);
+        eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
 	}
 }
 

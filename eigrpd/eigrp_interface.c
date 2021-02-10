@@ -456,7 +456,7 @@ void eigrp_if_down(struct eigrp_interface *ei, int source)
 
     //Interface doesn't exist if killed by Zebra, so skip packet
 	if (source == INTERFACE_DOWN_BY_VTY) {
-		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
+		eigrp_hello_send(ei, EIGRP_HELLO_TERMINATE_PEER, NULL);
 		sleep(1);
 	}
 

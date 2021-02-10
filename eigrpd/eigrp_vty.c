@@ -1402,7 +1402,7 @@ DEFUN (clear_ip_eigrp_neighbors,
 	/* iterate over all eigrp interfaces */
 	for (ALL_LIST_ELEMENTS_RO(eigrp->eiflist, node, ei)) {
 		/* send Goodbye Hello */
-		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
+		eigrp_hello_send(ei, EIGRP_HELLO_TERMINATE_PEER, NULL);
 
 		/* iterate over all neighbors on eigrp interface */
 		for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
@@ -1462,7 +1462,7 @@ DEFUN (clear_ip_eigrp_neighbors_int,
 	}
 
 	/* send Goodbye Hello */
-	eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_SHUTDOWN, NULL);
+	eigrp_hello_send(ei, EIGRP_HELLO_TERMINATE_PEER, NULL);
 
 	/* iterate over all neighbors on eigrp interface */
 	for (ALL_LIST_ELEMENTS(ei->nbrs, node2, nnode2, nbr)) {
