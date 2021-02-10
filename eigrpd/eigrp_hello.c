@@ -871,7 +871,7 @@ void eigrp_hello_send(struct eigrp_interface *ei, uint8_t flags,
 		}
 
 		if (ei->eigrp->t_write == NULL) {
-			if (flags & EIGRP_HELLO_TERMINATE_PEER || flags & EIGRP_HELLO_GRACEFUL_RESTART) {
+			if (flags & EIGRP_HELLO_TERMINATE_PEER || flags & EIGRP_HELLO_GRACEFUL_RESTART || flags & EIGRP_HELLO_SEND_IMMEDIATE) {
                 thread_execute(master, eigrp_write, ei->eigrp,
                                ei->eigrp->fd);
             } else {

@@ -115,6 +115,7 @@ enum metric_change { METRIC_DECREASE, METRIC_SAME, METRIC_INCREASE };
 #define EIGRP_HELLO_NORMAL                    0x00
 #define EIGRP_HELLO_TERMINATE_PEER            0x01
 #define EIGRP_HELLO_GRACEFUL_RESTART          0x02
+#define EIGRP_HELLO_SEND_IMMEDIATE            0x04
 
 /* EIGRP Network Type. */
 #define EIGRP_IFTYPE_NONE 0

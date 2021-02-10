@@ -528,7 +528,7 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
     if (!(nbr->state & EIGRP_NEIGHBOR_INIT_TXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD) ) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEW NEIGHBOR %s SEND INIT: STATE[%02x] FLAGS[%02x] ACK[%02x].",
           inet_ntoa(nbr->src), nbr->state, flags, ntohl(eigrph->ack));
-        eigrp_hello_send(nbr->ei, EIGRP_HELLO_NORMAL, NULL);
+        eigrp_hello_send(nbr->ei, EIGRP_HELLO_SEND_IMMEDIATE, NULL);
         eigrp_update_send_init(nbr);
         nbr->state |= EIGRP_NEIGHBOR_INIT_TXD;
     } else if (!(nbr->state & EIGRP_NEIGHBOR_INIT_TXD) && (nbr->state & EIGRP_NEIGHBOR_ACK_RXD) ) {
