@@ -342,10 +342,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
     THREAD_OFF(nbr->t_holddown);
 
-    if (nbr->state == EIGRP_NEIGHBOR_UP) {
-        eigrp_hello_send_reset(nbr);
-    }
-
     nbr->state = EIGRP_NEIGHBOR_DOWN;
 
     L(zlog_info,LOGGER_EIGRP,LOGGER_EIGRP_NEIGHBOR,"NEIGHBOR %s SHUTTING DOWN CF[%s:%s:%d]", inet_ntoa(nbr->src), file, func, line);
