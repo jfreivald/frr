@@ -473,11 +473,7 @@ int eigrp_fsm_sort_prefix_entries(struct eigrp_prefix_entry *prefix) {
         }
     }
 
-    if (listnode_head(prefix->entries)) {
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s successor is %s with %u FS",
-          pbuf, inet_ntoa(((struct eigrp_nexthop_entry *) listnode_head(prefix->entries))->adv_router->src),
-          prefix->entries->count - 1);
-    } else {
+    if (!listnode_head(prefix->entries)) {
         L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_FSM, "%s has no successor", pbuf);
     }
 
