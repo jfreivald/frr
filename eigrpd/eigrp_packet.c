@@ -497,7 +497,7 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
 	struct listnode *n, *nn;
 	struct eigrp_neighbor *pnbr;
 
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "PACKET FROM NON-UP NEIGHBOR [%s]: OPCODE[%d] FLAGS[%02x] STATE[%02x]]",
+	L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NON-UP NBR [%s]: OPCODE[%d] FLAGS[%02x] STATE[%02x]]",
 			inet_ntoa(nbr->src), eigrph->opcode, flags, nbr->state);
 
 	if (flags & EIGRP_INIT_FLAG) {
@@ -525,20 +525,29 @@ static void eigrp_neighbor_startup_sequence(struct eigrp_neighbor* nbr,
         }
     }
 
-	if (!(nbr->state & EIGRP_NEIGHBOR_INIT_TXD) ) {
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s SEND INIT: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
-	    eigrp_update_send_init(nbr);
-	    nbr->state |= EIGRP_NEIGHBOR_INIT_TXD;
-	} else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INIT RCVD: STATE[%02x] FLAGS[%02x]. SEND ACK.", inet_ntoa(nbr->src), nbr->state, flags);
+    if (!(nbr->state & EIGRP_NEIGHBOR_INIT_TXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD) ) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEW NEIGHBOR %s SEND INIT: STATE[%02x] FLAGS[%02x] ACK[%02x].",
+          inet_ntoa(nbr->src), nbr->state, flags, ntohl(eigrph->ack));
+        eigrp_update_send_init(nbr);
+        nbr->state |= EIGRP_NEIGHBOR_INIT_TXD;
+    } else if (!(nbr->state & EIGRP_NEIGHBOR_INIT_TXD) && (nbr->state & EIGRP_NEIGHBOR_ACK_RXD) ) {
+        nbr->state = EIGRP_NEIGHBOR_UP;
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "OLD NEIGHBOR %s UP: STATE[%02x] FLAGS[%02x] ACK[%02x].",
+          inet_ntoa(nbr->src), nbr->state, flags, ntohl(eigrph->ack));
+        eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
+    } else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && !(nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
+        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s INIT RCVD: STATE[%02x] FLAGS[%02x] ACK[%02x]. SEND ACK.",
+          inet_ntoa(nbr->src), nbr->state, flags, ntohl(eigrph->ack));
         eigrp_hello_send_ack(nbr, 0);
     } else if ((nbr->state & EIGRP_NEIGHBOR_INIT_RXD) && (nbr->state & EIGRP_NEIGHBOR_ACK_RXD)) {
 		nbr->state = EIGRP_NEIGHBOR_UP;
-		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR UP[%s]: STATE[%02x] FLAGS[%02x] ACK[%02x].",
+          inet_ntoa(nbr->src), nbr->state, flags, ntohl(eigrph->ack));
         eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
 	} else if (eigrph->opcode != EIGRP_OPC_HELLO) {
 		/* Some other non-init packet. The other router probably thinks we're up. Perform an NSF exchange by setting the restart bit. */
-		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NEIGHBOR %s GRACEFUL RESTART: STATE[%02x] FLAGS[%02x].", inet_ntoa(nbr->src), nbr->state, flags);
+		L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "SEND NEIGHBOR %s GRACEFUL RESTART: STATE[%02x] FLAGS[%02x] ACK[%02x].",
+          inet_ntoa(nbr->src), nbr->state, flags, ntohl(eigrph->ack));
 		nbr->state = EIGRP_NEIGHBOR_UP;
 		eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_RESTART, &nbr->src);
         eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
@@ -739,28 +748,28 @@ int eigrp_read(struct thread *thread) {
 
     if (ack != 0) {
 
-        if (ack <= nbr->sent_sequence_number) {
-            //We are in-sequence with this neighbor
-            nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;        //We've received an ACK, so we have two-way comms.
-
-            ep = eigrp_fifo_next(nbr->retrans_queue);
-            if (ep && ep->sequence_number == ack) {
-                eigrp_fifo_pop(nbr->retrans_queue);
-                eigrp_packet_free(ep);
-                L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "Unicast FIFO ACK Complete.");
-
-                ep = NULL;
-
-                if (nbr->retrans_queue->count > 0) {
-                    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "Send to %s on %s", inet_ntoa(nbr->src),
-                      nbr->ei->ifp->name);
-                    eigrp_send_packet_reliably(nbr);
-                }
-            }
-        } else {
-            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "INVALID ACK [%s]: OC[%d] SEQ[%d] ACK[%d]",
+        if (ack > nbr->sent_sequence_number) {
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "INVALID ACK. GRACEFUL RESTART [%s]: OC[%d] SEQ[%d] ACK[%d]",
               inet_ntoa(nbr->src), eigrph->opcode, nbr->sent_sequence_number, ack);
-            nbr->state &= ~EIGRP_NEIGHBOR_ACK_RXD;
+            eigrp_hello_send(ei, EIGRP_HELLO_GRACEFUL_RESTART, &nbr->src);
+            eigrp_update_send_with_flags(nbr, EIGRP_UPDATE_ALL_ROUTES);
+        }
+
+        nbr->state |= EIGRP_NEIGHBOR_ACK_RXD;        //We've received an ACK, so we have two-way comms.
+
+        ep = eigrp_fifo_next(nbr->retrans_queue);
+        if (ep && ep->sequence_number == ack) {
+            eigrp_fifo_pop(nbr->retrans_queue);
+            eigrp_packet_free(ep);
+            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "Unicast FIFO ACK Complete.");
+
+            ep = NULL;
+
+            if (nbr->retrans_queue->count > 0) {
+                L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "Send to %s on %s", inet_ntoa(nbr->src),
+                  nbr->ei->ifp->name);
+                eigrp_send_packet_reliably(nbr);
+            }
         }
     }
 
