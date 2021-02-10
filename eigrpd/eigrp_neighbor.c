@@ -414,11 +414,6 @@ void eigrp_nbr_down_cf(struct eigrp_neighbor *nbr, const char *file, const char 
 
     thread_cancel_event(master, nbr);
 
-    if (nbr->bfd_session) {
-        L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Stopping BFD Session");
-        eigrp_bfd_session_destroy(&nbr->bfd_session);
-    }
-
     if (nbr->multicast_queue) {
 		eigrp_fifo_free(nbr->multicast_queue);
 		nbr->multicast_queue = NULL;
@@ -533,9 +528,6 @@ void eigrp_nbr_hard_restart(struct eigrp_neighbor *nbr, struct vty *vty)
 				ifindex2ifname(nbr->ei->ifp->ifindex, VRF_DEFAULT));
 	}
 
-	/* send Hello with Peer Termination TLV */
-	eigrp_hello_send(nbr->ei, EIGRP_HELLO_TERMINATE_PEER,
-                     &(nbr->src));
 	/* set neighbor to DOWN */
 	eigrp_nbr_down(nbr);
 }

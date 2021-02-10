@@ -184,7 +184,7 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     for (i = 49152; i <= 65535; i++) {
         sourceaddr.sin_port = htons(i);
         if (bind(session->client_fd, (struct sockaddr *) &sourceaddr, sizeof(struct sockaddr_in)) < 0) {
-            L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Bind Error: %u:%s", i, safe_strerror(errno));
+            L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client Skipping port: %u:%s", i, safe_strerror(errno));
         } else {
             L(zlog_info, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD Client %s bound to %u", inet_ntoa(nbr->src), i);
             break;
@@ -229,44 +229,40 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
 
     assert(session != NULL && *session != NULL);
+    struct eigrp_bfd_session *s = *session;
 
-    if ((*session)->eigrp_nbr_bfd_ctl_thread != NULL) {
-        THREAD_TIMER_OFF((*session)->eigrp_nbr_bfd_ctl_thread);
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Shutdown BFD control timer");
+    pthread_mutex_lock(&s->session_mutex);
+
+    session = NULL;
+    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete BFD session for %s from server.", inet_ntoa(s->nbr->src));
+    listnode_delete(eigrp_bfd_server_get(eigrp_lookup())->active_descriminators, (void *)(uint64_t)s->LocalDescr);
+    listnode_delete(eigrp_bfd_server_get(eigrp_lookup())->sessions, s);
+
+    if (s->eigrp_nbr_bfd_ctl_thread != NULL) {
+        THREAD_TIMER_OFF(s->eigrp_nbr_bfd_ctl_thread);
     }
 
-    if ((*session)->t_write != NULL) {
-	THREAD_OFF((*session)->t_write);
-	L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Shutdown BFD write thread");
+    if (s->t_write != NULL) {
+	THREAD_OFF(s->t_write);
     }
 
-    (*session)->ei = NULL;
-    (*session)->nbr = NULL;
+    s->ei = NULL;
+    s->nbr = NULL;
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Set BFD status to DOWN");
-
-    if ((*session)->SessionState != EIGRP_BFD_STATUS_DOWN && (*session)->SessionState != EIGRP_BFD_STATUS_ADMIN_DOWN) {
-        (*session)->SessionState = EIGRP_BFD_STATUS_DOWN;
-        (*session)->header.diag = EIGRP_BFD_DIAG_FWD_PLN_RESET;
+    if (s->SessionState != EIGRP_BFD_STATUS_DOWN && (*session)->SessionState != EIGRP_BFD_STATUS_ADMIN_DOWN) {
+        s->SessionState = EIGRP_BFD_STATUS_DOWN;
+        s->header.diag = EIGRP_BFD_DIAG_FWD_PLN_RESET;
     }
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Close BFD socket");
-    close((*session)->client_fd);
+    close(s->client_fd);
 
-    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete BFD descriminator");
-    listnode_delete(eigrp_bfd_server_get((*session)->nbr->ei->eigrp)->active_descriminators, (void *)(uint64_t)(*session)->LocalDescr);
-
-    if (*session && (*session)->nbr) {
-        L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "NULL neighbor session");
-        if ((*session)->nbr->bfd_session) {
-            (*session)->nbr->bfd_session = NULL;
-        }
-    }
+    pthread_mutex_unlock(&s->session_mutex);
+    pthread_mutex_destroy(&s->session_mutex);
 
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Free session");
-    XFREE(MTYPE_EIGRP_BFD_SESSION, *session);
+    XFREE(MTYPE_EIGRP_BFD_SESSION, s);
 
-    *session = NULL;
+    s = NULL;
 }
 
 int eigrp_bfd_session_cmp(struct eigrp_bfd_session *n1, struct eigrp_bfd_session *n2) {

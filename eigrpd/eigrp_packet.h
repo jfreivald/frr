@@ -60,7 +60,7 @@ extern void eigrp_fifo_reset(struct eigrp_fifo *);
 
 extern void eigrp_place_on_nbr_queue(struct eigrp_neighbor *nbr,
 					    struct eigrp_packet *ep, int length);
-extern void eigrp_send_packet_reliably(struct eigrp_neighbor *);
+extern void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr, uint32_t retransmit_ms);
 
 extern struct TLV_IPv4_Internal_type *eigrp_read_ipv4_tlv(struct stream *);
 struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s);

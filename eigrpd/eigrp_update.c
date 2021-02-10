@@ -423,6 +423,7 @@ void eigrp_update_send_init(struct eigrp_neighbor *nbr)
 	uint16_t length = EIGRP_HEADER_LEN;
 
 	ep = eigrp_packet_new(EIGRP_PACKET_MTU(nbr->ei->ifp->mtu), nbr);
+	ep->retransmit_time = EIGRP_PACKET_RETRANS_SHORT_TIME;
 
 	/* Prepare EIGRP INIT UPDATE header */
 	if (IS_DEBUG_EIGRP_PACKET(0, RECV))

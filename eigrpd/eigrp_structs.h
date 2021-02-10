@@ -337,6 +337,9 @@ struct eigrp_packet {
 	/* EIGRP packet length. */
 	uint16_t length;
 
+	/* Retransmit time */
+	uint32_t retransmit_time;
+
 	struct eigrp_neighbor *nbr;
 };
 

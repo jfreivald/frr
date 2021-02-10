@@ -768,7 +768,7 @@ int eigrp_read(struct thread *thread) {
             if (nbr->retrans_queue->count > 0) {
                 L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "Send to %s on %s", inet_ntoa(nbr->src),
                   nbr->ei->ifp->name);
-                eigrp_send_packet_reliably(nbr);
+                eigrp_send_packet_reliably(nbr, 0);
             }
         }
     }
@@ -1015,6 +1015,7 @@ struct eigrp_packet *eigrp_packet_new(size_t size, struct eigrp_neighbor *nbr)
 	new->s = stream_new(size);
 	new->retrans_counter = 0;
 	new->nbr = nbr;
+	new->retransmit_time = EIGRP_PACKET_RETRANS_TIME;
 
 	return new;
 }
@@ -1045,13 +1046,13 @@ void eigrp_place_on_nbr_queue(struct eigrp_neighbor *nbr,
 
 	if (nbr->retrans_queue->count == 1) {
 	    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Starting Neighbor Send for %s", inet_ntoa(ep->dst));
-		eigrp_send_packet_reliably(nbr);
+	    eigrp_send_packet_reliably(nbr, ep->retransmit_time);
 	} else {
 	    L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Queue already active for %s: %d packets waiting.", inet_ntoa(ep->dst), nbr->retrans_queue->count);
 	}
 }
 
-void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr)
+void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr, uint32_t retransmit_ms)
 {
 	struct eigrp_packet *ep;
 
@@ -1071,7 +1072,7 @@ void eigrp_send_packet_reliably(struct eigrp_neighbor *nbr)
 
         /*Start retransmission timer*/
 		thread_add_timer_msec(master, eigrp_unack_packet_retrans, nbr,
-				 EIGRP_PACKET_RETRANS_TIME,
+                              retransmit_ms,
 				 &ep->t_retrans_timer);
 
 		/* Hook thread to write packet. */
@@ -1481,8 +1482,6 @@ struct TLV_IPv4_External_type *eigrp_read_ipv4_external_tlv(struct stream *s)
 void eigrp_discard_tlv(struct stream *s) {
     uint16_t t, l;
     l = stream_getw(s);
-
-    L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_PACKET, "Discarding TLV [%d]", l);
 
     // -2 for type, -2 for len
     for (l -= 4; l; l--) {
