@@ -228,10 +228,10 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
 
 void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
 
+    pthread_mutex_lock(&(*session)->session_mutex);
+
     assert(session != NULL && *session != NULL);
     struct eigrp_bfd_session *s = *session;
-
-    pthread_mutex_lock(&s->session_mutex);
 
     session = NULL;
     L(zlog_debug, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "Delete BFD session for %s from server.", inet_ntoa(s->nbr->src));
@@ -249,7 +249,7 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
     s->ei = NULL;
     s->nbr = NULL;
 
-    if (s->SessionState != EIGRP_BFD_STATUS_DOWN && (*session)->SessionState != EIGRP_BFD_STATUS_ADMIN_DOWN) {
+    if (s->SessionState != EIGRP_BFD_STATUS_DOWN && s->SessionState != EIGRP_BFD_STATUS_ADMIN_DOWN) {
         s->SessionState = EIGRP_BFD_STATUS_DOWN;
         s->header.diag = EIGRP_BFD_DIAG_FWD_PLN_RESET;
     }
