@@ -138,7 +138,7 @@ void eigrp_master_init()
 
 static void topology_changes_int_IPV4_debug(list_debug_stage_t stage, struct list *list, struct listnode *node, void *val, const char *file, const char *func, int line) {
 	struct eigrp_prefix_entry *pe = val;
-	const char *buf = "INVALID DEBUG STAGE";
+	const char *buf = "INVALID FRR_DEBUG STAGE";
 	char pbuf[PREFIX2STR_BUFFER];
 
 	if (list && list->debug_on) {
@@ -170,7 +170,7 @@ static void topology_changes_int_IPV4_debug(list_debug_stage_t stage, struct lis
 
 static void topology_changes_ext_IPV4_debug(list_debug_stage_t stage, struct list *list, struct listnode *node, void *val, const char *file, const char *func, int line) {
 	struct eigrp_prefix_entry *pe = val;
-	const char *buf = "INVALID DEBUG STAGE";
+	const char *buf = "INVALID FRR_DEBUG STAGE";
 	char pbuf[PREFIX2STR_BUFFER];
 
 	if (list && list->debug_on) {

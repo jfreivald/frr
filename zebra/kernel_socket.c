@@ -276,7 +276,7 @@ static const struct message rtm_flag_str[] = {{RTF_UP, "UP"},
 int routing_sock = -1;
 
 /* Yes I'm checking ugly routing socket behavior. */
-/* #define DEBUG */
+/* #define FRR_DEBUG */
 
 /* Supported address family check. */
 static inline int af_check(int family)

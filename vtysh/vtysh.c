@@ -3177,10 +3177,10 @@ static int vtysh_connect(struct vtysh_client *vclient)
 
 	sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sock < 0) {
-#ifdef DEBUG
+#ifdef FRR_DEBUG
 		fprintf(stderr, "vtysh_connect(%s): socket = %s\n", path,
 			safe_strerror(errno));
-#endif /* DEBUG */
+#endif /* FRR_DEBUG */
 		return -1;
 	}
 
@@ -3195,10 +3195,10 @@ static int vtysh_connect(struct vtysh_client *vclient)
 
 	ret = connect(sock, (struct sockaddr *)&addr, len);
 	if (ret < 0) {
-#ifdef DEBUG
+#ifdef FRR_DEBUG
 		fprintf(stderr, "vtysh_connect(%s): connect = %s\n", path,
 			safe_strerror(errno));
-#endif /* DEBUG */
+#endif /* FRR_DEBUG */
 		close(sock);
 		return -1;
 	}

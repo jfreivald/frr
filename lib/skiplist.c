@@ -180,7 +180,7 @@ int skiplist_insert(register struct skiplist *l, register void *key,
 
 	CHECKLAST(l);
 
-	/* DEBUG */
+	/* FRR_DEBUG */
 	if (!key) {
 		zlog_err("%s: key is 0, value is %p", __func__, value);
 	}

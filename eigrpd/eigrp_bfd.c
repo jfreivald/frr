@@ -114,6 +114,7 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     session->ei = nbr->ei;
     session->last_ctl_rcv = NULL;
     pthread_mutex_init(&session->session_mutex, NULL);
+    pthread_mutex_lock(&session->session_mutex);
 
     session->SessionState = EIGRP_BFD_STATUS_DOWN;
     session->RemoteSessionState = EIGRP_BFD_STATUS_DOWN;
@@ -212,16 +213,12 @@ struct eigrp_bfd_session *eigrp_bfd_session_new(struct eigrp_neighbor *nbr, uint
     listnode_add(eigrp_bfd_server_get(eigrp_lookup())->sessions, session);
     nbr->bfd_session = session;
 
-    if (session->eigrp_nbr_bfd_ctl_thread != NULL) {
-        THREAD_OFF(session->eigrp_nbr_bfd_ctl_thread);
-        session->eigrp_nbr_bfd_ctl_thread = NULL;
-    }
-
     struct timeval tv;
     tv.tv_sec = eigrp_bfd_timer_select_us(session) / 1000000;
     tv.tv_usec = eigrp_bfd_timer_select_us(session) % 1000000;
 
     thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session, &tv, &session->eigrp_nbr_bfd_ctl_thread);
+    pthread_mutex_unlock(&session->session_mutex);
 
     return session;
 }
@@ -338,14 +335,10 @@ void eigrp_bfd_ctl_msg_destroy(struct eigrp_bfd_ctl_msg **msg) {
 
 int eigrp_bfd_send_ctl_msg(struct eigrp_bfd_session *session, int poll, int final) {
 
-    pthread_mutex_lock(&session->session_mutex);
-
     struct eigrp_bfd_ctl_msg *new_message = eigrp_bfd_ctl_msg_new(session, poll, final);
 
     thread_add_write(master, eigrp_bfd_write, new_message, session->client_fd,
                      &session->t_write);
-
-    pthread_mutex_unlock(&session->session_mutex);
 
     return 0;
 }
@@ -354,6 +347,8 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     assert(t != NULL);
     struct eigrp_bfd_session *session =(struct eigrp_bfd_session *)t->arg;
+
+    pthread_mutex_lock(&session->session_mutex);
 
     int ret_val = eigrp_bfd_send_ctl_msg(session, 0, 0);
 
@@ -364,6 +359,8 @@ int eigrp_bfd_send_ctl_msg_thread(struct thread *t) {
 
     thread_add_timer_tv(master, eigrp_bfd_send_ctl_msg_thread, session,
 			  &tv, &session->eigrp_nbr_bfd_ctl_thread);
+
+    pthread_mutex_unlock(&session->session_mutex);
 
     return ret_val;
 }
@@ -381,8 +378,6 @@ int eigrp_bfd_write(struct thread *thread){
     memset(buf, 0, 2048);
     unsigned char *input = (unsigned char *)&msg->bfdh;
 
-    //pthread_mutex_lock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
-
     memset(buf, 0, 2048);
     buf[0] = '|';
     size_t current_length;
@@ -398,16 +393,17 @@ int eigrp_bfd_write(struct thread *thread){
     }
 
     if (session) {
+	pthread_mutex_lock(&session->session_mutex);
         if (sendto(session->client_fd, &msg->bfdh, msg->bfdh.length, 0, NULL, 0) < 0) {
             L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD WRITE ERROR: %s", strerror(errno));
             retval = -1;
         }
+	pthread_mutex_unlock(&session->session_mutex);
     } else {
         L(zlog_warn, LOGGER_EIGRP, LOGGER_EIGRP_NEIGHBOR, "BFD control message failed: No session found for address %s", inet_ntoa(msg->iph.ip_dst));
         retval = -1;
     }
 
-    //pthread_mutex_unlock(&eigrp_bfd_server_get(eigrp_lookup())->port_write_mutex);
     return retval;
 }
 

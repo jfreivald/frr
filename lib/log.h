@@ -30,7 +30,7 @@
 /* Here is some guidance on logging levels to use:
  *
  * LOG_DEBUG	- For all messages that are enabled by optional debugging
- *		  features, typically preceded by "if (IS...DEBUG...)"
+ *		  features, typically preceded by "if (IS...FRR_DEBUG...)"
  * LOG_INFO	- Information that may be of interest, but everything seems
  *		  to be working properly.
  * LOG_NOTICE	- Only for message pertaining to daemon startup or shutdown.

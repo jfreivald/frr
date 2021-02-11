@@ -207,18 +207,18 @@ struct debug_callbacks {
  *
  * MT-Safe
  */
-#define DEBUG(level, name, fmt, ...)                                           \
+#define FRR_DEBUG(level, name, fmt, ...)                                           \
 	do {                                                                   \
 		if (DEBUG_MODE_CHECK(name, DEBUG_MODE_ALL))                    \
 			zlog_##level(fmt, ##__VA_ARGS__);                      \
 	} while (0)
 
 /* Convenience macros for the various levels. */
-#define DEBUGE(name, fmt, ...) DEBUG(err, name, fmt, ##__VA_ARGS__)
-#define DEBUGW(name, fmt, ...) DEBUG(warn, name, fmt, ##__VA_ARGS__)
-#define DEBUGI(name, fmt, ...) DEBUG(info, name, fmt, ##__VA_ARGS__)
-#define DEBUGN(name, fmt, ...) DEBUG(notice, name, fmt, ##__VA_ARGS__)
-#define DEBUGD(name, fmt, ...) DEBUG(debug, name, fmt, ##__VA_ARGS__)
+#define DEBUGE(name, fmt, ...) FRR_DEBUG(err, name, fmt, ##__VA_ARGS__)
+#define DEBUGW(name, fmt, ...) FRR_DEBUG(warn, name, fmt, ##__VA_ARGS__)
+#define DEBUGI(name, fmt, ...) FRR_DEBUG(info, name, fmt, ##__VA_ARGS__)
+#define DEBUGN(name, fmt, ...) FRR_DEBUG(notice, name, fmt, ##__VA_ARGS__)
+#define DEBUGD(name, fmt, ...) FRR_DEBUG(debug, name, fmt, ##__VA_ARGS__)
 
 /*
  * Optional initializer for debugging. Highly recommended.

@@ -131,7 +131,7 @@ struct list * list_new_nexthop_entries(void) {
 static void eigrp_nexthop_entry_debug(list_debug_stage_t stage, struct list *list, struct listnode *node, void *val, const char *file, const char *func, int line) {
 	struct eigrp_nexthop_entry *ne;
 	struct eigrp_prefix_entry *pe = NULL;
-	const char *buf = "INVALID DEBUG STAGE";
+	const char *buf = "INVALID FRR_DEBUG STAGE";
 	char pbuf[PREFIX2STR_BUFFER];
 
 	ne = val;

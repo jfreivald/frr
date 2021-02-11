@@ -1,4 +1,4 @@
-DEBUG HINTS
+FRR_DEBUG HINTS
 
   - Check the source is issuing multicast packets with TTL high enough
     to reach the recipients.
@@ -55,7 +55,7 @@ DEBUG HINTS
 
 
 
-SAMPLE DEBUG COMMANDS
+SAMPLE FRR_DEBUG COMMANDS
 
   conf t
    int eth0

@@ -80,12 +80,12 @@ static int vtysh_pam(const char *user)
 #endif /* 0 */
 
 /* This is where we have been authorized or not. */
-#ifdef DEBUG
+#ifdef FRR_DEBUG
 	if (ret == PAM_SUCCESS)
 		printf("Authenticated\n");
 	else
 		printf("Not Authenticated\n");
-#endif /* DEBUG */
+#endif /* FRR_DEBUG */
 
 	/* close Linux-PAM */
 	if (pam_end(pamh, ret) != PAM_SUCCESS) {

@@ -313,15 +313,15 @@ static void rtadv_send_packet(int sock, struct interface *ifp)
 		IPV6_ADDR_COPY(&pinfo->nd_opt_pi_prefix,
 			       &rprefix->prefix.prefix);
 
-#ifdef DEBUG
+#ifdef FRR_DEBUG
 		{
 			uint8_t buf[INET6_ADDRSTRLEN];
 
-			zlog_debug("DEBUG %s",
+			zlog_debug("FRR_DEBUG %s",
 				   inet_ntop(AF_INET6, &pinfo->nd_opt_pi_prefix,
 					     buf, INET6_ADDRSTRLEN));
 		}
-#endif /* DEBUG */
+#endif /* FRR_DEBUG */
 
 		len += sizeof(struct nd_opt_prefix_info);
 	}
