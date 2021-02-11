@@ -238,8 +238,14 @@ void eigrp_bfd_session_destroy(struct eigrp_bfd_session **session) {
     listnode_delete(eigrp_bfd_server_get(eigrp_lookup())->active_descriminators, (void *)(uint64_t)s->LocalDescr);
     listnode_delete(eigrp_bfd_server_get(eigrp_lookup())->sessions, s);
 
+    if (s->eigrp_nbr_bfd_detection_thread != NULL) {
+	THREAD_TIMER_OFF(s->eigrp_nbr_bfd_detection_thread);
+	s->eigrp_nbr_bfd_detection_thread = NULL;
+    }
+
     if (s->eigrp_nbr_bfd_ctl_thread != NULL) {
         THREAD_TIMER_OFF(s->eigrp_nbr_bfd_ctl_thread);
+	s->eigrp_nbr_bfd_ctl_thread = NULL;
     }
 
     if (s->t_write != NULL) {

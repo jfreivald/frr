@@ -678,7 +678,7 @@ static uint16_t eigrp_hello_parameter_encode(struct eigrp_interface *ei,
  * @param[in]		s	packet stream TLV is stored to
  * @param[in]		ack	 if non-zero, neigbors sequence packet to ack
  * @param[in]		flags  type of hello packet
- * @param[in]		nbr_addr  pointer to neighbor address for Peer
+ * @param[in]		addr  pointer to neighbor address for Peer
  * Termination TLV
  *
  * @return eigrp_packet		pointer initialize hello packet
@@ -687,10 +687,7 @@ static uint16_t eigrp_hello_parameter_encode(struct eigrp_interface *ei,
  * Allocate an EIGRP hello packet, and add in the the approperate TLVs
  *
  */
-static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei,
-		in_addr_t addr,
-		uint8_t flags,
-		struct in_addr *nbr_addr)
+static struct eigrp_packet *eigrp_hello_encode(struct eigrp_interface *ei, in_addr_t addr, uint8_t flags)
 {
 	struct eigrp_packet *ep;
 	uint16_t length = EIGRP_HEADER_LEN;
@@ -771,7 +768,7 @@ void eigrp_hello_send_ack(struct eigrp_neighbor *nbr, uint32_t sequence_number)
 	struct eigrp_header *hdr;
 
 	/* if packet successfully created, add it to the interface queue */
-	ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_NORMAL, NULL);
+	ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_NORMAL);
 
 	if (ep) {
 		if (IS_DEBUG_EIGRP_PACKET(0, SEND))
@@ -801,7 +798,7 @@ void eigrp_hello_send_reset(struct eigrp_neighbor *nbr)
     struct eigrp_header *hdr;
 
     /* if packet successfully created, add it to the interface queue */
-    ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_TERMINATE_PEER, NULL);
+    ep = eigrp_hello_encode(nbr->ei, nbr->src.s_addr, EIGRP_HELLO_TERMINATE_PEER);
 
     if (ep) {
         if (IS_DEBUG_EIGRP_PACKET(0, SEND))
@@ -857,8 +854,11 @@ void eigrp_hello_send(struct eigrp_interface *ei, uint8_t flags,
 
 	/* if packet was successfully created, then add it to the interface queue
 	 */
-	ep = eigrp_hello_encode(ei, htonl(EIGRP_MULTICAST_ADDRESS), flags,
-			nbr_addr);
+	if (nbr_addr != NULL) {
+	    ep = eigrp_hello_encode(ei, nbr_addr->s_addr, flags);
+	} else {
+        ep = eigrp_hello_encode(ei, htonl(EIGRP_MULTICAST_ADDRESS), flags);
+    }
 
 	if (ep) {
 		// Add packet to the top of the interface output queue
