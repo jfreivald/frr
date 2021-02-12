@@ -362,8 +362,8 @@ int eigrp_write(struct thread *thread)
 
 	/* Get one packet from queue. */
 	ep = eigrp_fifo_next(ei->obuf);
-	if (!ep) {
-		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Interface %s no packet on queue?",
+	if (XPTR(MTYPE_EIGRP_PACKET, ep) == NULL || XPTR(MTYPE_EIGRP_NEIGHBOR, ep->nbr)) {
+		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Interface %s has no packet or the neighbor is down.",
 			 ei->ifp->name);
 		goto out;
 	}
@@ -390,7 +390,7 @@ int eigrp_write(struct thread *thread)
 	 */
 	eigrph = (struct eigrp_header *)STREAM_DATA(ep->s);
 
-	if (ep->nbr && !(IN_MULTICAST(htonl(ep->dst.s_addr)))) {
+	if (XPTR(MTYPE_EIGRP_NEIGHBOR, ep->nbr) && !(IN_MULTICAST(htonl(ep->dst.s_addr)))) {
 		eigrph->ack = htonl(ep->nbr->recv_sequence_number);
 		eigrph->checksum = 0;
 		eigrp_packet_checksum(ei, ep->s, ep->length);

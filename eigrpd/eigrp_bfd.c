@@ -387,7 +387,7 @@ int eigrp_bfd_write(struct thread *thread){
     }
 
     for (ALL_LIST_ELEMENTS_RO(eigrp_bfd_server_get(eigrp_lookup())->sessions, n1, session)) {
-        if (session->nbr && listnode_lookup(session->ei->nbrs, session->nbr) && session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
+        if (XPTR(MTYPE_EIGRP_NEIGHBOR, session->nbr) && listnode_lookup(session->ei->nbrs, session->nbr) && session->nbr->src.s_addr == msg->iph.ip_dst.s_addr) {
             break;
         }
     }

@@ -25,6 +25,8 @@
 static struct memgroup *mg_first = NULL;
 struct memgroup **mg_insert = &mg_first;
 
+/* We implement a smaller subset of the linked list for use in pointer tracking and validation. */
+
 struct memnode {
     struct memnode *next;
     struct memnode *prev;
@@ -91,6 +93,9 @@ static void memnode_add(struct memlist *list, void *val)
 {
     struct memnode *node;
 
+    if (val == NULL)
+        return;
+
     node = memnode_new();
 
     node->prev = list->tail;
@@ -142,6 +147,9 @@ static struct memnode *memnode_lookup(struct memlist *list, void *data)
     struct memnode *node;
 
     assert(list);
+    if (data == NULL)
+        return NULL;
+
     for (node = listhead(list); node; node = listnextnode(node))
         if (data == listgetdata(node))
             return node;
