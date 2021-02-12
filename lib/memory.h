@@ -129,7 +129,7 @@ DECLARE_MGROUP(LIB)
 DECLARE_MTYPE(TMP)
 DECLARE_MTYPE(PREFIX_FLOWSPEC)
 
-
+extern void *qcheck(struct memtype *mt, void *ptr);
 extern void *qmalloc(struct memtype *mt, size_t size)
 	__attribute__((malloc, _ALLOC_SIZE(2), nonnull(1) _RET_NONNULL));
 extern void *qcalloc(struct memtype *mt, size_t size)
@@ -140,6 +140,7 @@ extern void *qstrdup(struct memtype *mt, const char *str)
 	__attribute__((malloc, nonnull(1) _RET_NONNULL));
 extern void qfree(struct memtype *mt, void *ptr) __attribute__((nonnull(1)));
 
+#define XPTR(mtype, ptr)            qcheck(mtype, ptr)
 #define XMALLOC(mtype, size)		qmalloc(mtype, size)
 #define XCALLOC(mtype, size)		qcalloc(mtype, size)
 #define XREALLOC(mtype, ptr, size)	qrealloc(mtype, ptr, size)

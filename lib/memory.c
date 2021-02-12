@@ -17,12 +17,213 @@
 #include <zebra.h>
 
 #include <stdlib.h>
+#include <thread.h>
 
 #include "memory.h"
 #include "log.h"
 
 static struct memgroup *mg_first = NULL;
 struct memgroup **mg_insert = &mg_first;
+
+struct memnode {
+    struct memnode *next;
+    struct memnode *prev;
+
+    /* private member, use getdata() to retrieve, do not access directly */
+    void *data;
+};
+
+struct memlist {
+    struct memnode *head;
+    struct memnode *tail;
+
+    /* invariant: count is the number of listnodes in the list */
+    unsigned int count;
+};
+
+#define listnextnode(X) ((X) ? ((X)->next) : NULL)
+#define listhead(X) ((X) ? ((X)->head) : NULL)
+#define listtail(X) ((X) ? ((X)->tail) : NULL)
+#define listcount(X) ((X)->count)
+#define list_isempty(X) ((X)->head == NULL && (X)->tail == NULL)
+/* return X->data only if X and X->data are not NULL */
+#define listgetdata(X) (assert(X), assert((X)->data != NULL), (X)->data)
+
+#define ALL_LIST_ELEMENTS(list, node, nextnode, data)                          \
+	(node) = listhead(list), ((data) = NULL);                              \
+	(node) != NULL && ((data) = listgetdata(node), (nextnode) = node->next, 1);   \
+	(node) = (nextnode), ((data) = NULL)
+
+#define ALL_LIST_ELEMENTS_RO(list, node, data)                                 \
+	(node) = listhead(list), ((data) = NULL);                              \
+	(node) != NULL && ((data) = listgetdata(node), 1);                     \
+	(node) = listnextnode(node), ((data) = NULL)
+
+static struct memlist *memlist_new();
+static struct memnode *memnode_new();
+static void memnode_free(struct memnode *node);
+static void memnode_add(struct memlist *list, void *val);
+static void memnode_delete(struct memlist *list, void *val);
+static struct memnode *memnode_lookup(struct memlist *list, void *data);
+
+static struct memlist * lock_mtype_ptr_list(struct memtype *mt);
+static struct memlist * ptr_tables(void);
+static void release_mtype_ptr_list(struct memtype *mt);
+static void *track_pointer(struct memtype *mt, void *this_p);
+static void remove_pointer(struct memtype *mt, void *this_p);
+
+static struct memlist *memlist_new()
+{
+    return calloc(sizeof(struct memlist), 1);
+}
+
+static struct memnode *memnode_new()
+{
+    return calloc(sizeof(struct memlist), 1);
+}
+
+static void memnode_free(struct memnode *node)
+{
+    free(node);
+}
+
+static void memnode_add(struct memlist *list, void *val)
+{
+    struct memnode *node;
+
+    node = memnode_new();
+
+    node->prev = list->tail;
+    node->data = val;
+
+    if (list->head == NULL)
+        list->head = node;
+    else
+        list->tail->next = node;
+    list->tail = node;
+
+    list->count++;
+}
+
+static void memnode_delete(struct memlist *list, void *val)
+{
+    struct memnode *node;
+
+    assert(list);
+    for (node = list->head; node; node = node->next) {
+        if (node->data == val) {
+            if (node->prev)
+                node->prev->next = node->next;
+            else
+                list->head = node->next;
+
+            if (node->next)
+                node->next->prev = node->prev;
+            else
+                list->tail = node->prev;
+
+            //If list node is head or tail, adjust list -- JATF
+            if (list->head == node)
+                list->head = node->next;
+
+            if (list->tail == node)
+                list->tail = node->prev;
+
+            list->count--;
+
+            memnode_free(node);
+            return;
+        }
+    }
+}
+
+static struct memnode *memnode_lookup(struct memlist *list, void *data)
+{
+    struct memnode *node;
+
+    assert(list);
+    for (node = listhead(list); node; node = listnextnode(node))
+        if (data == listgetdata(node))
+            return node;
+    return NULL;
+}
+
+struct mtype_list {
+    struct memtype *mtype;
+    pthread_mutex_t m;
+    struct memlist *list_of_pointers;
+};
+
+static struct memlist * ptr_tables(void) {
+    static struct memlist *table_of_tables = NULL;
+
+    if (table_of_tables == NULL) {
+        table_of_tables = memlist_new();
+    }
+    return table_of_tables;
+}
+
+static struct memlist * lock_mtype_ptr_list(struct memtype *mt) {
+    struct memnode *nn;
+    struct mtype_list *ptr_list;
+
+    for (ALL_LIST_ELEMENTS_RO(ptr_tables(), nn, ptr_list)) {
+        if (ptr_list->mtype == mt) {
+            pthread_mutex_lock(&ptr_list->m);
+            return ptr_list->list_of_pointers;
+        }
+    }
+
+    /* Table for this type does not exist. Create it. */
+    struct mtype_list *new_list = malloc(sizeof(struct mtype_list));
+    new_list->mtype = mt;
+
+    pthread_mutex_init(&new_list->m, 0);
+    pthread_mutex_lock(&new_list->m);
+
+    new_list->list_of_pointers = memlist_new();
+    memnode_add(ptr_tables(), new_list);
+
+    return new_list->list_of_pointers;
+}
+
+static void release_mtype_ptr_list(struct memtype *mt) {
+    struct memnode *nn;
+    struct mtype_list *ptr_list;
+
+    for (ALL_LIST_ELEMENTS_RO(ptr_tables(), nn, ptr_list)) {
+        if (ptr_list->mtype == mt) {
+            pthread_mutex_unlock(&ptr_list->m);
+            break;
+        }
+    }
+}
+
+static void *track_pointer(struct memtype *mt, void *this_p) {
+    struct memlist *pl = lock_mtype_ptr_list(mt);
+
+    memnode_add(pl, this_p);
+
+    release_mtype_ptr_list(mt);
+
+    return this_p;
+}
+
+static void remove_pointer(struct memtype *mt, void *this_p) {
+
+    memnode_delete(lock_mtype_ptr_list(mt), this_p);
+    release_mtype_ptr_list(mt);
+}
+
+void *qcheck(struct memtype *mt, void *ptr) {
+
+    if (memnode_lookup(lock_mtype_ptr_list(mt), ptr) != NULL) {
+        release_mtype_ptr_list(mt);
+        return ptr;
+    }
+
+    return NULL;
+}
 
 DEFINE_MGROUP(LIB, "libfrr")
 DEFINE_MTYPE(LIB, TMP, "Temporary memory")
@@ -64,30 +265,34 @@ static inline void *mt_checkalloc(struct memtype *mt, void *ptr, size_t size)
 
 void *qmalloc(struct memtype *mt, size_t size)
 {
-	return mt_checkalloc(mt, malloc(size), size);
+	return mt_checkalloc(mt, track_pointer(mt, malloc(size)), size);
 }
 
 void *qcalloc(struct memtype *mt, size_t size)
 {
-	return mt_checkalloc(mt, calloc(size, 1), size);
+	return mt_checkalloc(mt, track_pointer(mt, calloc(size, 1)), size);
 }
 
 void *qrealloc(struct memtype *mt, void *ptr, size_t size)
 {
-	if (ptr)
-		mt_count_free(mt);
-	return mt_checkalloc(mt, ptr ? realloc(ptr, size) : malloc(size), size);
+	if (ptr) {
+        mt_count_free(mt);
+        remove_pointer(mt, ptr);
+    }
+	return mt_checkalloc(mt, ptr ? track_pointer(mt, realloc(ptr, size)) : track_pointer(mt, malloc(size)), size);
 }
 
 void *qstrdup(struct memtype *mt, const char *str)
 {
-	return str ? mt_checkalloc(mt, strdup(str), strlen(str) + 1) : NULL;
+	return str ? mt_checkalloc(mt, track_pointer(mt, strdup(str)), strlen(str) + 1) : NULL;
 }
 
 void qfree(struct memtype *mt, void *ptr)
 {
-	if (ptr)
-		mt_count_free(mt);
+	if (ptr) {
+        mt_count_free(mt);
+        remove_pointer(mt, ptr);
+    }
 	free(ptr);
 }
 
