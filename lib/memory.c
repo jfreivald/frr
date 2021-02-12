@@ -208,10 +208,8 @@ static void release_mtype_ptr_list(struct memtype *mt) {
 }
 
 static void *track_pointer(struct memtype *mt, void *this_p) {
-    struct memlist *pl = lock_mtype_ptr_list(mt);
 
-    memnode_add(pl, this_p);
-
+    memnode_add(lock_mtype_ptr_list(mt), this_p);
     release_mtype_ptr_list(mt);
 
     return this_p;

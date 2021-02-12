@@ -362,7 +362,7 @@ int eigrp_write(struct thread *thread)
 
 	/* Get one packet from queue. */
 	ep = eigrp_fifo_next(ei->obuf);
-	if (XPTR(MTYPE_EIGRP_PACKET, ep) == NULL || XPTR(MTYPE_EIGRP_NEIGHBOR, ep->nbr)) {
+	if (XPTR(MTYPE_EIGRP_PACKET, ep) == NULL || XPTR(MTYPE_EIGRP_NEIGHBOR, ep->nbr) == NULL) {
 		L(zlog_err, LOGGER_EIGRP, LOGGER_EIGRP_PACKET,"Interface %s has no packet or the neighbor is down.",
 			 ei->ifp->name);
 		goto out;
