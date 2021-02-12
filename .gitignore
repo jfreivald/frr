@@ -95,3 +95,4 @@ doc-pak
 tun_up.sh
 cmake-build*
 .idea
+vgcore.*
