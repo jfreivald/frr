@@ -228,6 +228,7 @@ void *qcheck(struct memtype *mt, void *ptr) {
         return ptr;
     }
 
+    release_mtype_ptr_list(mt);
     return NULL;
 }
 
